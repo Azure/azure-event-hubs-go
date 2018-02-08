@@ -1,0 +1,19 @@
+[prune]
+  go-tests = true
+  unused-packages = true
+
+[[constraint]]
+    name = "pack.ag/amqp"
+    branch = "master"
+
+[[constraint]]
+    name = "github.com/Azure/azure-sdk-for-go"
+    version = "12.2.0-beta"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.4"
+
+[[constraint]]
+  name = "github.com/satori/go.uuid"
+  version = "1.2.0"
