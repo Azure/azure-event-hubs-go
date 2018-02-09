@@ -17,7 +17,7 @@ DEP   	= dep
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
-TIMEOUT = 300
+TIMEOUT = 100
 
 .PHONY: all
 all: fmt vendor lint vet | $(BASE) ; $(info $(M) building library…) @ ## Build program
@@ -43,7 +43,7 @@ $(BIN)/golint: | $(BASE) ; $(info $(M) building golint…)
 
 # Tests
 
-TEST_TARGETS := test-default test-bench test-short test-verbose test-race
+TEST_TARGETS := test-default test-bench test-short test-verbose test-race test-debug
 .PHONY: $(TEST_TARGETS) test-xml check test tests
 test-bench:   ARGS=-run=__absolutelynothing__ -bench=. ## Run benchmarks
 test-short:   ARGS=-short        ## Run only short tests

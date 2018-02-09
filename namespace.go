@@ -74,11 +74,20 @@ func NewNamespaceWithTokenProviders(subscriptionID, resourceGroup, name string, 
 }
 
 // NewEventHub builds an instance of an EventHub for sending and receiving messages
-func (ns *Namespace) NewEventHub(name string) SenderReceiver {
-	return &hub{
+func (ns *Namespace) NewEventHub(name string, opts ...HubOption) (SenderReceiver, error) {
+	h := &hub{
 		name:      name,
 		namespace: ns,
 	}
+
+	for _, opt := range opts {
+		err := opt(h)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return h, nil
 }
 
 func (ns *Namespace) connection() (*amqp.Client, error) {
@@ -109,7 +118,8 @@ func getArmTokenProvider(credential ServicePrincipalCredentials, env azure.Envir
 }
 
 func getEventHubsTokenProvider(credential ServicePrincipalCredentials, env azure.Environment) (*adal.ServicePrincipalToken, error) {
-	return getTokenProvider(env.ServiceBusEndpoint, credential, env)
+	// TODO: fix the azure environment var for the SB endpoint and EH endpoint
+	return getTokenProvider("https://eventhubs.azure.net/", credential, env)
 }
 
 // claimsBasedSecurityEnabled indicates that the connection will use AAD JWT RBAC to authenticate in connections

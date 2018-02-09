@@ -121,7 +121,7 @@ func (ns *Namespace) negotiateClaim(entityPath string) error {
 				log.Debugf("Re-negotiating cbs for %s in name %s. Received status code: %d and error: %s", entityPath, ns.name, statusCode, description)
 				return nil, &retryable{message: "cbs error: " + description}
 			} else {
-				log.Debugf("Failed negotiating cbs for %s in name %s with error %d", entityPath, ns.name, statusCode)
+				log.Debugf("Failed negotiating cbs for %s in name %s with error %d and message %s", entityPath, ns.name, statusCode, description)
 				return nil, fmt.Errorf("cbs error: failed with code %d and message: %s", statusCode, description)
 			}
 		}

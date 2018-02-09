@@ -7,13 +7,14 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
+	"net/http"
 )
 
 type (
-	// HubOption represents an option for configuring an Event Hub.
-	HubOption func(model *mgmt.Model) error
-	// NamespaceOption represents an option for configuring a Namespace
-	NamespaceOption func(ns *mgmt.EHNamespace) error
+	// HubMgmtOption represents an option for configuring an Event Hub.
+	HubMgmtOption func(model *mgmt.Model) error
+	// NamespaceMgmtOption represents an option for configuring a Namespace
+	NamespaceMgmtOption func(ns *mgmt.EHNamespace) error
 )
 
 // GetNamespace fetches a namespace entity from the Azure Resource Manager
@@ -30,22 +31,21 @@ func (ns *Namespace) GetNamespace(ctx context.Context) (*mgmt.EHNamespace, error
 func EnsureResourceGroup(ctx context.Context, subscriptionID, name, location string, armToken *adal.ServicePrincipalToken, env azure.Environment) (*rm.Group, error) {
 	groupClient := getRmGroupClientWithToken(subscriptionID, armToken, env)
 	group, err := groupClient.Get(ctx, name)
-	if err != nil {
-		return nil, err
-	}
 
-	if group.StatusCode == 404 {
+	if group.StatusCode == http.StatusNotFound {
 		group, err = groupClient.CreateOrUpdate(ctx, name, rm.Group{Location: ptrString(location)})
 		if err != nil {
 			return nil, err
 		}
+	} else if group.StatusCode >= 400 {
+		return nil, err
 	}
 
 	return &group, nil
 }
 
 // EnsureNamespace creates a Azure Event Hub Namespace if it does not already exist
-func EnsureNamespace(ctx context.Context, subscriptionID, rg, name, location string, armToken *adal.ServicePrincipalToken, env azure.Environment, opts ...NamespaceOption) (*mgmt.EHNamespace, error) {
+func EnsureNamespace(ctx context.Context, subscriptionID, rg, name, location string, armToken *adal.ServicePrincipalToken, env azure.Environment, opts ...NamespaceMgmtOption) (*mgmt.EHNamespace, error) {
 	_, err := EnsureResourceGroup(ctx, subscriptionID, rg, location, armToken, env)
 	if err != nil {
 		return nil, err
@@ -88,12 +88,15 @@ func EnsureNamespace(ctx context.Context, subscriptionID, rg, name, location str
 		if err != nil {
 			return nil, err
 		}
+	} else if namespace.StatusCode >= 400 {
+		return nil, err
 	}
+
 	return &namespace, nil
 }
 
 // EnsureEventHub creates an Event Hub within the given Namespace if it does not already exist
-func (ns *Namespace) EnsureEventHub(ctx context.Context, name string, opts ...HubOption) (*mgmt.Model, error) {
+func (ns *Namespace) EnsureEventHub(ctx context.Context, name string, opts ...HubMgmtOption) (*mgmt.Model, error) {
 	client := ns.getEventHubMgmtClient()
 	hub, err := client.Get(ctx, ns.resourceGroup, ns.name, name)
 
@@ -155,7 +158,7 @@ func (ns *Namespace) getRmGroupClient() *rm.GroupsClient {
 }
 
 func getRmGroupClientWithToken(subscriptionID string, armToken *adal.ServicePrincipalToken, env azure.Environment) *rm.GroupsClient {
-	groupsClient := rm.NewGroupsClientWithBaseURI(subscriptionID, env.ResourceManagerEndpoint)
+	groupsClient := rm.NewGroupsClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
 	groupsClient.Authorizer = autorest.NewBearerAuthorizer(armToken)
 	return &groupsClient
 }

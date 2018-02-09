@@ -2,6 +2,7 @@ package eventhub
 
 import (
 	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
@@ -9,11 +10,11 @@ import (
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
-		hub        *hub
-		session    *session
-		sender     *amqp.Sender
-		entityPath string
-		Name       string
+		hub         *hub
+		session     *session
+		sender      *amqp.Sender
+		partitionID *string
+		Name        string
 	}
 
 	// SendOption provides a way to customize a message on sending
@@ -21,13 +22,13 @@ type (
 )
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
-func (h *hub) newSender(entityPath string) (*sender, error) {
+func (h *hub) newSender() (*sender, error) {
 	s := &sender{
-		hub:        h,
-		entityPath: entityPath,
+		hub:         h,
+		partitionID: h.senderPartitionID,
 	}
 
-	log.Debugf("creating a new sender for entity path %s", entityPath)
+	log.Debugf("creating a new sender for entity path %s", s.getAddress())
 	err := s.newSessionAndLink()
 	if err != nil {
 		return nil, err
@@ -69,6 +70,7 @@ func (s *sender) Close() error {
 func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption) error {
 	// TODO: Add in recovery logic in case the link / session has gone down
 	s.prepareMessage(msg)
+
 	for _, opt := range opts {
 		err := opt(msg)
 		if err != nil {
@@ -76,7 +78,10 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 		}
 	}
 
-	log.Debugf("sending message...")
+	if s.partitionID != nil {
+		msg.Annotations["x-opt-partition-key"] = s.partitionID
+	}
+
 	err := s.sender.Send(ctx, msg)
 	if err != nil {
 		return err
@@ -88,20 +93,27 @@ func (s *sender) String() string {
 	return s.Name
 }
 
+func (s *sender) getAddress() string {
+	if s.partitionID != nil {
+		return fmt.Sprintf("%s/Partitions/%s", s.hub.name, *s.partitionID)
+	}
+	return s.hub.name
+}
+
 func (s *sender) prepareMessage(msg *amqp.Message) {
 	if msg.Properties == nil {
 		msg.Properties = &amqp.MessageProperties{}
 	}
 
-	if msg.Properties.GroupID == "" {
-		SendWithSession(s.session.String(), s.session.getNext())(msg)
+	if msg.Annotations == nil {
+		msg.Annotations = make(map[interface{}]interface{})
 	}
 }
 
 // newSessionAndLink will replace the existing session and link
 func (s *sender) newSessionAndLink() error {
 	if s.hub.namespace.claimsBasedSecurityEnabled() {
-		err := s.hub.namespace.negotiateClaim(s.entityPath)
+		err := s.hub.namespace.negotiateClaim(s.getAddress())
 		if err != nil {
 			return err
 		}
@@ -117,7 +129,7 @@ func (s *sender) newSessionAndLink() error {
 		return err
 	}
 
-	amqpSender, err := amqpSession.NewSender(amqp.LinkTargetAddress(s.entityPath))
+	amqpSender, err := amqpSession.NewSender(amqp.LinkTargetAddress(s.getAddress()))
 	if err != nil {
 		return err
 	}
@@ -125,6 +137,14 @@ func (s *sender) newSessionAndLink() error {
 	s.session = newSession(amqpSession)
 	s.sender = amqpSender
 	return nil
+}
+
+// SendWithMessageID configures the message with a message ID
+func SendWithMessageID(messageID string) SendOption {
+	return func(msg *amqp.Message) error {
+		msg.Properties.MessageID = messageID
+		return nil
+	}
 }
 
 // SendWithSession configures the message to send with a specific session and sequence. By default, a sender has a
