@@ -89,6 +89,10 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 	return nil
 }
 
+//func (s *sender) SendBatch(ctx context.Context, messages []*amqp.Message) error {
+//
+//}
+
 func (s *sender) String() string {
 	return s.Name
 }

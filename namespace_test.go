@@ -3,6 +3,7 @@ package eventhub
 import (
 	"context"
 	"flag"
+	"fmt"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	rm "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2017-05-10/resources"
 	"github.com/Azure/go-autorest/autorest/adal"
@@ -16,7 +17,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"fmt"
 )
 
 var (
@@ -118,6 +118,7 @@ func testBasicSendAndReceive(t *testing.T, ns *Namespace, mgmtHub *mgmt.Model) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer hub.Close()
 
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
@@ -134,6 +135,7 @@ func testBasicSendAndReceive(t *testing.T, ns *Namespace, mgmtHub *mgmt.Model) {
 			err := hub.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
 			cancel()
 			if err != nil {
+				log.Println(idx)
 				log.Fatalln(err)
 			}
 		}
