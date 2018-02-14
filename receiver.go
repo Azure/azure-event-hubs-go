@@ -15,7 +15,7 @@ const (
 	DefaultConsumerGroup = "$Default"
 
 	// StartOfStream is a constant defined to represent the start of a partition stream in EventHub.
-	StartOfStream = -1
+	StartOfStream = "-1"
 
 	// EndOfStream is a constant defined to represent the current end of a partition stream in EventHub.
 	// This can be used as an offset argument in receiver creation to start receiving from the latest
@@ -34,7 +34,6 @@ type (
 		session            *session
 		receiver           *amqp.Receiver
 		consumerGroup      string
-		streamPosition     int64
 		partitionID        string
 		prefetchCount      uint32
 		done               chan struct{}
@@ -53,10 +52,12 @@ func ReceiveWithConsumerGroup(consumerGroup string) ReceiveOption {
 	}
 }
 
-// ReceiveWithStreamPosition configures the receiver to start at a given position in the event stream
-func ReceiveWithStreamPosition(position int64) ReceiveOption {
+// ReceiveWithStartingOffset configures the receiver to start at a given position in the event stream
+//
+// This setting will be overridden by the Hub's OffsetPersister if an offset can be read.
+func ReceiveWithStartingOffset(offset string) ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.streamPosition = position
+		receiver.storeLastReceivedOffset(offset)
 		return nil
 	}
 }
@@ -72,12 +73,11 @@ func ReceiveWithPrefetchCount(prefetch uint32) ReceiveOption {
 // newReceiver creates a new Service Bus message listener given an AMQP client and an entity path
 func (h *hub) newReceiver(partitionID string, opts ...ReceiveOption) (*receiver, error) {
 	receiver := &receiver{
-		hub:            h,
-		consumerGroup:  DefaultConsumerGroup,
-		streamPosition: StartOfStream,
-		prefetchCount:  defaultPrefetchCount,
-		partitionID:    partitionID,
-		done:           make(chan struct{}),
+		hub:           h,
+		consumerGroup: DefaultConsumerGroup,
+		prefetchCount: defaultPrefetchCount,
+		partitionID:   partitionID,
+		done:          make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -142,10 +142,7 @@ func (r *receiver) handleMessages(messages chan *amqp.Message, handler Handler) 
 			return
 		case msg := <-messages:
 			ctx := context.Background()
-			id := interface{}("null")
-			if msg.Properties != nil {
-				id = msg.Properties.MessageID
-			}
+			id := messageID(msg)
 			log.Debugf("message id: %v is being passed to handler", id)
 
 			err := handler(ctx, msg)
@@ -165,13 +162,17 @@ func (r *receiver) listenForMessages(msgChan chan *amqp.Message) {
 	for {
 		select {
 		case <-r.done:
-			log.Debug("done listenting for messages")
+			log.Debug("done listening for messages")
 			return
 		default:
-			//log.Debug("attempting to receive messages")
 			waitCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			msg, err := r.receiver.Receive(waitCtx)
 			cancel()
+
+			if err == amqp.ErrLinkClosed {
+				log.Debug("done listening for messages due to link closed")
+				return
+			}
 
 			// TODO: handle receive errors better. It's not sufficient to check only for timeout
 			if err, ok := err.(net.Error); ok && err.Timeout() {
@@ -181,27 +182,9 @@ func (r *receiver) listenForMessages(msgChan chan *amqp.Message) {
 				log.Fatalln(err)
 				time.Sleep(10 * time.Second)
 			}
-			if msg != nil {
-				id := interface{}("null")
-				if msg.Properties != nil {
-					id = msg.Properties.MessageID
-				}
-				log.Debugf("message received: %v", id)
 
-				if msg.Annotations == nil {
-					// this case should not happen and will cause replay of the event log
-					log.Warnln("message id: %v does not have annotations and will not have an offset.", id)
-				} else {
-					if offset, ok := msg.Annotations[offsetAnnotationName]; ok {
-						log.Debugf("message id: %v has offset of %s", id, offset)
-						r.storeLastReceivedOffset(offset.(string))
-					} else {
-						// this case should not happen and will cause replay of the event log
-						log.Warnln("message id: %v has annotations, but doesn't contain an offset.", id)
-					}
-				}
-				msgChan <- msg
-			}
+			r.receivedMessage(msg)
+			msgChan <- msg
 		}
 	}
 }
@@ -226,6 +209,11 @@ func (r *receiver) newSessionAndLink() error {
 		return err
 	}
 
+	offsetExpression, err := r.getOffsetExpression()
+	if err != nil {
+		return err
+	}
+
 	r.session = newSession(amqpSession)
 	opts := []amqp.LinkOption{
 		amqp.LinkSourceAddress(address),
@@ -233,6 +221,7 @@ func (r *receiver) newSessionAndLink() error {
 		amqp.LinkSenderSettle(amqp.ModeUnsettled),
 		amqp.LinkReceiverSettle(amqp.ModeSecond),
 		amqp.LinkBatching(true),
+		amqp.LinkSelectorFilter(offsetExpression),
 	}
 
 	amqpReceiver, err := amqpSession.NewReceiver(opts...)
@@ -244,22 +233,60 @@ func (r *receiver) newSessionAndLink() error {
 	return nil
 }
 
-func (r *receiver) getLastReceivedOffset() string {
-	return r.lastReceivedOffset.Load().(string)
+func (r *receiver) getLastReceivedOffset() (string, error) {
+	return r.offsetPersister().Read(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID)
 }
 
-func (r *receiver) storeLastReceivedOffset(offset string) {
-	r.lastReceivedOffset.Store(offset)
+func (r *receiver) storeLastReceivedOffset(offset string) error {
+	return r.offsetPersister().Write(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID, offset)
 }
 
-func (r *receiver) getOffsetExpression() string {
-	if r.getLastReceivedOffset() != "" {
-		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "", r.getLastReceivedOffset())
+func (r *receiver) getOffsetExpression() (string, error) {
+	offset, err := r.getLastReceivedOffset()
+	if err != nil {
+		// assume err read is due to not having an offset -- probably want to change this as it's ambiguous
+		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", StartOfStream), nil
 	}
-
-	return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", string(r.streamPosition))
+	return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "", offset), nil
 }
 
 func (r *receiver) getAddress() string {
-	return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s", r.hub.name, r.consumerGroup, r.partitionID)
+	return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s", r.hubName(), r.consumerGroup, r.partitionID)
+}
+
+func (r *receiver) namespaceName() string {
+	return r.hub.namespace.name
+}
+
+func (r *receiver) hubName() string {
+	return r.hub.name
+}
+
+func (r *receiver) offsetPersister() OffsetPersister {
+	return r.hub.offsetPersister
+}
+
+func (r *receiver) receivedMessage(msg *amqp.Message) {
+	id := messageID(msg)
+	log.Debugf("message id: %v received", id)
+	if msg.Annotations == nil {
+		// this case should not happen and will cause replay of the event log
+		log.Warnln("message id: %v does not have annotations and will not have an offset.", id)
+	} else {
+		if offset, ok := msg.Annotations[offsetAnnotationName]; ok {
+			log.Debugf("message id: %v has offset of %s", id, offset)
+			r.storeLastReceivedOffset(offset.(string))
+		} else {
+			// this case should not happen and will cause replay of the event log
+			log.Warnln("message id: %v has annotations, but doesn't contain an offset.", id)
+		}
+	}
+}
+
+func messageID(msg *amqp.Message) interface{} {
+	id := interface{}("null")
+	if msg.Properties != nil {
+		id = msg.Properties.MessageID
+	}
+	return id
 }

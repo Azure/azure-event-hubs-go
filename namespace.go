@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
+	"runtime"
 	"sync"
 )
 
@@ -76,8 +77,10 @@ func NewNamespaceWithTokenProviders(subscriptionID, resourceGroup, name string, 
 // NewEventHub builds an instance of an EventHub for sending and receiving messages
 func (ns *Namespace) NewEventHub(name string, opts ...HubOption) (SenderReceiver, error) {
 	h := &hub{
-		name:      name,
-		namespace: ns,
+		name:            name,
+		namespace:       ns,
+		offsetPersister: new(MemoryPersister),
+		userAgent:       rootUserAgent,
 	}
 
 	for _, opt := range opts {
@@ -96,7 +99,15 @@ func (ns *Namespace) connection() (*amqp.Client, error) {
 
 	if ns.client == nil && ns.claimsBasedSecurityEnabled() {
 		host := ns.getAmqpHostURI()
-		client, err := amqp.Dial(host, amqp.ConnSASLAnonymous(), amqp.ConnMaxSessions(65535))
+		client, err := amqp.Dial(
+			host,
+			amqp.ConnSASLAnonymous(),
+			amqp.ConnMaxSessions(65535),
+			amqp.ConnProperty("product", "MSGolangClient"),
+			amqp.ConnProperty("version", "0.0.1"),
+			amqp.ConnProperty("platform", runtime.GOOS),
+			amqp.ConnProperty("framework", runtime.Version()),
+			amqp.ConnProperty("user-agent", rootUserAgent))
 		if err != nil {
 			return nil, err
 		}

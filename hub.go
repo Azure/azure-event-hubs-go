@@ -3,8 +3,15 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"pack.ag/amqp"
+	"path"
 	"sync"
+)
+
+const (
+	maxUserAgentLen = 128
+	rootUserAgent   = "/golang-event-hubs"
 )
 
 type (
@@ -16,6 +23,8 @@ type (
 		senderPartitionID *string
 		receiverMu        sync.Mutex
 		senderMu          sync.Mutex
+		offsetPersister   OffsetPersister
+		userAgent         string
 	}
 
 	// Handler is the function signature for any receiver of AMQP messages
@@ -46,10 +55,20 @@ type (
 
 	// HubOption provides structure for configuring new Event Hub instances
 	HubOption func(h *hub) error
+
+	// OffsetPersister provides persistence for the received offset for a given namespace, hub name, consumer group, partition Id and
+	// offset so that if a receiver where to be interrupted, it could resume after the last consumed event.
+	OffsetPersister interface {
+		Write(namespace, name, consumerGroup, partitionID, offset string) error
+		Read(namespace, name, consumerGroup, partitionID string) (string, error)
+	}
 )
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *hub) Close() error {
+	for _, r := range h.receivers {
+		r.Close()
+	}
 	return nil
 }
 
@@ -88,6 +107,35 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 		h.senderPartitionID = &partitionID
 		return nil
 	}
+}
+
+// HubWithOffsetPersistence configures the hub instance to read and write offsets so that if a hub is interrupted, it
+// can resume after the last consumed event.
+func HubWithOffsetPersistence(offsetPersister OffsetPersister) HubOption {
+	return func(h *hub) error {
+		h.offsetPersister = offsetPersister
+		return nil
+	}
+}
+
+// HubWithUserAgent configures the hub to append the given string to the user agent sent to the server
+//
+// This option can be specified multiple times to add additional segments.
+//
+// Max user agent length is specified by the const maxUserAgentLen.
+func HubWithUserAgent(userAgent string) HubOption {
+	return func(h *hub) error {
+		return h.appendAgent(userAgent)
+	}
+}
+
+func (h *hub) appendAgent(userAgent string) error {
+	ua := path.Join(h.userAgent, userAgent)
+	if len(ua) > maxUserAgentLen {
+		return errors.Errorf("user agent string has surpassed the max length of %d", maxUserAgentLen)
+	}
+	h.userAgent = ua
+	return nil
 }
 
 func (h *hub) getSender() (*sender, error) {
