@@ -36,6 +36,12 @@ func ptrInt32(number int32) *int32 {
 	return &number
 }
 
+
+// ptrInt64 takes a int64 and returns a pointer to that int64. For use in literal pointers, ptrInt64(1) -> *int64
+func ptrInt64(number int64) *int64 {
+	return &number
+}
+
 // durationTo8601Seconds takes a duration and returns a string period of whole seconds (int cast of float)
 func durationTo8601Seconds(duration *time.Duration) *string {
 	return ptrString(fmt.Sprintf("PT%dS", int(duration.Seconds())))
