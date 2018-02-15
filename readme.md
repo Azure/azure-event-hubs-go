@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="event-hubs.png" alt="Microsoft Azure Event Hubs" width="100"/>
-</p>
-
 # Microsoft Azure Event Hubs Client for Golang
 
 Azure Event Hubs is a highly scalable publish-subscribe service that can ingest millions of events per second and 
