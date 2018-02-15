@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"net/http"
+	"github.com/pkg/errors"
 )
 
 type (
@@ -103,7 +104,9 @@ func (ns *Namespace) EnsureEventHub(ctx context.Context, name string, opts ...Hu
 	if err != nil {
 		newHub := &mgmt.Model{
 			Name:       &name,
-			Properties: &mgmt.Properties{},
+			Properties: &mgmt.Properties{
+				PartitionCount: ptrInt64(4),
+			},
 		}
 
 		for _, opt := range opts {
@@ -119,6 +122,19 @@ func (ns *Namespace) EnsureEventHub(ctx context.Context, name string, opts ...Hu
 		}
 	}
 	return &hub, nil
+}
+
+// EventHubWithPartitions configures an Event Hub to have a specific number of partitions.
+//
+// Must be between 1 and 32
+func EventHubWithPartitions(count int) HubMgmtOption{
+	return func(model *mgmt.Model) error {
+		if count < 1 || count > 32 {
+			return errors.New("count must be between 1 and 32")
+		}
+		model.PartitionCount = ptrInt64(int64(count))
+		return nil
+	}
 }
 
 // DeleteEventHub deletes an Event Hub within the given Namespace

@@ -169,18 +169,16 @@ func (r *receiver) listenForMessages(msgChan chan *amqp.Message) {
 			msg, err := r.receiver.Receive(waitCtx)
 			cancel()
 
-			if err == amqp.ErrLinkClosed {
-				log.Debug("done listening for messages due to link closed")
+			if err == amqp.ErrLinkClosed || err == amqp.ErrSessionClosed {
+				log.Debug("done listening for messages due to link or session closed")
+				time.Sleep(10 * time.Second)
 				return
-			}
-
-			// TODO: handle receive errors better. It's not sufficient to check only for timeout
-			if err, ok := err.(net.Error); ok && err.Timeout() {
+			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				log.Debug("attempting to receive messages timed out")
 				continue
 			} else if err != nil {
-				log.Fatalln(err)
-				time.Sleep(10 * time.Second)
+				log.Error(err)
+				return
 			}
 
 			r.receivedMessage(msg)
