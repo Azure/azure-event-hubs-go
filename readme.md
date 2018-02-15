@@ -1,3 +1,20 @@
+<p align="center">
+  <img src="event-hubs.png" alt="Microsoft Azure Event Hubs" width="100"/>
+</p>
+
+# Microsoft Azure Event Hubs Client for Golang
+
+Azure Event Hubs is a highly scalable publish-subscribe service that can ingest millions of events per second and 
+stream them into multiple applications. This lets you process and analyze the massive amounts of data produced by your 
+connected devices and applications. Once Event Hubs has collected the data, you can retrieve, transform and store it by 
+using any real-time analytics provider or with batching/storage adapters. 
+
+Refer to the [online documentation](https://azure.microsoft.com/services/event-hubs/) to learn more about Event Hubs in 
+general.
+
+## Examples
+- [HelloWorld: Producer and Consumer](./_examples/helloworld): an example of sending and receiving messages from an
+Event Hub instance.
 
 # Contributing
 
