@@ -86,9 +86,9 @@ func (ns *Namespace) negotiateClaim(entityPath string) error {
 	defer ns.cbsLink.negotiateMu.Unlock()
 
 	name := ns.getEntityAudience(entityPath)
-	log.Debugf("sending to: %s, expiring on: %q, via: %s", name, ns.sbToken.ExpiresOn, ns.cbsLink.clientAddress)
+	log.Debugf("sending to: %s, expiring on: %q, via: %s", name, ns.sbToken.Token().ExpiresOn, ns.cbsLink.clientAddress)
 	msg := &amqp.Message{
-		Value: ns.sbToken.AccessToken,
+		Value: ns.sbToken.Token().AccessToken,
 		Properties: &amqp.MessageProperties{
 			ReplyTo: ns.cbsLink.clientAddress,
 		},
@@ -96,7 +96,7 @@ func (ns *Namespace) negotiateClaim(entityPath string) error {
 			cbsOperationKey:  cbsOperationPutToken,
 			cbsTokenTypeKey:  cbsTokenTypeJwt,
 			cbsAudienceKey:   name,
-			cbsExpirationKey: ns.sbToken.ExpiresOn,
+			cbsExpirationKey: ns.sbToken.Token().ExpiresOn,
 		},
 	}
 
