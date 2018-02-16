@@ -4,7 +4,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/cbs"
 )
 
-func (ns *Namespace) ensureCbsLink() error {
+func (ns *namespace) ensureCbsLink() error {
 	ns.cbsMu.Lock()
 	defer ns.cbsMu.Unlock()
 
@@ -23,12 +23,11 @@ func (ns *Namespace) ensureCbsLink() error {
 	return nil
 }
 
-func (ns *Namespace) negotiateClaim(entityPath string) error {
+func (ns *namespace) negotiateClaim(entityPath string) error {
 	err := ns.ensureCbsLink()
 	audience := ns.getEntityAudience(entityPath)
-	tokenProvider, err := ns.getCBSTokenProvider()
 	if err != nil {
 		return err
 	}
-	return cbs.NegotiateClaim(audience, ns.cbsLink, tokenProvider)
+	return cbs.NegotiateClaim(audience, ns.cbsLink, ns.tokenProvider)
 }

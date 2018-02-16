@@ -116,11 +116,9 @@ func (s *sender) prepareMessage(msg *amqp.Message) {
 
 // newSessionAndLink will replace the existing session and link
 func (s *sender) newSessionAndLink() error {
-	if s.hub.namespace.claimsBasedSecurityEnabled() {
-		err := s.hub.namespace.negotiateClaim(s.getAddress())
-		if err != nil {
-			return err
-		}
+	err := s.hub.namespace.negotiateClaim(s.getAddress())
+	if err != nil {
+		return err
 	}
 
 	connection, err := s.hub.namespace.connection()

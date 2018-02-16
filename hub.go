@@ -3,6 +3,8 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-event-hubs-go/cbs"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
 	"path"
@@ -17,7 +19,7 @@ const (
 type (
 	hub struct {
 		name              string
-		namespace         *Namespace
+		namespace         *namespace
 		receivers         []*receiver
 		sender            *sender
 		senderPartitionID *string
@@ -46,8 +48,8 @@ type (
 		Close() error
 	}
 
-	// SenderReceiver provides the ability to send and receive AMQP messages
-	SenderReceiver interface {
+	// Client provides the ability to send and receive Event Hub messages
+	Client interface {
 		Sender
 		Receiver
 		Closer
@@ -63,6 +65,26 @@ type (
 		Read(namespace, name, consumerGroup, partitionID string) (string, error)
 	}
 )
+
+// NewClient creates a new Event Hub client for sending and receiving messages
+func NewClient(namespace, name string, tokenProvider cbs.TokenProvider, opts ...HubOption) (Client, error) {
+	ns := newNamespace(namespace, tokenProvider, azure.PublicCloud)
+	h := &hub{
+		name:            name,
+		namespace:       ns,
+		offsetPersister: new(MemoryPersister),
+		userAgent:       rootUserAgent,
+	}
+
+	for _, opt := range opts {
+		err := opt(h)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return h, nil
+}
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *hub) Close() error {
@@ -116,6 +138,10 @@ func HubWithOffsetPersistence(offsetPersister OffsetPersister) HubOption {
 		h.offsetPersister = offsetPersister
 		return nil
 	}
+}
+
+func (h *hub) GetEntityAudience(entityPath string) string {
+	return h.namespace.getAmqpHostURI() + entityPath
 }
 
 // HubWithUserAgent configures the hub to append the given string to the user agent sent to the server
