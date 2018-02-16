@@ -2,8 +2,12 @@ package eventhub
 
 import (
 	"fmt"
+	"github.com/Azure/azure-event-hubs-go/aad"
+	"github.com/Azure/azure-event-hubs-go/cbs"
+	"github.com/Azure/azure-event-hubs-go/sas"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 	"runtime"
@@ -22,10 +26,11 @@ type (
 		subscriptionID   string
 		resourceGroup    string
 		name             string
-		primaryKey       string
+		keyName          string
+		key              string
 		Logger           *log.Logger
 		cbsMu            sync.Mutex
-		cbsLink          *cbsLink
+		cbsLink          *cbs.Link
 	}
 
 	// ServicePrincipalCredentials contains the details needed to authenticate to Azure Active Directory with a Service
@@ -114,6 +119,15 @@ func (ns *Namespace) connection() (*amqp.Client, error) {
 		ns.client = client
 	}
 	return ns.client, nil
+}
+
+func (ns *Namespace) getCBSTokenProvider() (cbs.TokenProvider, error) {
+	if ns.sbToken != nil {
+		return aad.NewProvider(ns.sbToken), nil
+	} else if ns.key != "" && ns.keyName != "" {
+		return sas.NewProvider(ns.name, ns.keyName, ns.key), nil
+	}
+	return nil, errors.New("cbs key could not be built because SAS nor AAD tokens were present")
 }
 
 func (ns *Namespace) getAmqpHostURI() string {

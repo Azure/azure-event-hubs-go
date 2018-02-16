@@ -99,7 +99,7 @@ func BenchmarkReceive(b *testing.B) {
 	suite.SetupSuite()
 	ns := suite.getNamespace()
 	hubName := randomName("goehtest", 10)
-	mgmtHub, err := ns.EnsureEventHub(context.Background(), hubName, EventHubWithPartitions(8))
+	mgmtHub, err := ns.EnsureEventHub(context.Background(), hubName, HubWithPartitions(8))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func BenchmarkReceive(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	defer func(){
+	defer func() {
 		hub.Close()
 		ns.DeleteEventHub(context.Background(), hubName)
 	}()
