@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/Azure/azure-event-hubs-go/aad"
-	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -14,8 +13,8 @@ import (
 	"time"
 )
 
-func (suite *eventHubSuite) TestBasicOperations() {
-	tests := map[string]func(*testing.T, Client, *mgmt.Model){
+func (suite *eventHubSuite) TestPartitionedSender() {
+	tests := map[string]func(*testing.T, Client, string){
 		"TestSend":           testBasicSend,
 		"TestSendAndReceive": testBasicSendAndReceive,
 	}
@@ -24,6 +23,7 @@ func (suite *eventHubSuite) TestBasicOperations() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	token.Refresh()
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
@@ -33,14 +33,14 @@ func (suite *eventHubSuite) TestBasicOperations() {
 				t.Fatal(err)
 			}
 			defer suite.deleteEventHub(context.Background(), hubName)
-
+			partitionID := (*mgmtHub.PartitionIds)[0]
 			provider := aad.NewProvider(token)
-			client, err := NewClient(suite.namespace, hubName, provider)
+			client, err := NewClient(suite.namespace, hubName, provider, HubWithPartitionedSender(partitionID))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			testFunc(t, client, mgmtHub)
+			testFunc(t, client, partitionID)
 			if err := client.Close(); err != nil {
 				t.Fatal(err)
 			}
@@ -50,16 +50,14 @@ func (suite *eventHubSuite) TestBasicOperations() {
 	}
 }
 
-func testBasicSend(t *testing.T, client Client, _ *mgmt.Model) {
+func testBasicSend(t *testing.T, client Client, _ string) {
 	err := client.Send(context.Background(), &amqp.Message{
 		Data: []byte("Hello!"),
 	})
 	assert.Nil(t, err)
 }
 
-func testBasicSendAndReceive(t *testing.T, client Client, mgmtHub *mgmt.Model) {
-	partitionID := (*mgmtHub.PartitionIds)[0]
-
+func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -89,7 +87,72 @@ func testBasicSendAndReceive(t *testing.T, client Client, mgmtHub *mgmt.Model) {
 		t.Fatal(err)
 	}
 	wg.Wait()
+}
 
+func (suite *eventHubSuite) TestMultiPartition() {
+	tests := map[string]func(*testing.T, Client, []string){
+		"TestMultiSendAndReceive": testMultiSendAndReceive,
+	}
+
+	token, err := suite.getEventHubsTokenProvider()
+	if err != nil {
+		log.Fatal(err)
+	}
+	token.Refresh()
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			hubName := randomName("goehtest", 10)
+			mgmtHub, err := suite.ensureEventHub(context.Background(), hubName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer suite.deleteEventHub(context.Background(), hubName)
+			provider := aad.NewProvider(token)
+			client, err := NewClient(suite.namespace, hubName, provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			testFunc(t, client, *mgmtHub.PartitionIds)
+			if err := client.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
+
+func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string) {
+	numMessages := rand.Intn(100) + 20
+	var wg sync.WaitGroup
+	wg.Add(numMessages)
+
+	messages := make([]string, numMessages)
+	for i := 0; i < numMessages; i++ {
+		messages[i] = randomName("hello", 10)
+	}
+
+	for idx, message := range messages {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := client.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
+		cancel()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	for _, partitionID := range partitionIDs {
+		err := client.Receive(partitionID, func(ctx context.Context, msg *amqp.Message) error {
+			wg.Done()
+			return nil
+		}, ReceiveWithPrefetchCount(100))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	wg.Wait()
 }
 
 func BenchmarkReceive(b *testing.B) {

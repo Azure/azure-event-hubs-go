@@ -148,13 +148,3 @@ func SendWithMessageID(messageID string) SendOption {
 		return nil
 	}
 }
-
-// SendWithSession configures the message to send with a specific session and sequence. By default, a sender has a
-// default session (uuid.NewV4()) and sequence generator.
-func SendWithSession(sessionID string, sequence uint32) SendOption {
-	return func(msg *amqp.Message) error {
-		msg.Properties.GroupID = sessionID
-		msg.Properties.GroupSequence = sequence
-		return nil
-	}
-}

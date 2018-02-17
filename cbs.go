@@ -25,9 +25,9 @@ func (ns *namespace) ensureCbsLink() error {
 
 func (ns *namespace) negotiateClaim(entityPath string) error {
 	err := ns.ensureCbsLink()
-	audience := ns.getEntityAudience(entityPath)
 	if err != nil {
 		return err
 	}
+	audience := ns.getEntityAudience(entityPath)
 	return cbs.NegotiateClaim(audience, ns.cbsLink, ns.tokenProvider)
 }

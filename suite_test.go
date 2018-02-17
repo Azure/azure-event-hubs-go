@@ -117,24 +117,6 @@ func (suite *eventHubSuite) servicePrincipalToken() *adal.ServicePrincipalToken 
 	return tokenProvider
 }
 
-//func (suite *eventHubSuite) getNamespace() *Namespace {
-//	return getNamespace(suite.tenantID, suite.subscriptionID, suite.namespace, suite.clientID, suite.clientSecret, suite.env)
-//}
-//
-//func getNamespace(tenantID, subscriptionID, namespace, appID, secret string, env azure.Environment) *Namespace {
-//	cred := ServicePrincipalCredentials{
-//		TenantID:      tenantID,
-//		ApplicationID: appID,
-//		Secret:        secret,
-//	}
-//
-//	ns, err := NewNamespaceWithServicePrincipalCredentials(subscriptionID, ResourceGroupName, namespace, cred, env)
-//	if err != nil {
-//		log.Fatalln(err)
-//	}
-//	return ns
-//}
-
 // ensureResourceGroup creates a Azure Resource Group if it does not already exist
 func ensureResourceGroup(ctx context.Context, subscriptionID, name, location string, armToken *adal.ServicePrincipalToken, env azure.Environment) (*rm.Group, error) {
 	groupClient := getRmGroupClientWithToken(subscriptionID, armToken, env)
