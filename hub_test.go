@@ -72,7 +72,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 		err := client.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
-			log.Fatalln(err)
+			t.Fatal(err)
 		}
 	}
 
@@ -139,7 +139,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string)
 		err := client.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
-			log.Fatalln(err)
+			t.Fatal(err)
 		}
 	}
 

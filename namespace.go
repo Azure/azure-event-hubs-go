@@ -2,6 +2,7 @@ package eventhub
 
 import (
 	"fmt"
+	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/cbs"
 	"github.com/Azure/go-autorest/autorest/azure"
 	log "github.com/sirupsen/logrus"
@@ -15,15 +16,13 @@ type (
 		client        *amqp.Client
 		clientMu      sync.Mutex
 		name          string
-		tokenProvider cbs.TokenProvider
+		tokenProvider auth.TokenProvider
 		environment   azure.Environment
 		Logger        *log.Logger
-		cbsMu         sync.Mutex
-		cbsLink       *cbs.Link
 	}
 )
 
-func newNamespace(name string, tokenProvider cbs.TokenProvider, env azure.Environment) *namespace {
+func newNamespace(name string, tokenProvider auth.TokenProvider, env azure.Environment) *namespace {
 	ns := &namespace{
 		name:          name,
 		tokenProvider: tokenProvider,
@@ -56,6 +55,15 @@ func (ns *namespace) connection() (*amqp.Client, error) {
 		ns.client = client
 	}
 	return ns.client, nil
+}
+
+func (ns *namespace) negotiateClaim(entityPath string) error {
+	audience := ns.getEntityAudience(entityPath)
+	conn, err := ns.connection()
+	if err != nil {
+		return err
+	}
+	return cbs.NegotiateClaim(audience, conn, ns.tokenProvider)
 }
 
 func (ns *namespace) getAmqpHostURI() string {

@@ -3,7 +3,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-event-hubs-go/cbs"
+	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
@@ -67,7 +67,7 @@ type (
 )
 
 // NewClient creates a new Event Hub client for sending and receiving messages
-func NewClient(namespace, name string, tokenProvider cbs.TokenProvider, opts ...HubOption) (Client, error) {
+func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (Client, error) {
 	ns := newNamespace(namespace, tokenProvider, azure.PublicCloud)
 	h := &hub{
 		name:            name,

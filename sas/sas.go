@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"github.com/Azure/azure-event-hubs-go/cbs"
+	"github.com/Azure/azure-event-hubs-go/auth"
 	"net/url"
 	"strconv"
 	"strings"
@@ -27,16 +27,16 @@ type (
 )
 
 // NewProvider builds a SAS claims-based security token provider
-func NewProvider(namespace, keyName, key string) cbs.TokenProvider {
+func NewProvider(namespace, keyName, key string) auth.TokenProvider {
 	return &TokenProvider{
 		signer: NewSigner(namespace, keyName, key),
 	}
 }
 
 // GetToken gets a CBS SAS token
-func (t *TokenProvider) GetToken(audience string) (*cbs.Token, error) {
+func (t *TokenProvider) GetToken(audience string) (*auth.Token, error) {
 	signed, expiry := t.signer.SignWithDuration(audience, 2*time.Hour)
-	return cbs.NewToken(cbs.CbsTokenTypeSas, signed, expiry), nil
+	return auth.NewToken(auth.CbsTokenTypeSas, signed, expiry), nil
 }
 
 // NewSigner builds a new SAS signer for use in generation Service Bus and Event Hub SAS tokens
