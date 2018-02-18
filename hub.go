@@ -36,7 +36,6 @@ type (
 	// Sender provides the ability to send a messages
 	Sender interface {
 		Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error
-		//SendBatch(ctx context.Context, mesages []*amqp.Message, opts ...SendOption) error
 	}
 
 	// Receiver provides the ability to receive messages
