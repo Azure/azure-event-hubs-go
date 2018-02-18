@@ -3,7 +3,6 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/common"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
@@ -28,7 +27,6 @@ type (
 		sender        *amqp.Sender
 		clientAddress string
 		rpcMu         sync.Mutex
-		tokenProvider auth.TokenProvider
 		id            string
 	}
 
@@ -41,7 +39,7 @@ type (
 )
 
 // NewLink will build a new request response link
-func NewLink(conn *amqp.Client, address string, provider auth.TokenProvider) (*Link, error) {
+func NewLink(conn *amqp.Client, address string) (*Link, error) {
 	authSession, err := conn.NewSession()
 	if err != nil {
 		return nil, err
@@ -49,7 +47,6 @@ func NewLink(conn *amqp.Client, address string, provider auth.TokenProvider) (*L
 
 	authSender, err := authSession.NewSender(
 		amqp.LinkTargetAddress(address),
-		//amqp.LinkSenderSettle(amqp.ModeSettled),
 	)
 	if err != nil {
 		return nil, err
@@ -59,8 +56,6 @@ func NewLink(conn *amqp.Client, address string, provider auth.TokenProvider) (*L
 	clientAddress := strings.Replace("$", "", address, -1) + replyPostfix + id
 	authReceiver, err := authSession.NewReceiver(
 		amqp.LinkSourceAddress(address),
-		//amqp.LinkSenderSettle(amqp.ModeSettled),
-		//amqp.LinkReceiverSettle(amqp.ModeSecond),
 		amqp.LinkTargetAddress(clientAddress))
 	if err != nil {
 		return nil, err
@@ -71,7 +66,6 @@ func NewLink(conn *amqp.Client, address string, provider auth.TokenProvider) (*L
 		receiver:      authReceiver,
 		session:       authSession,
 		clientAddress: clientAddress,
-		tokenProvider: provider,
 		id:            id,
 	}, nil
 }

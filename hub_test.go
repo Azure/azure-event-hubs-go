@@ -155,6 +155,61 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string)
 	wg.Wait()
 }
 
+func (suite *eventHubSuite) TestHubManagement() {
+	tests := map[string]func(*testing.T, Client, []string, string){
+		"TestHubRuntimeInformation":          testHubRuntimeInformation,
+		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
+	}
+
+	token, err := suite.getEventHubsTokenProvider()
+	if err != nil {
+		log.Fatal(err)
+	}
+	token.Refresh()
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			hubName := randomName("goehtest", 10)
+			mgmtHub, err := suite.ensureEventHub(context.Background(), hubName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer suite.deleteEventHub(context.Background(), hubName)
+			provider := aad.NewProvider(token)
+			client, err := NewClient(suite.namespace, hubName, provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			testFunc(t, client, *mgmtHub.PartitionIds, *mgmtHub.Name)
+			if err := client.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
+
+func testHubRuntimeInformation(t *testing.T, client Client, partitionIDs []string, hubName string) {
+	info, err := client.GetRuntimeInformation(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, len(partitionIDs), info.PartitionCount)
+	assert.Equal(t, hubName, info.Path)
+}
+
+func testHubPartitionRuntimeInformation(t *testing.T, client Client, partitionIDs []string, hubName string) {
+	info, err := client.GetPartitionInformation(context.Background(), partitionIDs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, hubName, info.HubPath)
+	assert.Equal(t, partitionIDs[0], info.PartitionID)
+	assert.Equal(t, "-1", info.LastEnqueuedOffset) // brand new, so should be very last
+}
+
 func BenchmarkReceive(b *testing.B) {
 	suite := new(eventHubSuite)
 	suite.SetupSuite()

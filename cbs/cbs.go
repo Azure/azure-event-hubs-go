@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/rpc"
+	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 	"time"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 
 // NegotiateClaim attempts to put a token to the $cbs management endpoint to negotiate auth for the given audience
 func NegotiateClaim(audience string, conn *amqp.Client, provider auth.TokenProvider) error {
-	link, err := rpc.NewLink(conn, cbsAddress, provider)
+	link, err := rpc.NewLink(conn, cbsAddress)
 	if err != nil {
 		return err
 	}
