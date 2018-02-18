@@ -116,11 +116,9 @@ func (s *sender) prepareMessage(msg *amqp.Message) {
 
 // newSessionAndLink will replace the existing session and link
 func (s *sender) newSessionAndLink() error {
-	if s.hub.namespace.claimsBasedSecurityEnabled() {
-		err := s.hub.namespace.negotiateClaim(s.getAddress())
-		if err != nil {
-			return err
-		}
+	err := s.hub.namespace.negotiateClaim(s.getAddress())
+	if err != nil {
+		return err
 	}
 
 	connection, err := s.hub.namespace.connection()
@@ -147,16 +145,6 @@ func (s *sender) newSessionAndLink() error {
 func SendWithMessageID(messageID string) SendOption {
 	return func(msg *amqp.Message) error {
 		msg.Properties.MessageID = messageID
-		return nil
-	}
-}
-
-// SendWithSession configures the message to send with a specific session and sequence. By default, a sender has a
-// default session (uuid.NewV4()) and sequence generator.
-func SendWithSession(sessionID string, sequence uint32) SendOption {
-	return func(msg *amqp.Message) error {
-		msg.Properties.GroupID = sessionID
-		msg.Properties.GroupSequence = sequence
 		return nil
 	}
 }

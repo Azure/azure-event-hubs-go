@@ -1,0 +1,52 @@
+package cbs
+
+import (
+	"context"
+	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-event-hubs-go/rpc"
+	log "github.com/sirupsen/logrus"
+	"pack.ag/amqp"
+	"time"
+)
+
+const (
+	cbsAddress           = "$cbs"
+	cbsOperationKey      = "operation"
+	cbsOperationPutToken = "put-token"
+	cbsTokenTypeKey      = "type"
+	cbsAudienceKey       = "name"
+	cbsExpirationKey     = "expiration"
+)
+
+// NegotiateClaim attempts to put a token to the $cbs management endpoint to negotiate auth for the given audience
+func NegotiateClaim(audience string, conn *amqp.Client, provider auth.TokenProvider) error {
+	link, err := rpc.NewLink(conn, cbsAddress)
+	if err != nil {
+		return err
+	}
+	defer link.Close()
+
+	token, err := provider.GetToken(audience)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("negotiating claim for audience %s with token type %s and expiry of %s", audience, token.TokenType, token.Expiry)
+	msg := &amqp.Message{
+		Value: token.Token,
+		ApplicationProperties: map[string]interface{}{
+			cbsOperationKey:  cbsOperationPutToken,
+			cbsTokenTypeKey:  string(token.TokenType),
+			cbsAudienceKey:   audience,
+			cbsExpirationKey: token.Expiry,
+		},
+	}
+
+	res, err := link.RetryableRPC(context.Background(), 3, 1*time.Second, msg)
+	if err == nil {
+		log.Debugf("negotiated with response code %d and message: %s", res.Code, res.Description)
+	} else {
+		log.Error(err)
+	}
+	return err
+}

@@ -5,10 +5,11 @@
   name = "github.com/Azure/azure-sdk-for-go"
   packages = [
     "services/eventhub/mgmt/2017-04-01/eventhub",
-    "services/resources/mgmt/2017-05-10/resources"
+    "services/resources/mgmt/2017-05-10/resources",
+    "version"
   ]
-  revision = "eae258195456be76b2ec9ad2ee2ab63cdda365d9"
-  version = "v12.2.0-beta"
+  revision = "8678d90a0680dc45d4b5257d09b2d5f3f40db0c8"
+  version = "v14.1.0"
 
 [[projects]]
   name = "github.com/Azure/go-autorest"
@@ -20,8 +21,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "fc3b03a2d2d1f43fad3007038bd16f044f870722"
-  version = "v9.10.0"
+  revision = "1e3943ee722538420f21945f4bc820347abe433d"
+  version = "v10.1.2"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -96,6 +97,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e4fabd96879982f1c7e1e382c69a3aeab69d1ce242ba155f5897fc390a83c891"
+  inputs-digest = "5f18a64a7717270d06573eadd917fc9fb583eb9953b9811f04fb4bc04a0c0a7f"
   solver-name = "gps-cdcl"
   solver-version = 1

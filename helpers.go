@@ -36,7 +36,6 @@ func ptrInt32(number int32) *int32 {
 	return &number
 }
 
-
 // ptrInt64 takes a int64 and returns a pointer to that int64. For use in literal pointers, ptrInt64(1) -> *int64
 func ptrInt64(number int64) *int64 {
 	return &number
@@ -129,30 +128,4 @@ func parseAzureResourceID(id string) (*resourceID, error) {
 	}
 
 	return idObj, nil
-}
-
-type retryable struct {
-	message string
-}
-
-func (r *retryable) Error() string {
-	return r.message
-}
-
-func retry(times int, delay time.Duration, action func() (interface{}, error)) (interface{}, error) {
-	var lastErr error
-	for i := 0; i < times; i++ {
-		item, err := action()
-		if err != nil {
-			if err, ok := err.(*retryable); ok {
-				lastErr = err
-				time.Sleep(delay)
-				continue
-			} else {
-				return nil, err
-			}
-		}
-		return item, nil
-	}
-	return nil, lastErr
 }

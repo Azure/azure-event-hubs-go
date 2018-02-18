@@ -190,11 +190,9 @@ func (r *receiver) listenForMessages(msgChan chan *amqp.Message) {
 // newSessionAndLink will replace the session and link on the receiver
 func (r *receiver) newSessionAndLink() error {
 	address := r.getAddress()
-	if r.hub.namespace.claimsBasedSecurityEnabled() {
-		err := r.hub.namespace.negotiateClaim(address)
-		if err != nil {
-			return err
-		}
+	err := r.hub.namespace.negotiateClaim(address)
+	if err != nil {
+		return err
 	}
 
 	connection, err := r.hub.namespace.connection()

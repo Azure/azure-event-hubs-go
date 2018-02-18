@@ -3,6 +3,9 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-event-hubs-go/mgmt"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
 	"path"
@@ -17,7 +20,7 @@ const (
 type (
 	hub struct {
 		name              string
-		namespace         *Namespace
+		namespace         *namespace
 		receivers         []*receiver
 		sender            *sender
 		senderPartitionID *string
@@ -46,11 +49,18 @@ type (
 		Close() error
 	}
 
-	// SenderReceiver provides the ability to send and receive AMQP messages
-	SenderReceiver interface {
+	// Manager provides the ability to query management node information about a node
+	Manager interface {
+		GetRuntimeInformation(context.Context) (*mgmt.HubRuntimeInformation, error)
+		GetPartitionInformation(context.Context, string) (*mgmt.HubPartitionRuntimeInformation, error)
+	}
+
+	// Client provides the ability to send and receive Event Hub messages
+	Client interface {
 		Sender
 		Receiver
 		Closer
+		Manager
 	}
 
 	// HubOption provides structure for configuring new Event Hub instances
@@ -63,6 +73,54 @@ type (
 		Read(namespace, name, consumerGroup, partitionID string) (string, error)
 	}
 )
+
+// NewClient creates a new Event Hub client for sending and receiving messages
+func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (Client, error) {
+	ns := newNamespace(namespace, tokenProvider, azure.PublicCloud)
+	h := &hub{
+		name:            name,
+		namespace:       ns,
+		offsetPersister: new(MemoryPersister),
+		userAgent:       rootUserAgent,
+	}
+
+	for _, opt := range opts {
+		err := opt(h)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return h, nil
+}
+
+// GetRuntimeInformation fetches runtime information from the Event Hub management node
+func (h *hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
+	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
+	conn, err := h.namespace.connection()
+	if err != nil {
+		return nil, err
+	}
+	info, err := client.GetHubRuntimeInformation(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+// GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
+func (h *hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
+	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
+	conn, err := h.namespace.connection()
+	if err != nil {
+		return nil, err
+	}
+	info, err := client.GetHubPartitionRuntimeInformation(ctx, conn, partitionID)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
+}
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *hub) Close() error {

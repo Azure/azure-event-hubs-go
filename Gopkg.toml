@@ -8,7 +8,7 @@
 
 [[constraint]]
     name = "github.com/Azure/azure-sdk-for-go"
-    version = "12.2.0-beta"
+    version = "14"
 
 [[constraint]]
   name = "github.com/sirupsen/logrus"
