@@ -51,9 +51,7 @@ func (suite *eventHubSuite) TestPartitionedSender() {
 }
 
 func testBasicSend(t *testing.T, client Client, _ string) {
-	err := client.Send(context.Background(), &amqp.Message{
-		Data: []byte("Hello!"),
-	})
+	err := client.Send(context.Background(), amqp.NewMessage([]byte("Hello!")) )
 	assert.Nil(t, err)
 }
 
@@ -69,7 +67,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 
 	for idx, message := range messages {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := client.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
+		err := client.Send(ctx, amqp.NewMessage([]byte(message)), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
 			t.Fatal(err)
@@ -78,7 +76,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 
 	count := 0
 	err := client.Receive(partitionID, func(ctx context.Context, msg *amqp.Message) error {
-		assert.Equal(t, messages[count], string(msg.Data))
+		assert.Equal(t, messages[count], string(msg.Data[0]))
 		count++
 		wg.Done()
 		return nil
@@ -136,7 +134,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string)
 
 	for idx, message := range messages {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := client.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
+		err := client.Send(ctx, amqp.NewMessage([]byte(message)), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
 			t.Fatal(err)
@@ -241,7 +239,7 @@ func BenchmarkReceive(b *testing.B) {
 
 	for idx, message := range messages {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := hub.Send(ctx, &amqp.Message{Data: []byte(message)}, SendWithMessageID(fmt.Sprintf("%d", idx)))
+		err := hub.Send(ctx, amqp.NewMessage([]byte(message)), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
 			b.Fatal(err)
