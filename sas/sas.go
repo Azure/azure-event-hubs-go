@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"github.com/Azure/azure-event-hubs-go/auth"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Azure/azure-event-hubs-go/auth"
 )
 
 type (

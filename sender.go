@@ -3,6 +3,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
+
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )

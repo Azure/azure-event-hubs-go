@@ -3,14 +3,15 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/Azure/azure-event-hubs-go/common"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (

@@ -3,12 +3,13 @@ package mgmt
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/rpc"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
-	"time"
 )
 
 const (

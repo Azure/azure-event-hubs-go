@@ -3,11 +3,12 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net"
-	"pack.ag/amqp"
 	"sync/atomic"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"pack.ag/amqp"
 )
 
 const (

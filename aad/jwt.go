@@ -1,11 +1,12 @@
 package aad
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/go-autorest/autorest/adal"
 	log "github.com/sirupsen/logrus"
-	"strconv"
-	"time"
 )
 
 type (

@@ -4,6 +4,12 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"math/rand"
+	"net/http"
+	"os"
+	"testing"
+	"time"
+
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	rm "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2017-05-10/resources"
 	"github.com/Azure/go-autorest/autorest"
@@ -11,11 +17,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
-	"math/rand"
-	"net/http"
-	"os"
-	"testing"
-	"time"
 )
 
 var (

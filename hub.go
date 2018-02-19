@@ -3,13 +3,14 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"path"
+	"sync"
+
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
-	"path"
-	"sync"
 )
 
 const (

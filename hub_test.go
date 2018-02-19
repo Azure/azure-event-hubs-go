@@ -3,14 +3,15 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-event-hubs-go/aad"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
-	"pack.ag/amqp"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Azure/azure-event-hubs-go/aad"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"pack.ag/amqp"
 )
 
 func (suite *eventHubSuite) TestPartitionedSender() {
@@ -51,7 +52,7 @@ func (suite *eventHubSuite) TestPartitionedSender() {
 }
 
 func testBasicSend(t *testing.T, client Client, _ string) {
-	err := client.Send(context.Background(), amqp.NewMessage([]byte("Hello!")) )
+	err := client.Send(context.Background(), amqp.NewMessage([]byte("Hello!")))
 	assert.Nil(t, err)
 }
 

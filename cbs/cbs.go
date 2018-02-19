@@ -2,11 +2,12 @@ package cbs
 
 import (
 	"context"
+	"time"
+
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/rpc"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
-	"time"
 )
 
 const (
