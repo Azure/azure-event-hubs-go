@@ -3,13 +3,17 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"sync"
 
+	"github.com/Azure/azure-event-hubs-go/aad"
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
+	"github.com/Azure/azure-event-hubs-go/sas"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
 
@@ -89,6 +93,45 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return h, nil
+}
+
+// NewClientFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
+func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
+	const envErrMsg = "environment var %s must not be empty"
+	var namespace, name string
+	var provider auth.TokenProvider
+
+	if namespace = os.Getenv("EVENTHUB_NAMESPACE"); namespace == "" {
+		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAMESPACE")
+	}
+
+	if name = os.Getenv("EVENTHUB_NAME"); name == "" {
+		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAME")
+	}
+
+	aadProvider, aadErr := aad.NewProviderFromEnvironment()
+	sasProvider, sasErr := sas.NewProviderFromEnvironment()
+
+	if aadErr != nil && sasErr != nil {
+		// both failed
+		log.Debug("both token providers failed")
+		return nil, errors.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
+	}
+
+	if aadProvider != nil {
+		log.Debug("using AAD provider")
+		provider = aadProvider
+	} else {
+		log.Debug("using SAS provider")
+		provider = sasProvider
+	}
+
+	h, err := NewClient(namespace, name, provider, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	return h, nil

@@ -4,15 +4,50 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/aad"
+	"github.com/Azure/azure-event-hubs-go/sas"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"pack.ag/amqp"
 )
+
+func (suite *eventHubSuite) TestSasToken() {
+	tests := map[string]func(*testing.T, Client, string){
+		"TestSendAndReceive": testBasicSendAndReceive,
+	}
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			hubName := randomName("goehtest", 10)
+			mgmtHub, err := suite.ensureEventHub(context.Background(), hubName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer suite.deleteEventHub(context.Background(), hubName)
+			partitionID := (*mgmtHub.PartitionIds)[0]
+			provider, err := sas.NewProviderFromEnvironment()
+			if err != nil {
+				t.Fatal(err)
+			}
+			client, err := NewClient(suite.namespace, hubName, provider, HubWithPartitionedSender(partitionID))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			testFunc(t, client, partitionID)
+			if err := client.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
 
 func (suite *eventHubSuite) TestPartitionedSender() {
 	tests := map[string]func(*testing.T, Client, string){
@@ -198,6 +233,13 @@ func testHubPartitionRuntimeInformation(t *testing.T, client Client, partitionID
 	assert.Equal(t, hubName, info.HubPath)
 	assert.Equal(t, partitionIDs[0], info.PartitionID)
 	assert.Equal(t, "-1", info.LastEnqueuedOffset) // brand new, so should be very last
+}
+
+func TestEnvironmentalCreation(t *testing.T) {
+	os.Setenv("EVENTHUB_NAME", "foo")
+	_, err := NewClientFromEnvironment()
+	assert.Nil(t, err)
+	os.Unsetenv("EVENTHUB_NAME")
 }
 
 func BenchmarkReceive(b *testing.B) {
