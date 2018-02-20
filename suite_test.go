@@ -12,9 +12,8 @@ import (
 
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	rm "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2017-05-10/resources"
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
+	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
@@ -33,19 +32,9 @@ type (
 	// eventHubSuite encapsulates a end to end test of Event Hubs with build up and tear down of all EH resources
 	eventHubSuite struct {
 		suite.Suite
-		tenantID       string
 		subscriptionID string
-		clientID       string
-		clientSecret   string
 		namespace      string
 		env            azure.Environment
-		armToken       *adal.ServicePrincipalToken
-	}
-
-	servicePrincipalCredentials struct {
-		TenantID      string
-		ApplicationID string
-		Secret        string
 	}
 
 	// HubMgmtOption represents an option for configuring an Event Hub.
@@ -68,13 +57,20 @@ func (suite *eventHubSuite) SetupSuite() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	suite.tenantID = mustGetEnv("AZURE_TENANT_ID")
 	suite.subscriptionID = mustGetEnv("AZURE_SUBSCRIPTION_ID")
-	suite.clientID = mustGetEnv("AZURE_CLIENT_ID")
-	suite.clientSecret = mustGetEnv("AZURE_CLIENT_SECRET")
 	suite.namespace = mustGetEnv("EVENTHUB_NAMESPACE")
-	suite.env = azure.PublicCloud
-	suite.armToken = suite.servicePrincipalToken()
+	envName := os.Getenv("AZURE_ENVIRONMENT")
+
+	if envName == "" {
+		suite.env = azure.PublicCloud
+	} else {
+		var err error
+		env, err := azure.EnvironmentFromName(envName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		suite.env = env
+	}
 
 	err := suite.ensureProvisioned(mgmt.SkuTierStandard)
 	if err != nil {
@@ -87,7 +83,7 @@ func (suite *eventHubSuite) TearDownSuite() {
 }
 
 func (suite *eventHubSuite) ensureProvisioned(tier mgmt.SkuTier) error {
-	_, err := ensureResourceGroup(context.Background(), suite.subscriptionID, ResourceGroupName, Location, suite.armToken, suite.env)
+	_, err := ensureResourceGroup(context.Background(), suite.subscriptionID, ResourceGroupName, Location, suite.env)
 	if err != nil {
 		return err
 	}
@@ -100,27 +96,9 @@ func (suite *eventHubSuite) ensureProvisioned(tier mgmt.SkuTier) error {
 	return nil
 }
 
-func (suite *eventHubSuite) servicePrincipalToken() *adal.ServicePrincipalToken {
-
-	oauthConfig, err := adal.NewOAuthConfig(suite.env.ActiveDirectoryEndpoint, suite.tenantID)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	tokenProvider, err := adal.NewServicePrincipalToken(*oauthConfig,
-		suite.clientID,
-		suite.clientSecret,
-		suite.env.ResourceManagerEndpoint)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return tokenProvider
-}
-
 // ensureResourceGroup creates a Azure Resource Group if it does not already exist
-func ensureResourceGroup(ctx context.Context, subscriptionID, name, location string, armToken *adal.ServicePrincipalToken, env azure.Environment) (*rm.Group, error) {
-	groupClient := getRmGroupClientWithToken(subscriptionID, armToken, env)
+func ensureResourceGroup(ctx context.Context, subscriptionID, name, location string, env azure.Environment) (*rm.Group, error) {
+	groupClient := getRmGroupClientWithToken(subscriptionID, env)
 	group, err := groupClient.Get(ctx, name)
 
 	if group.StatusCode == http.StatusNotFound {
@@ -136,13 +114,13 @@ func ensureResourceGroup(ctx context.Context, subscriptionID, name, location str
 }
 
 // ensureNamespace creates a Azure Event Hub Namespace if it does not already exist
-func ensureNamespace(ctx context.Context, subscriptionID, rg, name, location string, armToken *adal.ServicePrincipalToken, env azure.Environment, opts ...namespaceMgmtOption) (*mgmt.EHNamespace, error) {
-	_, err := ensureResourceGroup(ctx, subscriptionID, rg, location, armToken, env)
+func ensureNamespace(ctx context.Context, subscriptionID, rg, name, location string, env azure.Environment, opts ...namespaceMgmtOption) (*mgmt.EHNamespace, error) {
+	_, err := ensureResourceGroup(ctx, subscriptionID, rg, location, env)
 	if err != nil {
 		return nil, err
 	}
 
-	client := getNamespaceMgmtClientWithToken(subscriptionID, armToken, env)
+	client := getNamespaceMgmtClientWithToken(subscriptionID, env)
 	namespace, err := client.Get(ctx, rg, name)
 	if err != nil {
 		return nil, err
@@ -238,38 +216,54 @@ func (suite *eventHubSuite) deleteEventHub(ctx context.Context, name string) err
 
 func (suite *eventHubSuite) getEventHubMgmtClient() *mgmt.EventHubsClient {
 	client := mgmt.NewEventHubsClientWithBaseURI(suite.env.ResourceManagerEndpoint, suite.subscriptionID)
-	client.Authorizer = autorest.NewBearerAuthorizer(suite.armToken)
+	a, err := azauth.NewAuthorizerFromEnvironment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	client.Authorizer = a
 	return &client
 }
 
 func (suite *eventHubSuite) getNamespaceMgmtClient() *mgmt.NamespacesClient {
-	return getNamespaceMgmtClientWithToken(suite.subscriptionID, suite.armToken, suite.env)
+	return getNamespaceMgmtClientWithToken(suite.subscriptionID, suite.env)
 }
 
-func getNamespaceMgmtClientWithToken(subscriptionID string, armToken *adal.ServicePrincipalToken, env azure.Environment) *mgmt.NamespacesClient {
+func getNamespaceMgmtClientWithToken(subscriptionID string, env azure.Environment) *mgmt.NamespacesClient {
 	client := mgmt.NewNamespacesClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
-	client.Authorizer = autorest.NewBearerAuthorizer(armToken)
+	a, err := azauth.NewAuthorizerFromEnvironment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	client.Authorizer = a
 	return &client
 }
 
 func (suite *eventHubSuite) getNamespaceMgmtClientWithCredentials(ctx context.Context, subscriptionID, rg, name string) *mgmt.NamespacesClient {
 	client := mgmt.NewNamespacesClientWithBaseURI(suite.env.ResourceManagerEndpoint, suite.subscriptionID)
-	client.Authorizer = autorest.NewBearerAuthorizer(suite.armToken)
+	a, err := azauth.NewAuthorizerFromEnvironment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	client.Authorizer = a
 	return &client
 }
 
 func (suite *eventHubSuite) getRmGroupClient() *rm.GroupsClient {
-	return getRmGroupClientWithToken(suite.subscriptionID, suite.armToken, suite.env)
+	return getRmGroupClientWithToken(suite.subscriptionID, suite.env)
 }
 
-func getRmGroupClientWithToken(subscriptionID string, armToken *adal.ServicePrincipalToken, env azure.Environment) *rm.GroupsClient {
+func getRmGroupClientWithToken(subscriptionID string, env azure.Environment) *rm.GroupsClient {
 	groupsClient := rm.NewGroupsClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
-	groupsClient.Authorizer = autorest.NewBearerAuthorizer(armToken)
+	a, err := azauth.NewAuthorizerFromEnvironment()
+	if err != nil {
+		log.Fatal(err)
+	}
+	groupsClient.Authorizer = a
 	return &groupsClient
 }
 
 func (suite *eventHubSuite) ensureResourceGroup() (*rm.Group, error) {
-	group, err := ensureResourceGroup(context.Background(), suite.subscriptionID, suite.namespace, Location, suite.armToken, suite.env)
+	group, err := ensureResourceGroup(context.Background(), suite.subscriptionID, suite.namespace, Location, suite.env)
 	if err != nil {
 		return nil, err
 	}
@@ -277,35 +271,11 @@ func (suite *eventHubSuite) ensureResourceGroup() (*rm.Group, error) {
 }
 
 func (suite *eventHubSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
-	ns, err := ensureNamespace(context.Background(), suite.subscriptionID, ResourceGroupName, suite.namespace, Location, suite.armToken, suite.env)
+	ns, err := ensureNamespace(context.Background(), suite.subscriptionID, ResourceGroupName, suite.namespace, Location, suite.env)
 	if err != nil {
 		return nil, err
 	}
 	return ns, err
-}
-
-func (suite *eventHubSuite) getEventHubsTokenProvider() (*adal.ServicePrincipalToken, error) {
-	// TODO: fix the azure environment var for the SB endpoint and EH endpoint
-	return suite.getTokenProvider("https://eventhubs.azure.net/")
-}
-
-func (suite *eventHubSuite) getTokenProvider(resourceURI string) (*adal.ServicePrincipalToken, error) {
-	oauthConfig, err := adal.NewOAuthConfig(suite.env.ActiveDirectoryEndpoint, suite.tenantID)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	tokenProvider, err := adal.NewServicePrincipalToken(*oauthConfig, suite.clientID, suite.clientSecret, resourceURI)
-	if err != nil {
-		return nil, err
-	}
-
-	err = tokenProvider.Refresh()
-	if err != nil {
-		return nil, err
-	}
-
-	return tokenProvider, nil
 }
 
 func mustGetEnv(key string) string {

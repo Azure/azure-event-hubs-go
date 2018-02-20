@@ -20,12 +20,6 @@ func (suite *eventHubSuite) TestPartitionedSender() {
 		"TestSendAndReceive": testBasicSendAndReceive,
 	}
 
-	token, err := suite.getEventHubsTokenProvider()
-	if err != nil {
-		log.Fatal(err)
-	}
-	token.Refresh()
-
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
 			hubName := randomName("goehtest", 10)
@@ -35,7 +29,10 @@ func (suite *eventHubSuite) TestPartitionedSender() {
 			}
 			defer suite.deleteEventHub(context.Background(), hubName)
 			partitionID := (*mgmtHub.PartitionIds)[0]
-			provider := aad.NewProvider(token)
+			provider, err := aad.NewProviderFromEnvironment()
+			if err != nil {
+				t.Fatal(err)
+			}
 			client, err := NewClient(suite.namespace, hubName, provider, HubWithPartitionedSender(partitionID))
 			if err != nil {
 				t.Fatal(err)
@@ -93,12 +90,6 @@ func (suite *eventHubSuite) TestMultiPartition() {
 		"TestMultiSendAndReceive": testMultiSendAndReceive,
 	}
 
-	token, err := suite.getEventHubsTokenProvider()
-	if err != nil {
-		log.Fatal(err)
-	}
-	token.Refresh()
-
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
 			hubName := randomName("goehtest", 10)
@@ -107,7 +98,10 @@ func (suite *eventHubSuite) TestMultiPartition() {
 				t.Fatal(err)
 			}
 			defer suite.deleteEventHub(context.Background(), hubName)
-			provider := aad.NewProvider(token)
+			provider, err := aad.NewProviderFromEnvironment()
+			if err != nil {
+				t.Fatal(err)
+			}
 			client, err := NewClient(suite.namespace, hubName, provider)
 			if err != nil {
 				t.Fatal(err)
@@ -160,12 +154,6 @@ func (suite *eventHubSuite) TestHubManagement() {
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
 
-	token, err := suite.getEventHubsTokenProvider()
-	if err != nil {
-		log.Fatal(err)
-	}
-	token.Refresh()
-
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
 			hubName := randomName("goehtest", 10)
@@ -174,7 +162,10 @@ func (suite *eventHubSuite) TestHubManagement() {
 				t.Fatal(err)
 			}
 			defer suite.deleteEventHub(context.Background(), hubName)
-			provider := aad.NewProvider(token)
+			provider, err := aad.NewProviderFromEnvironment()
+			if err != nil {
+				t.Fatal(err)
+			}
 			client, err := NewClient(suite.namespace, hubName, provider)
 			if err != nil {
 				t.Fatal(err)
@@ -226,8 +217,10 @@ func BenchmarkReceive(b *testing.B) {
 		messages[i] = randomName("hello", 10)
 	}
 
-	token, err := suite.getEventHubsTokenProvider()
-	provider := aad.NewProvider(token)
+	provider, err := aad.NewProviderFromEnvironment()
+	if err != nil {
+		log.Fatal(err)
+	}
 	hub, err := NewClient(suite.namespace, *mgmtHub.Name, provider)
 	if err != nil {
 		b.Fatal(err)

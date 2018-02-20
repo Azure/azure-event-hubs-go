@@ -1,18 +1,18 @@
 package main
 
 import (
-	"github.com/Azure/azure-event-hubs-go"
-	"fmt"
-	"os"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"log"
-	"context"
-	"pack.ag/amqp"
 	"bufio"
-	"github.com/Azure/go-autorest/autorest/adal"
-	"github.com/Azure/go-autorest/autorest"
-	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/aad"
+	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
+	"github.com/Azure/go-autorest/autorest/azure"
+	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
+	"pack.ag/amqp"
 )
 
 const (
@@ -28,7 +28,7 @@ func main() {
 	for {
 		fmt.Print("Enter text: ")
 		text, _ := reader.ReadString('\n')
-		hub.Send(context.Background(), &amqp.Message{Data: []byte(text)})
+		hub.Send(context.Background(), amqp.NewMessage([]byte(text)))
 		if text == "exit\n" {
 			break
 		}
@@ -42,11 +42,10 @@ func initHub() (eventhub.Client, []string) {
 		log.Fatal(err)
 	}
 
-	aadToken, err := getEventHubsTokenProvider()
+	provider, err := aad.NewProviderFromEnvironment()
 	if err != nil {
 		log.Fatal(err)
 	}
-	provider := aad.NewProvider(aadToken)
 	hub, err := eventhub.NewClient(namespace, HubName, provider)
 	if err != nil {
 		panic(err)
@@ -60,30 +59,6 @@ func mustGetenv(key string) string {
 		panic("Environment variable '" + key + "' required for integration tests.")
 	}
 	return v
-}
-
-func getEventHubsTokenProvider() (*adal.ServicePrincipalToken, error) {
-	// TODO: fix the azure environment var for the SB endpoint and EH endpoint
-	return getTokenProvider("https://eventhubs.azure.net/")
-}
-
-func getTokenProvider(resourceURI string) (*adal.ServicePrincipalToken, error) {
-	oauthConfig, err := adal.NewOAuthConfig(azure.PublicCloud.ActiveDirectoryEndpoint, mustGetenv("AZURE_TENANT_ID"))
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	tokenProvider, err := adal.NewServicePrincipalToken(*oauthConfig, mustGetenv("AZURE_CLIENT_ID"), mustGetenv("AZURE_CLIENT_SECRET"), resourceURI)
-	if err != nil {
-		return nil, err
-	}
-
-	err = tokenProvider.Refresh()
-	if err != nil {
-		return nil, err
-	}
-
-	return tokenProvider, nil
 }
 
 func ensureEventHub(ctx context.Context, name string) (*mgmt.Model, error) {
@@ -111,11 +86,11 @@ func ensureEventHub(ctx context.Context, name string) (*mgmt.Model, error) {
 func getEventHubMgmtClient() *mgmt.EventHubsClient {
 	subID := mustGetenv("AZURE_SUBSCRIPTION_ID")
 	client := mgmt.NewEventHubsClientWithBaseURI(azure.PublicCloud.ResourceManagerEndpoint, subID)
-	armToken, err := getTokenProvider(azure.PublicCloud.ResourceManagerEndpoint)
+	a, err := azauth.NewAuthorizerFromEnvironment()
 	if err != nil {
 		log.Fatal(err)
 	}
-	client.Authorizer = autorest.NewBearerAuthorizer(armToken)
+	client.Authorizer = a
 	return &client
 }
 

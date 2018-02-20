@@ -6,11 +6,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/pkg/errors"
 )
 
 type (
@@ -32,6 +34,23 @@ func NewProvider(namespace, keyName, key string) auth.TokenProvider {
 	return &TokenProvider{
 		signer: NewSigner(namespace, keyName, key),
 	}
+}
+
+// NewProviderFromEnvironment creates a new SAS TokenProvider from environment variables
+//
+// Expected Environment Variables:
+//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
+//   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
+//   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+func NewProviderFromEnvironment() (auth.TokenProvider, error) {
+	keyName := os.Getenv("EVENTHUB_KEY_NAME")
+	keyValue := os.Getenv("EVENTHUB_KEY_VALUE")
+	namespace := os.Getenv("EVENTHUB_NAMESPACE")
+
+	if keyName == "" || keyValue == "" || namespace == "" {
+		return nil, errors.New("one or more environment variables, EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE or EVENTHUB_NAMESPACE were empty")
+	}
+	return NewProvider(namespace, keyName, keyValue), nil
 }
 
 // GetToken gets a CBS SAS token
