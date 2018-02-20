@@ -55,11 +55,17 @@ func ReceiveWithConsumerGroup(consumerGroup string) ReceiveOption {
 }
 
 // ReceiveWithStartingOffset configures the receiver to start at a given position in the event stream
-//
-// This setting will be overridden by the Hub's OffsetPersister if an offset can be read.
 func ReceiveWithStartingOffset(offset string) ReceiveOption {
 	return func(receiver *receiver) error {
 		receiver.storeLastReceivedOffset(offset)
+		return nil
+	}
+}
+
+// ReceiveWithLatestOffset configures the receiver to start at a given position in the event stream
+func ReceiveWithLatestOffset() ReceiveOption {
+	return func(receiver *receiver) error {
+		receiver.storeLastReceivedOffset(EndOfStream)
 		return nil
 	}
 }
