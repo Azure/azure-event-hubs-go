@@ -3,13 +3,19 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-event-hubs-go/auth"
-	"github.com/Azure/azure-event-hubs-go/mgmt"
-	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/pkg/errors"
-	"pack.ag/amqp"
+	"os"
 	"path"
 	"sync"
+
+	"github.com/Azure/azure-event-hubs-go/aad"
+	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-event-hubs-go/mgmt"
+	"github.com/Azure/azure-event-hubs-go/persist"
+	"github.com/Azure/azure-event-hubs-go/sas"
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"pack.ag/amqp"
 )
 
 const (
@@ -26,7 +32,7 @@ type (
 		senderPartitionID *string
 		receiverMu        sync.Mutex
 		senderMu          sync.Mutex
-		offsetPersister   OffsetPersister
+		offsetPersister   persist.OffsetPersister
 		userAgent         string
 	}
 
@@ -40,7 +46,7 @@ type (
 
 	// Receiver provides the ability to receive messages
 	Receiver interface {
-		Receive(partitionID string, handler Handler, opts ...ReceiveOption) error
+		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error
 	}
 
 	// Closer provides the ability to close a connection or client
@@ -64,13 +70,6 @@ type (
 
 	// HubOption provides structure for configuring new Event Hub instances
 	HubOption func(h *hub) error
-
-	// OffsetPersister provides persistence for the received offset for a given namespace, hub name, consumer group, partition Id and
-	// offset so that if a receiver where to be interrupted, it could resume after the last consumed event.
-	OffsetPersister interface {
-		Write(namespace, name, consumerGroup, partitionID, offset string) error
-		Read(namespace, name, consumerGroup, partitionID string) (string, error)
-	}
 )
 
 // NewClient creates a new Event Hub client for sending and receiving messages
@@ -79,7 +78,7 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 	h := &hub{
 		name:            name,
 		namespace:       ns,
-		offsetPersister: new(MemoryPersister),
+		offsetPersister: new(persist.MemoryPersister),
 		userAgent:       rootUserAgent,
 	}
 
@@ -88,6 +87,45 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return h, nil
+}
+
+// NewClientFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
+func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
+	const envErrMsg = "environment var %s must not be empty"
+	var namespace, name string
+	var provider auth.TokenProvider
+
+	if namespace = os.Getenv("EVENTHUB_NAMESPACE"); namespace == "" {
+		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAMESPACE")
+	}
+
+	if name = os.Getenv("EVENTHUB_NAME"); name == "" {
+		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAME")
+	}
+
+	aadProvider, aadErr := aad.NewProviderFromEnvironment()
+	sasProvider, sasErr := sas.NewProviderFromEnvironment()
+
+	if aadErr != nil && sasErr != nil {
+		// both failed
+		log.Debug("both token providers failed")
+		return nil, errors.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
+	}
+
+	if aadProvider != nil {
+		log.Debug("using AAD provider")
+		provider = aadProvider
+	} else {
+		log.Debug("using SAS provider")
+		provider = sasProvider
+	}
+
+	h, err := NewClient(namespace, name, provider, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	return h, nil
@@ -123,18 +161,21 @@ func (h *hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *hub) Close() error {
+	var lastErr error
 	for _, r := range h.receivers {
-		r.Close()
+		if err := r.Close(); err != nil {
+			lastErr = err
+		}
 	}
-	return nil
+	return lastErr
 }
 
 // Listen subscribes for messages sent to the provided entityPath.
-func (h *hub) Receive(partitionID string, handler Handler, opts ...ReceiveOption) error {
+func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
-	receiver, err := h.newReceiver(partitionID, opts...)
+	receiver, err := h.newReceiver(ctx, partitionID, opts...)
 	if err != nil {
 		return err
 	}
@@ -146,7 +187,7 @@ func (h *hub) Receive(partitionID string, handler Handler, opts ...ReceiveOption
 
 // Send sends an AMQP message to the broker
 func (h *hub) Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error {
-	sender, err := h.getSender()
+	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
 	}
@@ -168,7 +209,7 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 
 // HubWithOffsetPersistence configures the hub instance to read and write offsets so that if a hub is interrupted, it
 // can resume after the last consumed event.
-func HubWithOffsetPersistence(offsetPersister OffsetPersister) HubOption {
+func HubWithOffsetPersistence(offsetPersister persist.OffsetPersister) HubOption {
 	return func(h *hub) error {
 		h.offsetPersister = offsetPersister
 		return nil
@@ -195,12 +236,12 @@ func (h *hub) appendAgent(userAgent string) error {
 	return nil
 }
 
-func (h *hub) getSender() (*sender, error) {
+func (h *hub) getSender(ctx context.Context) (*sender, error) {
 	h.senderMu.Lock()
 	defer h.senderMu.Unlock()
 
 	if h.sender == nil {
-		s, err := h.newSender()
+		s, err := h.newSender(ctx)
 		if err != nil {
 			return nil, err
 		}

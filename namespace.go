@@ -1,14 +1,15 @@
 package eventhub
 
 import (
-	"fmt"
+	"context"
+	"runtime"
+	"sync"
+
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/cbs"
 	"github.com/Azure/go-autorest/autorest/azure"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
-	"runtime"
-	"sync"
 )
 
 type (
@@ -48,7 +49,8 @@ func (ns *namespace) connection() (*amqp.Client, error) {
 			amqp.ConnProperty("version", "0.0.1"),
 			amqp.ConnProperty("platform", runtime.GOOS),
 			amqp.ConnProperty("framework", runtime.Version()),
-			amqp.ConnProperty("user-agent", rootUserAgent))
+			amqp.ConnProperty("user-agent", rootUserAgent),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -57,17 +59,17 @@ func (ns *namespace) connection() (*amqp.Client, error) {
 	return ns.client, nil
 }
 
-func (ns *namespace) negotiateClaim(entityPath string) error {
+func (ns *namespace) negotiateClaim(ctx context.Context, entityPath string) error {
 	audience := ns.getEntityAudience(entityPath)
 	conn, err := ns.connection()
 	if err != nil {
 		return err
 	}
-	return cbs.NegotiateClaim(audience, conn, ns.tokenProvider)
+	return cbs.NegotiateClaim(ctx, audience, conn, ns.tokenProvider)
 }
 
 func (ns *namespace) getAmqpHostURI() string {
-	return fmt.Sprintf("amqps://%s.%s/", ns.name, ns.environment.ServiceBusEndpointSuffix)
+	return "amqps://" + ns.name + "." + ns.environment.ServiceBusEndpointSuffix + "/"
 }
 
 func (ns *namespace) getEntityAudience(entityPath string) string {

@@ -3,12 +3,13 @@ package mgmt
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/rpc"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
-	"time"
 )
 
 const (
@@ -103,7 +104,7 @@ func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 			entityNameKey: c.hubName,
 		},
 	}
-	err = c.addSecurityToken(msg)
+	msg, err = c.addSecurityToken(msg)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *am
 			partitionNameKey: partitionID,
 		},
 	}
-	err = c.addSecurityToken(msg)
+	msg, err = c.addSecurityToken(msg)
 	if err != nil {
 		return nil, err
 	}
@@ -152,13 +153,16 @@ func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *am
 	return hubPartitionRuntimeInfo, nil
 }
 
-func (c *Client) addSecurityToken(msg *amqp.Message) error {
+func (c *Client) addSecurityToken(msg *amqp.Message) (*amqp.Message, error) {
+	// TODO (devigned): need to uncomment this functionality after getting some guidance from the Event Hubs team (only works for SAS tokens right now)
+
 	//token, err := c.tokenProvider.GetToken(c.getTokenAudience())
 	//if err != nil {
-	//	return nil
+	//	return nil, err
 	//}
 	//msg.ApplicationProperties[securityTokenKey] = token.Token
-	return nil
+
+	return msg, nil
 }
 
 func (c *Client) getTokenAudience() string {
@@ -228,10 +232,6 @@ func newHubRuntimeInformation(msg *amqp.Message) (*HubRuntimeInformation, error)
 	}
 
 	if createdAt, ok := values[resultCreatedAtKey].(time.Time); ok {
-		//t, err := time.Parse("UnixDate", createdAt)
-		//if err != nil {
-		//	return nil, err
-		//}
 		info.CreatedAt = createdAt
 	} else {
 		return nil, errors.Errorf(errMsgFmt, resultCreatedAtKey, values)
