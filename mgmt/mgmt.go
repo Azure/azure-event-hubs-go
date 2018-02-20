@@ -154,7 +154,7 @@ func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *am
 }
 
 func (c *Client) addSecurityToken(msg *amqp.Message) (*amqp.Message, error) {
-	// TODO (devigned): need to uncomment this functionality after getting some guidance from the Event Hubs team
+	// TODO (devigned): need to uncomment this functionality after getting some guidance from the Event Hubs team (only works for SAS tokens right now)
 
 	//token, err := c.tokenProvider.GetToken(c.getTokenAudience())
 	//if err != nil {

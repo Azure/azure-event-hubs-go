@@ -90,10 +90,10 @@ func (s *Signer) SignWithDuration(uri string, interval time.Duration) (signed, e
 
 // SignWithExpiry signs a given uri with a given expiry string
 func (s *Signer) SignWithExpiry(uri, expiry string) string {
-	u := strings.ToLower(url.QueryEscape(uri))
-	sts := stringToSign(u, expiry)
+	audience := strings.ToLower(url.QueryEscape(uri))
+	sts := stringToSign(audience, expiry)
 	sig := s.signString(sts)
-	return fmt.Sprintf("SharedAccessSignature sig=%s&se=%s&skn=%s&sr=%s", sig, expiry, s.keyName, u)
+	return fmt.Sprintf("SharedAccessSignature sr=%s&sig=%s&se=%s&skn=%s", audience, sig, expiry, s.keyName)
 }
 
 func signatureExpiry(from time.Time, interval time.Duration) string {

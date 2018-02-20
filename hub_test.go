@@ -17,8 +17,10 @@ import (
 )
 
 func (suite *eventHubSuite) TestSasToken() {
-	tests := map[string]func(*testing.T, Client, string){
-		"TestSendAndReceive": testBasicSendAndReceive,
+	tests := map[string]func(*testing.T, Client, []string, string){
+		"TestMultiSendAndReceive":            testMultiSendAndReceive,
+		"TestHubRuntimeInformation":          testHubRuntimeInformation,
+		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
 
 	for name, testFunc := range tests {
@@ -29,17 +31,16 @@ func (suite *eventHubSuite) TestSasToken() {
 				t.Fatal(err)
 			}
 			defer suite.deleteEventHub(context.Background(), hubName)
-			partitionID := (*mgmtHub.PartitionIds)[0]
 			provider, err := sas.NewProviderFromEnvironment()
 			if err != nil {
 				t.Fatal(err)
 			}
-			client, err := NewClient(suite.namespace, hubName, provider, HubWithPartitionedSender(partitionID))
+			client, err := NewClient(suite.namespace, hubName, provider)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			testFunc(t, client, partitionID)
+			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
 			if err := client.Close(); err != nil {
 				t.Fatal(err)
 			}
@@ -121,7 +122,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 }
 
 func (suite *eventHubSuite) TestMultiPartition() {
-	tests := map[string]func(*testing.T, Client, []string){
+	tests := map[string]func(*testing.T, Client, []string, string){
 		"TestMultiSendAndReceive": testMultiSendAndReceive,
 	}
 
@@ -142,7 +143,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 				t.Fatal(err)
 			}
 
-			testFunc(t, client, *mgmtHub.PartitionIds)
+			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
 			if err := client.Close(); err != nil {
 				t.Fatal(err)
 			}
@@ -152,7 +153,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 	}
 }
 
-func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string) {
+func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string, _ string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
