@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-event-hubs-go/common"
 	"github.com/pkg/errors"
 )
 
@@ -43,14 +44,27 @@ func NewProvider(namespace, keyName, key string) auth.TokenProvider {
 //   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
 //   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
 func NewProviderFromEnvironment() (auth.TokenProvider, error) {
+	var provider auth.TokenProvider
 	keyName := os.Getenv("EVENTHUB_KEY_NAME")
 	keyValue := os.Getenv("EVENTHUB_KEY_VALUE")
 	namespace := os.Getenv("EVENTHUB_NAMESPACE")
+	connStr := os.Getenv("EVENTHUB_CONNECTION_STRING")
 
-	if keyName == "" || keyValue == "" || namespace == "" {
-		return nil, errors.New("one or more environment variables, EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE or EVENTHUB_NAMESPACE were empty")
+	if (keyName == "" || keyValue == "" || namespace == "") && connStr == "" {
+		return nil, errors.New("unable to build SAS token provider because (EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE and EVENTHUB_NAMESPACE) were empty, and EVENTHUB_CONNECTION_STRING was empty")
 	}
-	return NewProvider(namespace, keyName, keyValue), nil
+
+	if connStr != "" {
+		parsed, err := common.ParsedConnectionFromStr(connStr)
+		if err != nil {
+			return nil, err
+		}
+		provider = NewProvider(parsed.Namespace, parsed.KeyName, parsed.Key)
+	} else {
+		provider = NewProvider(namespace, keyName, keyValue)
+	}
+
+	return provider, nil
 }
 
 // GetToken gets a CBS SAS token
