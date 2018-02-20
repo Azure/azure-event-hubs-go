@@ -39,10 +39,17 @@ func NewProvider(namespace, keyName, key string) auth.TokenProvider {
 
 // NewProviderFromEnvironment creates a new SAS TokenProvider from environment variables
 //
-// Expected Environment Variables:
+// There are two sets of environment variables which can produce a SAS TokenProvider
+//
+// 1) Expected Environment Variables:
 //   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
 //   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
 //   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+//
+// 2) Expected Environment Variable:
+//   - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
+//
+// looks like: Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=
 func NewProviderFromEnvironment() (auth.TokenProvider, error) {
 	var provider auth.TokenProvider
 	keyName := os.Getenv("EVENTHUB_KEY_NAME")
