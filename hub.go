@@ -92,20 +92,10 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 	return h, nil
 }
 
-// NewClientFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
-func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
-	const envErrMsg = "environment var %s must not be empty"
-	var namespace, name string
+// NewClientWithNamespaceNameAndEnvironment creates a new Event Hub client for sending and receiving messages from
+// environment variables with supplied namespace and name
+func NewClientWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (Client, error) {
 	var provider auth.TokenProvider
-
-	if namespace = os.Getenv("EVENTHUB_NAMESPACE"); namespace == "" {
-		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAMESPACE")
-	}
-
-	if name = os.Getenv("EVENTHUB_NAME"); name == "" {
-		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAME")
-	}
-
 	aadProvider, aadErr := aad.NewProviderFromEnvironment()
 	sasProvider, sasErr := sas.NewProviderFromEnvironment()
 
@@ -129,6 +119,22 @@ func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
 	}
 
 	return h, nil
+}
+
+// NewClientFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
+func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
+	const envErrMsg = "environment var %s must not be empty"
+	var namespace, name string
+
+	if namespace = os.Getenv("EVENTHUB_NAMESPACE"); namespace == "" {
+		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAMESPACE")
+	}
+
+	if name = os.Getenv("EVENTHUB_NAME"); name == "" {
+		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAME")
+	}
+
+	return NewClientWithNamespaceNameAndEnvironment(namespace, name, opts...)
 }
 
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
