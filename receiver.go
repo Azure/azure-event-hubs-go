@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
@@ -259,7 +260,7 @@ func (r *receiver) hubName() string {
 	return r.hub.name
 }
 
-func (r *receiver) offsetPersister() OffsetPersister {
+func (r *receiver) offsetPersister() persist.OffsetPersister {
 	return r.hub.offsetPersister
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/aad"
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
+	"github.com/Azure/azure-event-hubs-go/persist"
 	"github.com/Azure/azure-event-hubs-go/sas"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
@@ -31,7 +32,7 @@ type (
 		senderPartitionID *string
 		receiverMu        sync.Mutex
 		senderMu          sync.Mutex
-		offsetPersister   OffsetPersister
+		offsetPersister   persist.OffsetPersister
 		userAgent         string
 	}
 
@@ -69,13 +70,6 @@ type (
 
 	// HubOption provides structure for configuring new Event Hub instances
 	HubOption func(h *hub) error
-
-	// OffsetPersister provides persistence for the received offset for a given namespace, hub name, consumer group, partition Id and
-	// offset so that if a receiver where to be interrupted, it could resume after the last consumed event.
-	OffsetPersister interface {
-		Write(namespace, name, consumerGroup, partitionID, offset string) error
-		Read(namespace, name, consumerGroup, partitionID string) (string, error)
-	}
 )
 
 // NewClient creates a new Event Hub client for sending and receiving messages
@@ -84,7 +78,7 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 	h := &hub{
 		name:            name,
 		namespace:       ns,
-		offsetPersister: new(MemoryPersister),
+		offsetPersister: new(persist.MemoryPersister),
 		userAgent:       rootUserAgent,
 	}
 
@@ -212,7 +206,7 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 
 // HubWithOffsetPersistence configures the hub instance to read and write offsets so that if a hub is interrupted, it
 // can resume after the last consumed event.
-func HubWithOffsetPersistence(offsetPersister OffsetPersister) HubOption {
+func HubWithOffsetPersistence(offsetPersister persist.OffsetPersister) HubOption {
 	return func(h *hub) error {
 		h.offsetPersister = offsetPersister
 		return nil
