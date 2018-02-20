@@ -3,9 +3,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync/atomic"
-	"time"
 
 	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
@@ -38,7 +36,7 @@ type (
 		consumerGroup      string
 		partitionID        string
 		prefetchCount      uint32
-		done               chan struct{}
+		done               func()
 		lastReceivedOffset atomic.Value
 	}
 
@@ -79,13 +77,12 @@ func ReceiveWithPrefetchCount(prefetch uint32) ReceiveOption {
 }
 
 // newReceiver creates a new Service Bus message listener given an AMQP client and an entity path
-func (h *hub) newReceiver(partitionID string, opts ...ReceiveOption) (*receiver, error) {
+func (h *hub) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
 	receiver := &receiver{
 		hub:           h,
 		consumerGroup: DefaultConsumerGroup,
 		prefetchCount: defaultPrefetchCount,
 		partitionID:   partitionID,
-		done:          make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -95,38 +92,33 @@ func (h *hub) newReceiver(partitionID string, opts ...ReceiveOption) (*receiver,
 	}
 
 	log.Debugf("creating a new receiver for entity path %s", receiver.getAddress())
-	err := receiver.newSessionAndLink()
-	if err != nil {
-		return nil, err
-	}
-	return receiver, nil
+	err := receiver.newSessionAndLink(ctx)
+	return receiver, err
 }
 
 // Close will close the AMQP session and link of the receiver
 func (r *receiver) Close() error {
-	close(r.done)
+	if r.done != nil {
+		r.done()
+	}
 
 	err := r.receiver.Close()
 	if err != nil {
+		_ = r.session.Close()
 		return err
 	}
 
-	err = r.session.Close()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return r.session.Close()
 }
 
 // Recover will attempt to close the current session and link, then rebuild them
-func (r *receiver) Recover() error {
+func (r *receiver) Recover(ctx context.Context) error {
 	err := r.Close()
 	if err != nil {
 		return err
 	}
 
-	err = r.newSessionAndLink()
+	err = r.newSessionAndLink(ctx)
 	if err != nil {
 		return err
 	}
@@ -136,20 +128,20 @@ func (r *receiver) Recover() error {
 
 // Listen start a listener for messages sent to the entity path
 func (r *receiver) Listen(handler Handler) {
+	ctx, done := context.WithCancel(context.Background())
+	r.done = done
 	messages := make(chan *amqp.Message)
-	go r.listenForMessages(messages)
-	go r.handleMessages(messages, handler)
+	go r.listenForMessages(ctx, messages)
+	go r.handleMessages(ctx, messages, handler)
 }
 
-func (r *receiver) handleMessages(messages chan *amqp.Message, handler Handler) {
+func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Message, handler Handler) {
 	for {
 		select {
-		case <-r.done:
+		case <-ctx.Done():
 			log.Debug("done handling messages")
-			close(messages)
 			return
 		case msg := <-messages:
-			ctx := context.Background()
 			id := messageID(msg)
 			log.Debugf("message id: %v is being passed to handler", id)
 
@@ -157,48 +149,39 @@ func (r *receiver) handleMessages(messages chan *amqp.Message, handler Handler) 
 			if err != nil {
 				msg.Reject()
 				log.Debugf("message rejected: id: %v", id)
-			} else {
-				// Accept message
-				msg.Accept()
-				log.Debugf("message accepted: id: %v", id)
+				continue
 			}
+			msg.Accept()
+			log.Debugf("message accepted: id: %v", id)
 		}
 	}
 }
 
-func (r *receiver) listenForMessages(msgChan chan *amqp.Message) {
+func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Message) {
 	for {
-		select {
-		case <-r.done:
-			log.Debug("done listening for messages")
-			return
-		default:
-			waitCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			msg, err := r.receiver.Receive(waitCtx)
-			cancel()
-
-			if err == amqp.ErrLinkClosed || err == amqp.ErrSessionClosed {
-				log.Debug("done listening for messages due to link or session closed")
-				time.Sleep(10 * time.Second)
-				return
-			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				log.Debug("attempting to receive messages timed out")
-				continue
-			} else if err != nil {
-				log.Error(err)
+		msg, err := r.receiver.Receive(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
 				return
 			}
+			log.Error(err)
+			return
+		}
 
-			r.receivedMessage(msg)
-			msgChan <- msg
+		id := messageID(msg)
+		log.Debugf("Message received: %s", id)
+		select {
+		case msgChan <- msg:
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 
 // newSessionAndLink will replace the session and link on the receiver
-func (r *receiver) newSessionAndLink() error {
+func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	address := r.getAddress()
-	err := r.hub.namespace.negotiateClaim(address)
+	err := r.hub.namespace.negotiateClaim(ctx, address)
 	if err != nil {
 		return err
 	}
@@ -288,7 +271,7 @@ func (r *receiver) receivedMessage(msg *amqp.Message) {
 }
 
 func messageID(msg *amqp.Message) interface{} {
-	id := interface{}("null")
+	var id interface{} = "null"
 	if msg.Properties != nil {
 		id = msg.Properties.MessageID
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/aad"
@@ -28,10 +29,12 @@ func main() {
 	for {
 		fmt.Print("Enter text: ")
 		text, _ := reader.ReadString('\n')
-		hub.Send(context.Background(), amqp.NewMessage([]byte(text)))
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		hub.Send(ctx, amqp.NewMessage([]byte(text)))
 		if text == "exit\n" {
 			break
 		}
+		cancel()
 	}
 }
 

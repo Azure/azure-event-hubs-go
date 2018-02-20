@@ -36,9 +36,11 @@ func main() {
 		return nil
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	for _, partitionID := range partitions {
-		hub.Receive(partitionID, handler)
+		hub.Receive(ctx, partitionID, handler)
 	}
+	cancel()
 
 	select {
 	case <-exit:

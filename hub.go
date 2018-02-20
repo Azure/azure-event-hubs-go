@@ -46,7 +46,7 @@ type (
 
 	// Receiver provides the ability to receive messages
 	Receiver interface {
-		Receive(partitionID string, handler Handler, opts ...ReceiveOption) error
+		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error
 	}
 
 	// Closer provides the ability to close a connection or client
@@ -161,18 +161,21 @@ func (h *hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *hub) Close() error {
+	var lastErr error
 	for _, r := range h.receivers {
-		r.Close()
+		if err := r.Close(); err != nil {
+			lastErr = err
+		}
 	}
-	return nil
+	return lastErr
 }
 
 // Listen subscribes for messages sent to the provided entityPath.
-func (h *hub) Receive(partitionID string, handler Handler, opts ...ReceiveOption) error {
+func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
-	receiver, err := h.newReceiver(partitionID, opts...)
+	receiver, err := h.newReceiver(ctx, partitionID, opts...)
 	if err != nil {
 		return err
 	}
@@ -184,7 +187,7 @@ func (h *hub) Receive(partitionID string, handler Handler, opts ...ReceiveOption
 
 // Send sends an AMQP message to the broker
 func (h *hub) Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error {
-	sender, err := h.getSender()
+	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
 	}
@@ -233,12 +236,12 @@ func (h *hub) appendAgent(userAgent string) error {
 	return nil
 }
 
-func (h *hub) getSender() (*sender, error) {
+func (h *hub) getSender(ctx context.Context) (*sender, error) {
 	h.senderMu.Lock()
 	defer h.senderMu.Unlock()
 
 	if h.sender == nil {
-		s, err := h.newSender()
+		s, err := h.newSender(ctx)
 		if err != nil {
 			return nil, err
 		}

@@ -57,7 +57,8 @@ func NewLink(conn *amqp.Client, address string) (*Link, error) {
 	clientAddress := strings.Replace("$", "", address, -1) + replyPostfix + id
 	authReceiver, err := authSession.NewReceiver(
 		amqp.LinkSourceAddress(address),
-		amqp.LinkTargetAddress(clientAddress))
+		amqp.LinkTargetAddress(clientAddress),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -80,26 +81,19 @@ func (l *Link) RetryableRPC(ctx context.Context, times int, delay time.Duration,
 			return nil, err
 		}
 
-		if res.ServerError() {
+		switch {
+		case res.Code >= 200 && res.Code < 300:
+			log.Debugf("successful rpc on link %s: status code %d and description: %s", l.id, res.Code, res.Description)
+			return res, nil
+		case res.Code >= 500:
 			errMessage := fmt.Sprintf("server error link %s: status code %d and description: %s", l.id, res.Code, res.Description)
 			log.Debugln(errMessage)
 			return nil, &common.Retryable{Message: errMessage}
-		}
-
-		if res.ClientError() {
-			errMessage := fmt.Sprintf("client error link %s: status code %d and description: %s", l.id, res.Code, res.Description)
+		default:
+			errMessage := fmt.Sprintf("unhandled error link %s: status code %d and description: %s", l.id, res.Code, res.Description)
 			log.Debugln(errMessage)
-			return nil, errors.New(errMessage)
+			return nil, &common.Retryable{Message: errMessage}
 		}
-
-		if res.Success() {
-			log.Debugf("successful rpc on link %s: status code %d and description: %s", l.id, res.Code, res.Description)
-			return res, nil
-		}
-
-		errMessage := fmt.Sprintf("unhandled error link %s: status code %d and description: %s", l.id, res.Code, res.Description)
-		log.Debugln(errMessage)
-		return nil, &common.Retryable{Message: errMessage}
 	})
 	if err != nil {
 		return nil, err
@@ -146,32 +140,39 @@ func (l *Link) RPC(ctx context.Context, msg *amqp.Message) (*Response, error) {
 	return response, err
 }
 
-// Close the link sender, receiver and session
-func (l *Link) Close() {
-	if l.sender != nil {
-		l.sender.Close()
+// Close the link receiver, sender and session
+func (l *Link) Close() error {
+	if err := l.closeReceiver(); err != nil {
+		_ = l.closeSender()
+		_ = l.closeSession()
+		return err
 	}
 
+	if err := l.closeSender(); err != nil {
+		_ = l.closeSession()
+		return err
+	}
+
+	return l.closeSession()
+}
+
+func (l *Link) closeReceiver() error {
 	if l.receiver != nil {
-		l.receiver.Close()
+		return l.receiver.Close()
 	}
+	return nil
+}
 
+func (l *Link) closeSender() error {
+	if l.sender != nil {
+		return l.sender.Close()
+	}
+	return nil
+}
+
+func (l *Link) closeSession() error {
 	if l.session != nil {
-		l.session.Close()
+		return l.session.Close()
 	}
-}
-
-// Success return true if the status code is between 200 and 300
-func (r *Response) Success() bool {
-	return r.Code >= 200 && r.Code < 300
-}
-
-// ServerError is true when status code is 500 or greater
-func (r *Response) ServerError() bool {
-	return r.Code >= 500
-}
-
-// ClientError is true when status code is in the 400s
-func (r *Response) ClientError() bool {
-	return r.Code >= 400 && r.Code < 500
+	return nil
 }
