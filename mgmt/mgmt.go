@@ -8,38 +8,23 @@ import (
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/rpc"
 	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
 )
 
 const (
 	// MsftVendor is the Microsoft vendor identifier
-	MsftVendor = "com.microsoft"
-
-	entityTypeKey    = "type"
-	entityNameKey    = "name"
-	partitionNameKey = "partition"
-	securityTokenKey = "security_token"
-
-	resultCreatedAtKey      = "created_at"
-	resultPartitionIDsKey   = "partition_ids"
-	resultPartitionCountKey = "partition_count"
-
-	resultBeginSequenceNumKey        = "begin_sequence_number"
-	resultLastEnqueuedSequenceNumKey = "last_enqueued_sequence_number"
-	resultLastEnqueuedOffsetKey      = "last_enqueued_offset"
-	resultLastEnqueueTimeUtcKey      = "last_enqueued_time_utc"
-
-	// eventHubEntityType is the Event Hub entity type in AMQP
-	eventHubEntityType = MsftVendor + ":eventhub"
-	// partitionEntityType is the Event Hub partition entity type in AMQP
+	MsftVendor          = "com.microsoft"
+	entityTypeKey       = "type"
+	entityNameKey       = "name"
+	partitionNameKey    = "partition"
+	securityTokenKey    = "security_token"
+	eventHubEntityType  = MsftVendor + ":eventhub"
 	partitionEntityType = MsftVendor + ":partition"
-
-	// operationKey is the map key used to specify the management operation
-	operationKey = "operation"
-	// readOperationKey is the map key used to specify a read operation
-	readOperationKey = "READ"
-	address          = "$management"
+	operationKey        = "operation"
+	readOperationKey    = "READ"
+	address             = "$management"
 )
 
 type (
@@ -53,30 +38,20 @@ type (
 
 	// HubRuntimeInformation provides management node information about a given Event Hub instance
 	HubRuntimeInformation struct {
-		// Path is the name of the hub
-		Path string
-		// CreatedAt is the date and time the hub was created in UTC
-		CreatedAt time.Time
-		// PartitionCount is the number of partitions in the hub
-		PartitionCount int
-		// PartitionIDs is the slice of string partition identifiers
-		PartitionIDs []string
+		Path           string    `mapstructure:"name"`
+		CreatedAt      time.Time `mapstructure:"created_at"`
+		PartitionCount int       `mapstructure:"partition_count"`
+		PartitionIDs   []string  `mapstructure:"partition_ids"`
 	}
 
 	// HubPartitionRuntimeInformation provides management node information about a given Event Hub partition
 	HubPartitionRuntimeInformation struct {
-		// HubPath is the name of the hub
-		HubPath string
-		// PartitionID is the identifier for the partition
-		PartitionID string
-		// BeginningSequenceNumber is the starting sequence number for the partition's message log
-		BeginningSequenceNumber int64
-		// LastSequenceNumber is the ending sequence number for the partition's message log
-		LastSequenceNumber int64
-		// LastEnqueuedOffset is the offset of the last enqueued message in the partition's message log
-		LastEnqueuedOffset string
-		// LastEnqueuedTimeUTC is the time of the last enqueued message in the partition's message log in UTC
-		LastEnqueuedTimeUTC time.Time
+		HubPath                 string    `mapstructure:"name"`
+		PartitionID             string    `mapstructure:"partition"`
+		BeginningSequenceNumber int64     `mapstructure:"begin_sequence_number"`
+		LastSequenceNumber      int64     `mapstructure:"last_enqueued_sequence_number"`
+		LastEnqueuedOffset      string    `mapstructure:"last_enqueued_offset"`
+		LastEnqueuedTimeUtc     time.Time `mapstructure:"last_enqueued_time_utc"`
 	}
 )
 
@@ -170,84 +145,24 @@ func (c *Client) getTokenAudience() string {
 }
 
 func newHubPartitionRuntimeInformation(msg *amqp.Message) (*HubPartitionRuntimeInformation, error) {
-	const errMsgFmt = "could not read %q key from message when creating a new hub partition runtime information -- message value: %v"
 	values, ok := msg.Value.(map[string]interface{})
 	if !ok {
 		return nil, errors.Errorf("values were not map[string]interface{}, it was: %v", values)
 	}
 
-	hubPath, ok := values[entityNameKey].(string)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, entityNameKey, values)
-	}
-
-	partition, ok := values[partitionNameKey].(string)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, partitionNameKey, values)
-	}
-
-	beginSequence, ok := values[resultBeginSequenceNumKey].(int64)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultBeginSequenceNumKey, values)
-	}
-
-	lastSequence, ok := values[resultLastEnqueuedSequenceNumKey].(int64)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultLastEnqueuedSequenceNumKey, values)
-	}
-
-	lastOffset, ok := values[resultLastEnqueuedOffsetKey].(string)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultLastEnqueuedOffsetKey, values)
-	}
-
-	lastTime, ok := values[resultLastEnqueueTimeUtcKey].(time.Time)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultLastEnqueueTimeUtcKey, values)
-	}
-
-	return &HubPartitionRuntimeInformation{
-		HubPath:                 hubPath,
-		PartitionID:             partition,
-		BeginningSequenceNumber: beginSequence,
-		LastSequenceNumber:      lastSequence,
-		LastEnqueuedOffset:      lastOffset,
-		LastEnqueuedTimeUTC:     lastTime,
-	}, nil
+	var partitionInfo HubPartitionRuntimeInformation
+	err := mapstructure.Decode(values, &partitionInfo)
+	return &partitionInfo, err
 }
 
 // newHubRuntimeInformation constructs a new HubRuntimeInformation from an AMQP message
 func newHubRuntimeInformation(msg *amqp.Message) (*HubRuntimeInformation, error) {
-	const errMsgFmt = "could not read %q key from message when creating a new hub runtime information -- message value: %v"
 	values, ok := msg.Value.(map[string]interface{})
 	if !ok {
 		return nil, errors.Errorf("values were not map[string]interface{}, it was: %v", values)
 	}
 
-	path, ok := values[entityNameKey].(string)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, entityNameKey, values)
-	}
-
-	createdAt, ok := values[resultCreatedAtKey].(time.Time)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultCreatedAtKey, values)
-	}
-
-	count, ok := values[resultPartitionCountKey].(int32)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultPartitionCountKey, values)
-	}
-
-	ids, ok := values[resultPartitionIDsKey].([]string)
-	if !ok {
-		return nil, errors.Errorf(errMsgFmt, resultPartitionCountKey, values)
-	}
-
-	return &HubRuntimeInformation{
-		Path:           path,
-		CreatedAt:      createdAt,
-		PartitionCount: int(count),
-		PartitionIDs:   ids,
-	}, nil
+	var runtimeInfo HubRuntimeInformation
+	err := mapstructure.Decode(values, &runtimeInfo)
+	return &runtimeInfo, err
 }
