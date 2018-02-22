@@ -233,6 +233,16 @@ func HubWithUserAgent(userAgent string) HubOption {
 	}
 }
 
+// HubWithEnvironment configures the hub to use the specified environment.
+//
+// By default, the hub instance will use Azure US Public cloud environment
+func HubWithEnvironment(env azure.Environment) HubOption {
+	return func(h *hub) error {
+		h.namespace.environment = env
+		return nil
+	}
+}
+
 func (h *hub) appendAgent(userAgent string) error {
 	ua := path.Join(h.userAgent, userAgent)
 	if len(ua) > maxUserAgentLen {
