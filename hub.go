@@ -44,8 +44,8 @@ type (
 		Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error
 	}
 
-	// Receiver provides the ability to receive messages
-	Receiver interface {
+	// PartitionedReceiver provides the ability to receive messages from a given partition
+	PartitionedReceiver interface {
 		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error
 	}
 
@@ -63,7 +63,7 @@ type (
 	// Client provides the ability to send and receive Event Hub messages
 	Client interface {
 		Sender
-		Receiver
+		PartitionedReceiver
 		Closer
 		Manager
 	}
