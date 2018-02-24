@@ -27,7 +27,7 @@ type (
 	hub struct {
 		name              string
 		namespace         *namespace
-		receivers         []*receiver
+		receivers         map[string]*receiver
 		sender            *sender
 		senderPartitionID *string
 		receiverMu        sync.Mutex
@@ -46,7 +46,7 @@ type (
 
 	// PartitionedReceiver provides the ability to receive messages from a given partition
 	PartitionedReceiver interface {
-		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error
+		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (close func() error, err error)
 	}
 
 	// Closer provides the ability to close a connection or client
@@ -177,18 +177,31 @@ func (h *hub) Close() error {
 }
 
 // Listen subscribes for messages sent to the provided entityPath.
-func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error {
+func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (close func() error, err error) {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
 	receiver, err := h.newReceiver(ctx, partitionID, opts...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	h.receivers = append(h.receivers, receiver)
+	if r, ok := h.receivers[receiver.getAddress()]; ok {
+		r.Close()
+	}
+	h.receivers[receiver.getAddress()] = receiver
 	receiver.Listen(handler)
-	return nil
+
+	close = func() error {
+		h.receiverMu.Lock()
+		defer h.receiverMu.Unlock()
+		if r, ok := h.receivers[receiver.getAddress()]; ok {
+			delete(h.receivers, receiver.getAddress())
+			return r.Close()
+		}
+		return nil
+	}
+	return close, nil
 }
 
 // Send sends an AMQP message to the broker

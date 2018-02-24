@@ -38,7 +38,7 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	for _, partitionID := range partitions {
-		hub.Receive(ctx, partitionID, handler)
+		hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
 	}
 	cancel()
 

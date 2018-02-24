@@ -5,6 +5,7 @@ import (
 )
 
 type (
+	// Checkpointer interface provides the ability to persist durable checkpoints for event processors
 	Checkpointer interface {
 		StoreExists(ctx context.Context) (bool, error)
 		EnsureStore(ctx context.Context) error
@@ -15,6 +16,7 @@ type (
 		DeleteCheckpoint(ctx context.Context, partitionID string) error
 	}
 
+	// Checkpoint is the information needed to determine the last message processed
 	Checkpoint struct {
 		partitionID    string
 		offset         string
@@ -22,6 +24,7 @@ type (
 	}
 )
 
+// NewCheckpoint constructs a checkpoint given a partitionID
 func NewCheckpoint(partitionID string) *Checkpoint {
 	return &Checkpoint{
 		partitionID: partitionID,

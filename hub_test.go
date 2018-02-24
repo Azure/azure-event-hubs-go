@@ -100,7 +100,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 
 	count := 0
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	err := client.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
+	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
 		assert.Equal(t, messages[count], string(msg.Data[0]))
 		count++
 		wg.Done()
@@ -158,7 +158,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	for _, partitionID := range partitionIDs {
-		err := client.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
+		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
 			wg.Done()
 			return nil
 		}, ReceiveWithPrefetchCount(100))
@@ -267,7 +267,7 @@ func BenchmarkReceive(b *testing.B) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	// receive from all partition IDs
 	for _, partitionID := range *mgmtHub.PartitionIds {
-		err = hub.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
+		_, err = hub.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
 			wg.Done()
 			return nil
 		}, ReceiveWithPrefetchCount(100))
