@@ -46,7 +46,7 @@ type (
 
 	// PartitionedReceiver provides the ability to receive messages from a given partition
 	PartitionedReceiver interface {
-		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (close func() error, err error)
+		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error)
 	}
 
 	// Closer provides the ability to close a connection or client
@@ -80,6 +80,7 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 		namespace:       ns,
 		offsetPersister: new(persist.MemoryPersister),
 		userAgent:       rootUserAgent,
+		receivers:       make(map[string]*receiver),
 	}
 
 	for _, opt := range opts {
@@ -176,8 +177,8 @@ func (h *hub) Close() error {
 	return lastErr
 }
 
-// Listen subscribes for messages sent to the provided entityPath.
-func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (close func() error, err error) {
+// Receive subscribes for messages sent to the provided entityPath.
+func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error) {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
@@ -186,22 +187,13 @@ func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 		return nil, err
 	}
 
-	if r, ok := h.receivers[receiver.getAddress()]; ok {
+	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
 		r.Close()
 	}
-	h.receivers[receiver.getAddress()] = receiver
-	receiver.Listen(handler)
+	h.receivers[receiver.getIdentifier()] = receiver
+	listenerContext := receiver.Listen(handler)
 
-	close = func() error {
-		h.receiverMu.Lock()
-		defer h.receiverMu.Unlock()
-		if r, ok := h.receivers[receiver.getAddress()]; ok {
-			delete(h.receivers, receiver.getAddress())
-			return r.Close()
-		}
-		return nil
-	}
-	return close, nil
+	return listenerContext, nil
 }
 
 // Send sends an AMQP message to the broker

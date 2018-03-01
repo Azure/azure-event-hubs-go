@@ -8,8 +8,7 @@ import (
 )
 
 const (
-	defaultLeaseDuration        = 30 * time.Second
-	defaultLeaseRenewalInterval = 10 * time.Second
+	defaultLeaseDuration = 30 * time.Second
 )
 
 type (

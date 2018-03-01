@@ -38,10 +38,24 @@ type (
 		prefetchCount      uint32
 		done               func()
 		lastReceivedOffset atomic.Value
+		epoch              *int64
+		lastError          error
 	}
 
 	// ReceiveOption provides a structure for configuring receivers
 	ReceiveOption func(receiver *receiver) error
+
+	// ListenerHandle provides a way to manage the lifespan of a listener
+	ListenerHandle interface {
+		Done() <-chan struct{}
+		Err() error
+		Close() error
+	}
+
+	listenerHandle struct {
+		r   *receiver
+		ctx context.Context
+	}
 )
 
 // ReceiveWithConsumerGroup configures the receiver to listen to a specific consumer group
@@ -76,6 +90,14 @@ func ReceiveWithPrefetchCount(prefetch uint32) ReceiveOption {
 	}
 }
 
+// ReceiveWithEpoch configures the receiver to use an epoch -- see https://blogs.msdn.microsoft.com/gyan/2014/09/02/event-hubs-receiver-epoch/
+func ReceiveWithEpoch(epoch int64) ReceiveOption {
+	return func(receiver *receiver) error {
+		receiver.epoch = &epoch
+		return nil
+	}
+}
+
 // newReceiver creates a new Service Bus message listener given an AMQP client and an entity path
 func (h *hub) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
 	receiver := &receiver{
@@ -91,7 +113,7 @@ func (h *hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		}
 	}
 
-	log.Debugf("creating a new receiver for entity path %s", receiver.getAddress())
+	receiver.debugLogf("creating a new receiver")
 	err := receiver.newSessionAndLink(ctx)
 	return receiver, err
 }
@@ -122,32 +144,38 @@ func (r *receiver) Recover(ctx context.Context) error {
 }
 
 // Listen start a listener for messages sent to the entity path
-func (r *receiver) Listen(handler Handler) {
+func (r *receiver) Listen(handler Handler) ListenerHandle {
 	ctx, done := context.WithCancel(context.Background())
 	r.done = done
+
 	messages := make(chan *amqp.Message)
 	go r.listenForMessages(ctx, messages)
 	go r.handleMessages(ctx, messages, handler)
+
+	return &listenerHandle{
+		r:   r,
+		ctx: ctx,
+	}
 }
 
 func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Message, handler Handler) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("done handling messages")
+			r.debugLogf("done handling messages")
 			return
 		case msg := <-messages:
 			id := messageID(msg)
-			log.Debugf("message id: %v is being passed to handler", id)
+			r.debugLogf("message id: %v is being passed to handler", id)
 
 			err := handler(ctx, msg)
 			if err != nil {
 				msg.Reject()
-				log.Debugf("message rejected: id: %v", id)
+				r.debugLogf("message rejected: id: %v", id)
 				continue
 			}
 			msg.Accept()
-			log.Debugf("message accepted: id: %v", id)
+			r.debugLogf("message accepted: id: %v", id)
 		}
 	}
 }
@@ -159,12 +187,13 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			if ctx.Err() != nil {
 				return
 			}
-			log.Error(err)
+			r.done()
+			r.lastError = err
 			return
 		}
 
 		id := messageID(msg)
-		log.Debugf("Message received: %s", id)
+		r.debugLogf("Message received: %s", id)
 		select {
 		case msgChan <- msg:
 		case <-ctx.Done():
@@ -206,6 +235,10 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 		amqp.LinkSelectorFilter(offsetExpression),
 	}
 
+	if r.epoch != nil {
+		opts = append(opts, amqp.LinkProperty("com.microsoft:epoch", *r.epoch))
+	}
+
 	amqpReceiver, err := amqpSession.NewReceiver(opts...)
 	if err != nil {
 		return err
@@ -234,6 +267,13 @@ func (r *receiver) getOffsetExpression() (string, error) {
 
 func (r *receiver) getAddress() string {
 	return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s", r.hubName(), r.consumerGroup, r.partitionID)
+}
+
+func (r *receiver) getIdentifier() string {
+	if r.epoch != nil {
+		return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s/epoch/%d", r.hubName(), r.consumerGroup, r.partitionID, *r.epoch)
+	}
+	return r.getAddress()
 }
 
 func (r *receiver) namespaceName() string {
@@ -274,4 +314,35 @@ func messageID(msg *amqp.Message) interface{} {
 		id = msg.Properties.MessageID
 	}
 	return id
+}
+
+func (r *receiver) debugLogf(format string, args ...interface{}) {
+	var msg string
+	if len(args) > 0 {
+		msg = fmt.Sprintf(format, args)
+	} else {
+		msg = format
+	}
+
+	log.Debugf(msg+" for entity identifier %q", r.getIdentifier())
+}
+
+func (r *receiver) errorLog(err error) {
+	msg := fmt.Sprintf("entity identifier %q, error: ", r.getIdentifier())
+	log.Error(msg, err)
+}
+
+func (lc *listenerHandle) Close() error {
+	return lc.r.Close()
+}
+
+func (lc *listenerHandle) Done() <-chan struct{} {
+	return lc.ctx.Done()
+}
+
+func (lc *listenerHandle) Err() error {
+	if lc.r.lastError != nil {
+		return lc.r.lastError
+	}
+	return lc.ctx.Err()
 }

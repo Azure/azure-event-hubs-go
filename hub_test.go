@@ -113,6 +113,91 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 	wg.Wait()
 }
 
+func (suite *eventHubSuite) TestEpochReceivers() {
+	tests := map[string]func(*testing.T, Client, []string, string){
+		"TestEpochGreaterThenLess": testEpochGreaterThenLess,
+		"TestEpochLessThenGreater": testEpochLessThenGreater,
+	}
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			hubName := randomName("goehtest", 10)
+			mgmtHub, err := suite.ensureEventHub(context.Background(), hubName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer suite.deleteEventHub(context.Background(), hubName)
+			partitionID := (*mgmtHub.PartitionIds)[0]
+			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
+			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
+			_ = client.Close() // there will be an error here since the link will be forcefully detached
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
+
+func testEpochGreaterThenLess(t *testing.T, client Client, partitionIDs []string, _ string) {
+	partitionID := partitionIDs[0]
+	ctx := context.Background()
+	r1, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(4))
+	if err != nil {
+		t.Error(err)
+	}
+	r2, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(1))
+	if err != nil {
+		t.Error(err)
+	}
+
+	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	select {
+	case <-r2.Done():
+		break
+	case <-doneCtx.Done():
+		t.Error("r2 didn't finish in time")
+	}
+	cancel()
+
+	if r1.Err() != nil {
+		t.Error("r1 should still be running with the higher epoch")
+	}
+
+	if r2.Err() == nil {
+		t.Error("r2 should have failed")
+	}
+}
+
+func testEpochLessThenGreater(t *testing.T, client Client, partitionIDs []string, hubName string) {
+	partitionID := partitionIDs[0]
+	ctx := context.Background()
+	r1, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(1))
+	if err != nil {
+		t.Error(err)
+	}
+
+	r2, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(4))
+	if err != nil {
+		t.Error(err)
+	}
+
+	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	select {
+	case <-r1.Done():
+		break
+	case <-doneCtx.Done():
+		t.Error("r1 didn't finish in time")
+	}
+	cancel()
+
+	if r1.Err() == nil {
+		t.Error("r1 should have died with error since it has a lower epoch value")
+	}
+
+	if r2.Err() != nil {
+		t.Error("r2 should not have an error and should still be processing")
+	}
+}
+
 func (suite *eventHubSuite) TestMultiPartition() {
 	tests := map[string]func(*testing.T, Client, []string, string){
 		"TestMultiSendAndReceive": testMultiSendAndReceive,

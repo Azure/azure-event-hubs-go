@@ -12,6 +12,10 @@ var (
 	timeout = 60 * time.Second
 )
 
+const (
+	defaultLeaseRenewalInterval = 10 * time.Second
+)
+
 type (
 	scheduler struct {
 		processor    *EventProcessorHost
@@ -89,6 +93,7 @@ func (s *scheduler) Run() {
 					continue
 				}
 				if ok {
+					// we were able to steal the lease, so start handling messages
 					s.startReceiver(ctx, stolen)
 				}
 			}

@@ -98,17 +98,17 @@ func (h *EventProcessorHost) Receive(ctx context.Context, handler eventhub.Handl
 }
 
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
-func (h *EventProcessorHost) Start() {
+func (h *EventProcessorHost) Start() error {
 	log.Println(banner)
 	go h.scheduler.Run()
 
 	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
-	<-signalChan
+	_ <- signalChan
 
 	log.Println("shutting down...")
-	h.scheduler.Stop()
+	return h.scheduler.Stop()
 }
 
 // StartNonBlocking begins processing of messages for registered handlers
@@ -162,7 +162,7 @@ func (h *EventProcessorHost) Close(ctx context.Context) error {
 		if err := h.scheduler.Stop(); err != nil {
 			log.Error(err)
 			if h.client != nil {
-				_ := h.client.Close()
+				_ = h.client.Close()
 			}
 			return err
 		}
