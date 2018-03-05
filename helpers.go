@@ -41,9 +41,9 @@ func ptrInt64(number int64) *int64 {
 	return &number
 }
 
-// durationTo8601Seconds takes a duration and returns a string period of whole seconds (int cast of float)
-func durationTo8601Seconds(duration *time.Duration) *string {
-	return ptrString(fmt.Sprintf("PT%dS", int(duration.Seconds())))
+// durationTo8601Seconds takes a duration and returns a string period of whole seconds
+func durationTo8601Seconds(duration time.Duration) *string {
+	return ptrString(fmt.Sprintf("PT%dS", int(duration/time.Second)))
 }
 
 // parseAzureResourceID converts a long-form Azure Resource Manager ID

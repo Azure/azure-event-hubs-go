@@ -30,17 +30,17 @@ type (
 		env                 *azure.Environment
 	}
 
-	// TokenProvider provides cbs.TokenProvider functionality for Azure Active Directory JWT tokens
+	// TokenProvider provides cbs.TokenProvider functionality for Azure Active Directory JWTs
 	TokenProvider struct {
 		tokenProvider *adal.ServicePrincipalToken
 	}
 
-	// JwtTokenProviderOption provides configuration options for constructing AAD Token Providers
-	JwtTokenProviderOption func(provider *tokenProviderConfiguration) error
+	// JWTProviderOption provides configuration options for constructing AAD Token Providers
+	JWTProviderOption func(provider *tokenProviderConfiguration) error
 )
 
-// JwtTokenProviderWithEnvironment configures the token provider to use a specific Azure Environment
-func JwtTokenProviderWithEnvironment(env *azure.Environment) JwtTokenProviderOption {
+// JWTProviderWithEnvironment configures the token provider to use a specific Azure Environment
+func JWTProviderWithEnvironment(env *azure.Environment) JWTProviderOption {
 	return func(config *tokenProviderConfiguration) error {
 		config.env = env
 		return nil
@@ -66,7 +66,7 @@ func NewProvider(tokenProvider *adal.ServicePrincipalToken) auth.TokenProvider {
 //
 //
 // The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
-func NewProviderFromEnvironment(opts ...JwtTokenProviderOption) (auth.TokenProvider, error) {
+func NewProviderFromEnvironment(opts ...JWTProviderOption) (auth.TokenProvider, error) {
 	config := &tokenProviderConfiguration{
 		tenantID:            os.Getenv("AZURE_TENANT_ID"),
 		clientID:            os.Getenv("AZURE_CLIENT_ID"),
@@ -153,16 +153,17 @@ func (c *tokenProviderConfiguration) newServicePrincipalToken() (*adal.ServicePr
 	return spToken, nil
 }
 
-// GetToken gets a CBS JWT token
+// GetToken gets a CBS JWT
 func (t *TokenProvider) GetToken(audience string) (*auth.Token, error) {
 	token := t.tokenProvider.Token()
-	expireTicks, err := strconv.Atoi(token.ExpiresOn)
+	expireTicks, err := strconv.ParseInt(token.ExpiresOn, 10, 64)
 	if err != nil {
 		log.Debugf("%v", token.AccessToken)
 		return nil, err
 	}
-	currentTicks := time.Now().UTC().Unix()
-	if int64(expireTicks) < currentTicks {
+	expires := time.Unix(expireTicks, 0)
+
+	if expires.Before(time.Now()) {
 		log.Debug("refreshing AAD token since it has expired")
 		if err := t.tokenProvider.Refresh(); err != nil {
 			log.Error("refreshing AAD token has failed")
@@ -172,7 +173,7 @@ func (t *TokenProvider) GetToken(audience string) (*auth.Token, error) {
 		log.Debug("refreshing AAD token has succeeded")
 	}
 
-	return auth.NewToken(auth.CbsTokenTypeJwt, token.AccessToken, token.ExpiresOn), nil
+	return auth.NewToken(auth.CBSTokenTypeJWT, token.AccessToken, token.ExpiresOn), nil
 }
 
 func decodePkcs12(pkcs []byte, password string) (*x509.Certificate, *rsa.PrivateKey, error) {

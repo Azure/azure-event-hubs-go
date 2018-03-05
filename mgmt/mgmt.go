@@ -75,8 +75,8 @@ type (
 		LastSequenceNumber int64
 		// LastEnqueuedOffset is the offset of the last enqueued message in the partition's message log
 		LastEnqueuedOffset string
-		// LastEnqueuedTimeUtc is the time of the last enqueued message in the partition's message log in UTC
-		LastEnqueuedTimeUtc time.Time
+		// LastEnqueuedTimeUTC is the time of the last enqueued message in the partition's message log in UTC
+		LastEnqueuedTimeUTC time.Time
 	}
 )
 
@@ -171,83 +171,83 @@ func (c *Client) getTokenAudience() string {
 
 func newHubPartitionRuntimeInformation(msg *amqp.Message) (*HubPartitionRuntimeInformation, error) {
 	const errMsgFmt = "could not read %q key from message when creating a new hub partition runtime information -- message value: %v"
-	info := new(HubPartitionRuntimeInformation)
 	values, ok := msg.Value.(map[string]interface{})
 	if !ok {
 		return nil, errors.Errorf("values were not map[string]interface{}, it was: %v", values)
 	}
 
-	if hubPath, ok := values[entityNameKey].(string); ok {
-		info.HubPath = hubPath
-	} else {
+	hubPath, ok := values[entityNameKey].(string)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, entityNameKey, values)
 	}
 
-	if partition, ok := values[partitionNameKey].(string); ok {
-		info.PartitionID = partition
-	} else {
+	partition, ok := values[partitionNameKey].(string)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, partitionNameKey, values)
 	}
 
-	if sequence, ok := values[resultBeginSequenceNumKey].(int64); ok {
-		info.BeginningSequenceNumber = sequence
-	} else {
+	beginSequence, ok := values[resultBeginSequenceNumKey].(int64)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultBeginSequenceNumKey, values)
 	}
 
-	if sequence, ok := values[resultLastEnqueuedSequenceNumKey].(int64); ok {
-		info.LastSequenceNumber = sequence
-	} else {
+	lastSequence, ok := values[resultLastEnqueuedSequenceNumKey].(int64)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultLastEnqueuedSequenceNumKey, values)
 	}
 
-	if lastOffset, ok := values[resultLastEnqueuedOffsetKey].(string); ok {
-		info.LastEnqueuedOffset = lastOffset
-	} else {
+	lastOffset, ok := values[resultLastEnqueuedOffsetKey].(string)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultLastEnqueuedOffsetKey, values)
 	}
 
-	if t, ok := values[resultLastEnqueueTimeUtcKey].(time.Time); ok {
-		info.LastEnqueuedTimeUtc = t
-	} else {
+	lastTime, ok := values[resultLastEnqueueTimeUtcKey].(time.Time)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultLastEnqueueTimeUtcKey, values)
 	}
 
-	return info, nil
+	return &HubPartitionRuntimeInformation{
+		HubPath:                 hubPath,
+		PartitionID:             partition,
+		BeginningSequenceNumber: beginSequence,
+		LastSequenceNumber:      lastSequence,
+		LastEnqueuedOffset:      lastOffset,
+		LastEnqueuedTimeUTC:     lastTime,
+	}, nil
 }
 
 // newHubRuntimeInformation constructs a new HubRuntimeInformation from an AMQP message
 func newHubRuntimeInformation(msg *amqp.Message) (*HubRuntimeInformation, error) {
 	const errMsgFmt = "could not read %q key from message when creating a new hub runtime information -- message value: %v"
-	info := new(HubRuntimeInformation)
 	values, ok := msg.Value.(map[string]interface{})
 	if !ok {
 		return nil, errors.Errorf("values were not map[string]interface{}, it was: %v", values)
 	}
 
-	if path, ok := values[entityNameKey].(string); ok {
-		info.Path = path
-	} else {
+	path, ok := values[entityNameKey].(string)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, entityNameKey, values)
 	}
 
-	if createdAt, ok := values[resultCreatedAtKey].(time.Time); ok {
-		info.CreatedAt = createdAt
-	} else {
+	createdAt, ok := values[resultCreatedAtKey].(time.Time)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultCreatedAtKey, values)
 	}
 
-	if count, ok := values[resultPartitionCountKey].(int32); ok {
-		info.PartitionCount = int(count)
-	} else {
+	count, ok := values[resultPartitionCountKey].(int32)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultPartitionCountKey, values)
 	}
 
-	if ids, ok := values[resultPartitionIDsKey].([]string); ok {
-		info.PartitionIDs = ids
-	} else {
+	ids, ok := values[resultPartitionIDsKey].([]string)
+	if !ok {
 		return nil, errors.Errorf(errMsgFmt, resultPartitionCountKey, values)
 	}
 
-	return info, nil
+	return &HubRuntimeInformation{
+		Path:           path,
+		CreatedAt:      createdAt,
+		PartitionCount: int(count),
+		PartitionIDs:   ids,
+	}, nil
 }

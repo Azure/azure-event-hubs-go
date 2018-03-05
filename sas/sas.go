@@ -51,33 +51,32 @@ func NewProvider(namespace, keyName, key string) auth.TokenProvider {
 //
 // looks like: Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=
 func NewProviderFromEnvironment() (auth.TokenProvider, error) {
-	var provider auth.TokenProvider
-	keyName := os.Getenv("EVENTHUB_KEY_NAME")
-	keyValue := os.Getenv("EVENTHUB_KEY_VALUE")
-	namespace := os.Getenv("EVENTHUB_NAMESPACE")
 	connStr := os.Getenv("EVENTHUB_CONNECTION_STRING")
-
-	if (keyName == "" || keyValue == "" || namespace == "") && connStr == "" {
-		return nil, errors.New("unable to build SAS token provider because (EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE and EVENTHUB_NAMESPACE) were empty, and EVENTHUB_CONNECTION_STRING was empty")
-	}
-
 	if connStr != "" {
 		parsed, err := common.ParsedConnectionFromStr(connStr)
 		if err != nil {
 			return nil, err
 		}
-		provider = NewProvider(parsed.Namespace, parsed.KeyName, parsed.Key)
-	} else {
-		provider = NewProvider(namespace, keyName, keyValue)
+		return NewProvider(parsed.Namespace, parsed.KeyName, parsed.Key), nil
 	}
 
-	return provider, nil
+	var (
+		keyName   = os.Getenv("EVENTHUB_KEY_NAME")
+		keyValue  = os.Getenv("EVENTHUB_KEY_VALUE")
+		namespace = os.Getenv("EVENTHUB_NAMESPACE")
+	)
+
+	if keyName == "" || keyValue == "" || namespace == "" {
+		return nil, errors.New("unable to build SAS token provider because (EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE and EVENTHUB_NAMESPACE) were empty, and EVENTHUB_CONNECTION_STRING was empty")
+	}
+
+	return NewProvider(namespace, keyName, keyValue), nil
 }
 
 // GetToken gets a CBS SAS token
 func (t *TokenProvider) GetToken(audience string) (*auth.Token, error) {
 	signed, expiry := t.signer.SignWithDuration(audience, 2*time.Hour)
-	return auth.NewToken(auth.CbsTokenTypeSas, signed, expiry), nil
+	return auth.NewToken(auth.CBSTokenTypeSAS, signed, expiry), nil
 }
 
 // NewSigner builds a new SAS signer for use in generation Service Bus and Event Hub SAS tokens
@@ -105,7 +104,7 @@ func (s *Signer) SignWithExpiry(uri, expiry string) string {
 
 func signatureExpiry(from time.Time, interval time.Duration) string {
 	t := from.Add(interval).Round(time.Second).Unix()
-	return strconv.Itoa(int(t))
+	return strconv.FormatInt(t, 10)
 }
 
 func stringToSign(uri, expiry string) string {

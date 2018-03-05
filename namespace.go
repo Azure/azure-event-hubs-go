@@ -39,23 +39,24 @@ func (ns *namespace) connection() (*amqp.Client, error) {
 	ns.clientMu.Lock()
 	defer ns.clientMu.Unlock()
 
-	if ns.client == nil {
-		host := ns.getAmqpHostURI()
-		client, err := amqp.Dial(
-			host,
-			amqp.ConnSASLAnonymous(),
-			amqp.ConnMaxSessions(65535),
-			amqp.ConnProperty("product", "MSGolangClient"),
-			amqp.ConnProperty("version", "0.0.1"),
-			amqp.ConnProperty("platform", runtime.GOOS),
-			amqp.ConnProperty("framework", runtime.Version()),
-			amqp.ConnProperty("user-agent", rootUserAgent),
-		)
-		if err != nil {
-			return nil, err
-		}
-		ns.client = client
+	if ns.client != nil {
+		return ns.client, nil
 	}
+
+	host := ns.getAmqpHostURI()
+	client, err := amqp.Dial(host,
+		amqp.ConnSASLAnonymous(),
+		amqp.ConnMaxSessions(65535),
+		amqp.ConnProperty("product", "MSGolangClient"),
+		amqp.ConnProperty("version", "0.0.1"),
+		amqp.ConnProperty("platform", runtime.GOOS),
+		amqp.ConnProperty("framework", runtime.Version()),
+		amqp.ConnProperty("user-agent", rootUserAgent),
+	)
+	if err != nil {
+		return nil, err
+	}
+	ns.client = client
 	return ns.client, nil
 }
 

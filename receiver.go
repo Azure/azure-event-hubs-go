@@ -118,12 +118,7 @@ func (r *receiver) Recover(ctx context.Context) error {
 		return err
 	}
 
-	err = r.newSessionAndLink(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return r.newSessionAndLink(ctx)
 }
 
 // Listen start a listener for messages sent to the entity path
@@ -256,18 +251,21 @@ func (r *receiver) offsetPersister() persist.OffsetPersister {
 func (r *receiver) receivedMessage(msg *amqp.Message) {
 	id := messageID(msg)
 	log.Debugf("message id: %v received", id)
+
 	if msg.Annotations == nil {
 		// this case should not happen and will cause replay of the event log
 		log.Warnln("message id: %v does not have annotations and will not have an offset.", id)
-	} else {
-		if offset, ok := msg.Annotations[offsetAnnotationName]; ok {
-			log.Debugf("message id: %v has offset of %s", id, offset)
-			r.storeLastReceivedOffset(offset.(string))
-		} else {
-			// this case should not happen and will cause replay of the event log
-			log.Warnln("message id: %v has annotations, but doesn't contain an offset.", id)
-		}
+		return
 	}
+
+	offset, ok := msg.Annotations[offsetAnnotationName]
+	if !ok {
+		// this case should not happen and will cause replay of the event log
+		log.Warnln("message id: %v has annotations, but doesn't contain an offset.", id)
+	}
+
+	log.Debugf("message id: %v has offset of %s", id, offset)
+	r.storeLastReceivedOffset(offset.(string))
 }
 
 func messageID(msg *amqp.Message) interface{} {
