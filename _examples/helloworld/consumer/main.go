@@ -12,7 +12,6 @@ import (
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
-	"pack.ag/amqp"
 )
 
 const (
@@ -25,13 +24,13 @@ func main() {
 	hub, partitions := initHub()
 	exit := make(chan struct{})
 
-	handler := func(ctx context.Context, msg *amqp.Message) error {
-		text := string(msg.Data[0])
+	handler := func(ctx context.Context, event *eventhub.Event) error {
+		text := string(event.Data)
 		if text == "exit\n" {
-			fmt.Println("Someone told me to exit!")
+			fmt.Println("Oh snap!! Someone told me to exit!")
 			exit <- *new(struct{})
 		} else {
-			fmt.Println(string(msg.Data[0]))
+			fmt.Println(string(event.Data))
 		}
 		return nil
 	}
@@ -41,6 +40,8 @@ func main() {
 		hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
 	}
 	cancel()
+
+	fmt.Println("I am listening...")
 
 	select {
 	case <-exit:

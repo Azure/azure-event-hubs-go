@@ -13,7 +13,6 @@ import (
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
-	"pack.ag/amqp"
 )
 
 const (
@@ -30,7 +29,7 @@ func main() {
 		fmt.Print("Enter text: ")
 		text, _ := reader.ReadString('\n')
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		hub.Send(ctx, amqp.NewMessage([]byte(text)))
+		hub.Send(ctx, eventhub.NewEventFromString(text))
 		if text == "exit\n" {
 			break
 		}
