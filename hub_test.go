@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-event-hubs-go/sas"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"pack.ag/amqp"
 )
 
 func (suite *eventHubSuite) TestSasToken() {
@@ -49,8 +48,9 @@ func (suite *eventHubSuite) TestSasToken() {
 
 func (suite *eventHubSuite) TestPartitionedSender() {
 	tests := map[string]func(*testing.T, Client, string){
-		"TestSend":           testBasicSend,
-		"TestSendAndReceive": testBasicSendAndReceive,
+		"TestSend":                testBasicSend,
+		"TestSendAndReceive":      testBasicSendAndReceive,
+		"TestBatchSendAndReceive": testBatchSendAndReceive,
 	}
 
 	for name, testFunc := range tests {
@@ -60,7 +60,7 @@ func (suite *eventHubSuite) TestPartitionedSender() {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer suite.deleteEventHub(context.Background(), hubName)
+			//defer suite.deleteEventHub(context.Background(), hubName)
 			partitionID := (*mgmtHub.PartitionIds)[0]
 			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
 
@@ -75,8 +75,42 @@ func (suite *eventHubSuite) TestPartitionedSender() {
 }
 
 func testBasicSend(t *testing.T, client Client, _ string) {
-	err := client.Send(context.Background(), amqp.NewMessage([]byte("Hello!")))
+	err := client.Send(context.Background(), NewEventFromString("Hello!"))
 	assert.Nil(t, err)
+}
+
+func testBatchSendAndReceive(t *testing.T, client Client, partitionID string) {
+	messages := []string{"hello", "world", "foo", "bar", "baz", "buzz"}
+	var wg sync.WaitGroup
+	wg.Add(len(messages))
+
+	events := make([]*Event, len(messages))
+	for idx, msg := range messages {
+		events[idx] = NewEventFromString(msg)
+	}
+	batch := &EventBatch{
+		Events: events,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	err := client.SendBatch(ctx, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+
+	count := 0
+	_, err = client.Receive(context.Background(), partitionID, func(ctx context.Context, event *Event) error {
+		assert.Equal(t, messages[count], string(event.Data))
+		count++
+		wg.Done()
+		return nil
+	}, ReceiveWithPrefetchCount(100))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	waitUntil(t, &wg, 15*time.Second)
 }
 
 func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
@@ -91,7 +125,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 
 	for idx, message := range messages {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := client.Send(ctx, amqp.NewMessage([]byte(message)), SendWithMessageID(fmt.Sprintf("%d", idx)))
+		err := client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
 			t.Fatal(err)
@@ -100,8 +134,8 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 
 	count := 0
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
-		assert.Equal(t, messages[count], string(msg.Data[0]))
+	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
+		assert.Equal(t, messages[count], string(event.Data))
 		count++
 		wg.Done()
 		return nil
@@ -110,7 +144,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wg.Wait()
+	waitUntil(t, &wg, 15*time.Second)
 }
 
 func (suite *eventHubSuite) TestEpochReceivers() {
@@ -140,11 +174,11 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 func testEpochGreaterThenLess(t *testing.T, client Client, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
 	ctx := context.Background()
-	r1, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(4))
+	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if err != nil {
 		t.Error(err)
 	}
-	r2, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(1))
+	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if err != nil {
 		t.Error(err)
 	}
@@ -167,15 +201,15 @@ func testEpochGreaterThenLess(t *testing.T, client Client, partitionIDs []string
 	}
 }
 
-func testEpochLessThenGreater(t *testing.T, client Client, partitionIDs []string, hubName string) {
+func testEpochLessThenGreater(t *testing.T, client Client, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
 	ctx := context.Background()
-	r1, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(1))
+	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if err != nil {
 		t.Error(err)
 	}
 
-	r2, err := client.Receive(ctx, partitionID, func(c context.Context, msg *amqp.Message) error { return nil }, ReceiveWithEpoch(4))
+	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if err != nil {
 		t.Error(err)
 	}
@@ -234,7 +268,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 
 	for idx, message := range messages {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := client.Send(ctx, amqp.NewMessage([]byte(message)), SendWithMessageID(fmt.Sprintf("%d", idx)))
+		err := client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
 			t.Fatal(err)
@@ -243,7 +277,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	for _, partitionID := range partitionIDs {
-		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
+		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 			wg.Done()
 			return nil
 		}, ReceiveWithPrefetchCount(100))
@@ -252,7 +286,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 		}
 	}
 	cancel()
-	wg.Wait()
+	waitUntil(t, &wg, 15*time.Second)
 }
 
 func (suite *eventHubSuite) TestHubManagement() {
@@ -340,7 +374,7 @@ func BenchmarkReceive(b *testing.B) {
 
 	for idx, message := range messages {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := hub.Send(ctx, amqp.NewMessage([]byte(message)), SendWithMessageID(fmt.Sprintf("%d", idx)))
+		err := hub.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
 			b.Fatal(err)
@@ -352,7 +386,7 @@ func BenchmarkReceive(b *testing.B) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	// receive from all partition IDs
 	for _, partitionID := range *mgmtHub.PartitionIds {
-		_, err = hub.Receive(ctx, partitionID, func(ctx context.Context, msg *amqp.Message) error {
+		_, err = hub.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 			wg.Done()
 			return nil
 		}, ReceiveWithPrefetchCount(100))
@@ -380,4 +414,24 @@ func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, 
 		t.Fatal(err)
 	}
 	return client
+}
+
+func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return
+	case <-time.After(d):
+		t.Error("took longer than " + fmtDuration(d))
+	}
+}
+
+func fmtDuration(d time.Duration) string {
+	d = d.Round(time.Second) / time.Second
+	return fmt.Sprintf("%d seconds", d)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/azure-event-hubs-go"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -13,7 +14,7 @@ const (
 
 type (
 	leasedReceiver struct {
-		closeReceiver func() error
+		closeReceiver eventhub.ListenerHandle
 		processor     *EventProcessorHost
 		lease         *Lease
 		done          func()
@@ -45,7 +46,7 @@ func (lr *leasedReceiver) Close() error {
 	}
 
 	if lr.closeReceiver != nil {
-		return lr.closeReceiver()
+		return lr.closeReceiver.Close()
 	}
 
 	return nil

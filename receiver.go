@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
@@ -25,6 +26,8 @@ const (
 	amqpAnnotationFormat = "amqp.annotation.%s >%s '%s'"
 	offsetAnnotationName = "x-opt-offset"
 	defaultPrefetchCount = 100
+
+	epochKey = mgmt.MsftVendor + ":epoch"
 )
 
 // receiver provides session and link handling for a receiving entity path
@@ -167,8 +170,8 @@ func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Messa
 		case msg := <-messages:
 			id := messageID(msg)
 			r.debugLogf("message id: %v is being passed to handler", id)
-
-			err := handler(ctx, msg)
+			event := eventFromMsg(msg)
+			err := handler(ctx, event)
 			if err != nil {
 				msg.Reject()
 				r.debugLogf("message rejected: id: %v", id)
@@ -236,7 +239,7 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	}
 
 	if r.epoch != nil {
-		opts = append(opts, amqp.LinkProperty("com.microsoft:epoch", *r.epoch))
+		opts = append(opts, amqp.LinkPropertyInt64(epochKey, *r.epoch))
 	}
 
 	amqpReceiver, err := amqpSession.NewReceiver(opts...)

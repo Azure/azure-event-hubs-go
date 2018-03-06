@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
-	"pack.ag/amqp"
 )
 
 const (
@@ -105,7 +104,7 @@ func (h *EventProcessorHost) Start() error {
 	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
-	_ <- signalChan
+	<-signalChan
 
 	log.Println("shutting down...")
 	return h.scheduler.Stop()
@@ -140,12 +139,12 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 }
 
 func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
-	return func(ctx context.Context, msg *amqp.Message) error {
+	return func(ctx context.Context, event *eventhub.Event) error {
 		var wg sync.WaitGroup
 		for _, handle := range h.handlers {
 			wg.Add(1)
 			go func(boundHandle eventhub.Handler) {
-				if err := boundHandle(ctx, msg); err != nil {
+				if err := boundHandle(ctx, event); err != nil {
 					log.Error(err)
 				}
 				wg.Done()

@@ -2,7 +2,6 @@ package eventhub
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
 	"sync"
@@ -15,7 +14,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"pack.ag/amqp"
 )
 
 const (
@@ -37,11 +35,12 @@ type (
 	}
 
 	// Handler is the function signature for any receiver of AMQP messages
-	Handler func(context.Context, *amqp.Message) error
+	Handler func(ctx context.Context, event *Event) error
 
 	// Sender provides the ability to send a messages
 	Sender interface {
-		Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error
+		Send(ctx context.Context, event *Event, opts ...SendOption) error
+		SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error
 	}
 
 	// PartitionedReceiver provides the ability to receive messages from a given partition
@@ -188,8 +187,11 @@ func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 	}
 
 	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
-		r.Close()
+		if err := r.Close(); err != nil {
+			log.Error(err)
+		}
 	}
+
 	h.receivers[receiver.getIdentifier()] = receiver
 	listenerContext := receiver.Listen(handler)
 
@@ -197,17 +199,26 @@ func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 }
 
 // Send sends an AMQP message to the broker
-func (h *hub) Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error {
+func (h *hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
 	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
 	}
-	return sender.Send(ctx, message, opts...)
+
+	return sender.Send(ctx, event.toMsg(), opts...)
 }
 
 // Send sends a batch of AMQP message to the broker
-func (h *hub) SendBatch(ctx context.Context, messages []*amqp.Message, opts ...SendOption) error {
-	return fmt.Errorf("not implemented")
+func (h *hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
+	sender, err := h.getSender(ctx)
+	if err != nil {
+		return err
+	}
+	msg, err := batch.toMsg()
+	if err != nil {
+		return err
+	}
+	return sender.Send(ctx, msg, opts...)
 }
 
 // HubWithPartitionedSender configures the hub instance to send to a specific event hub partition
