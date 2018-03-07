@@ -3,7 +3,6 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/azure-event-hubs-go/persist"
@@ -33,16 +32,15 @@ const (
 // receiver provides session and link handling for a receiving entity path
 type (
 	receiver struct {
-		hub                *hub
-		session            *session
-		receiver           *amqp.Receiver
-		consumerGroup      string
-		partitionID        string
-		prefetchCount      uint32
-		done               func()
-		lastReceivedOffset atomic.Value
-		epoch              *int64
-		lastError          error
+		hub           *hub
+		session       *session
+		receiver      *amqp.Receiver
+		consumerGroup string
+		partitionID   string
+		prefetchCount uint32
+		done          func()
+		epoch         *int64
+		lastError     error
 	}
 
 	// ReceiveOption provides a structure for configuring receivers
@@ -291,26 +289,6 @@ func (r *receiver) offsetPersister() persist.OffsetPersister {
 	return r.hub.offsetPersister
 }
 
-func (r *receiver) receivedMessage(msg *amqp.Message) {
-	id := messageID(msg)
-	log.Debugf("message id: %v received", id)
-
-	if msg.Annotations == nil {
-		// this case should not happen and will cause replay of the event log
-		log.Warnln("message id: %v does not have annotations and will not have an offset.", id)
-		return
-	}
-
-	offset, ok := msg.Annotations[offsetAnnotationName]
-	if !ok {
-		// this case should not happen and will cause replay of the event log
-		log.Warnln("message id: %v has annotations, but doesn't contain an offset.", id)
-	}
-
-	log.Debugf("message id: %v has offset of %s", id, offset)
-	r.storeLastReceivedOffset(offset.(string))
-}
-
 func messageID(msg *amqp.Message) interface{} {
 	var id interface{} = "null"
 	if msg.Properties != nil {
@@ -328,11 +306,6 @@ func (r *receiver) debugLogf(format string, args ...interface{}) {
 	}
 
 	log.Debugf(msg+" for entity identifier %q", r.getIdentifier())
-}
-
-func (r *receiver) errorLog(err error) {
-	msg := fmt.Sprintf("entity identifier %q, error: ", r.getIdentifier())
-	log.Error(msg, err)
 }
 
 func (lc *listenerHandle) Close() error {

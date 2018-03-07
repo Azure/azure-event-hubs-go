@@ -17,8 +17,7 @@ type (
 
 	// EventBatch is a batch of Event Hubs messages to be sent
 	EventBatch struct {
-		Events  []*Event
-		message *amqp.Message
+		Events []*Event
 	}
 )
 

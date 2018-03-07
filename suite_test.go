@@ -89,11 +89,7 @@ func (suite *eventHubSuite) ensureProvisioned(tier mgmt.SkuTier) error {
 	}
 
 	_, err = suite.ensureNamespace()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // ensureResourceGroup creates a Azure Resource Group if it does not already exist
@@ -208,10 +204,7 @@ func hubWithPartitions(count int) hubMgmtOption {
 func (suite *eventHubSuite) deleteEventHub(ctx context.Context, name string) error {
 	client := suite.getEventHubMgmtClient()
 	_, err := client.Delete(ctx, ResourceGroupName, suite.namespace, name)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (suite *eventHubSuite) getEventHubMgmtClient() *mgmt.EventHubsClient {
@@ -224,10 +217,6 @@ func (suite *eventHubSuite) getEventHubMgmtClient() *mgmt.EventHubsClient {
 	return &client
 }
 
-func (suite *eventHubSuite) getNamespaceMgmtClient() *mgmt.NamespacesClient {
-	return getNamespaceMgmtClientWithToken(suite.subscriptionID, suite.env)
-}
-
 func getNamespaceMgmtClientWithToken(subscriptionID string, env azure.Environment) *mgmt.NamespacesClient {
 	client := mgmt.NewNamespacesClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
 	a, err := azauth.NewAuthorizerFromEnvironment()
@@ -238,20 +227,6 @@ func getNamespaceMgmtClientWithToken(subscriptionID string, env azure.Environmen
 	return &client
 }
 
-func (suite *eventHubSuite) getNamespaceMgmtClientWithCredentials(ctx context.Context, subscriptionID, rg, name string) *mgmt.NamespacesClient {
-	client := mgmt.NewNamespacesClientWithBaseURI(suite.env.ResourceManagerEndpoint, suite.subscriptionID)
-	a, err := azauth.NewAuthorizerFromEnvironment()
-	if err != nil {
-		log.Fatal(err)
-	}
-	client.Authorizer = a
-	return &client
-}
-
-func (suite *eventHubSuite) getRmGroupClient() *rm.GroupsClient {
-	return getRmGroupClientWithToken(suite.subscriptionID, suite.env)
-}
-
 func getRmGroupClientWithToken(subscriptionID string, env azure.Environment) *rm.GroupsClient {
 	groupsClient := rm.NewGroupsClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
 	a, err := azauth.NewAuthorizerFromEnvironment()
@@ -260,14 +235,6 @@ func getRmGroupClientWithToken(subscriptionID string, env azure.Environment) *rm
 	}
 	groupsClient.Authorizer = a
 	return &groupsClient
-}
-
-func (suite *eventHubSuite) ensureResourceGroup() (*rm.Group, error) {
-	group, err := ensureResourceGroup(context.Background(), suite.subscriptionID, suite.namespace, Location, suite.env)
-	if err != nil {
-		return nil, err
-	}
-	return group, err
 }
 
 func (suite *eventHubSuite) ensureNamespace() (*mgmt.EHNamespace, error) {

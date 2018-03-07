@@ -1,8 +1,6 @@
 package eventhub
 
 import (
-	"sync/atomic"
-
 	"github.com/satori/go.uuid"
 	"pack.ag/amqp"
 )
@@ -12,7 +10,6 @@ type (
 	session struct {
 		*amqp.Session
 		SessionID string
-		counter   uint32
 	}
 )
 
@@ -22,11 +19,6 @@ func newSession(amqpSession *amqp.Session) *session {
 		Session:   amqpSession,
 		SessionID: uuid.NewV4().String(),
 	}
-}
-
-// getNext gets and increments the next group sequence number for the session
-func (s *session) getNext() uint32 {
-	return atomic.AddUint32(&s.counter, 1)
 }
 
 func (s *session) String() string {
