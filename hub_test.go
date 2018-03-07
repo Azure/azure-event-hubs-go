@@ -281,7 +281,7 @@ func BenchmarkReceive(b *testing.B) {
 }
 
 func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) Client {
-	provider, err := aad.NewProviderFromEnvironment(aad.JwtTokenProviderWithEnvironment(&suite.env))
+	provider, err := aad.NewProviderFromEnvironment(aad.JWTProviderWithEnvironment(&suite.env))
 	if err != nil {
 		t.Fatal(err)
 	}

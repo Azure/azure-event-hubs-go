@@ -44,10 +44,11 @@ func NegotiateClaim(ctx context.Context, audience string, conn *amqp.Client, pro
 	}
 
 	res, err := link.RetryableRPC(ctx, 3, 1*time.Second, msg)
-	if err == nil {
-		log.Debugf("negotiated with response code %d and message: %s", res.Code, res.Description)
-	} else {
+	if err != nil {
 		log.Error(err)
+		return err
 	}
-	return err
+
+	log.Debugf("negotiated with response code %d and message: %s", res.Code, res.Description)
+	return nil
 }

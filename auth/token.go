@@ -19,10 +19,10 @@ type (
 )
 
 const (
-	// CbsTokenTypeJwt is the type of token to be used for JWT tokens. For example Azure Active Directory tokens.
-	CbsTokenTypeJwt TokenType = "jwt"
-	// CbsTokenTypeSas is the type of token to be used for SAS tokens.
-	CbsTokenTypeSas TokenType = "servicebus.windows.net:sastoken"
+	// CBSTokenTypeJWT is the type of token to be used for JWTs. For example Azure Active Directory tokens.
+	CBSTokenTypeJWT TokenType = "jwt"
+	// CBSTokenTypeSAS is the type of token to be used for SAS tokens.
+	CBSTokenTypeSAS TokenType = "servicebus.windows.net:sastoken"
 )
 
 // NewToken constructs a new auth token

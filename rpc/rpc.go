@@ -88,17 +88,17 @@ func (l *Link) RetryableRPC(ctx context.Context, times int, delay time.Duration,
 		case res.Code >= 500:
 			errMessage := fmt.Sprintf("server error link %s: status code %d and description: %s", l.id, res.Code, res.Description)
 			log.Debugln(errMessage)
-			return nil, &common.Retryable{Message: errMessage}
+			return nil, common.Retryable(errMessage)
 		default:
 			errMessage := fmt.Sprintf("unhandled error link %s: status code %d and description: %s", l.id, res.Code, res.Description)
 			log.Debugln(errMessage)
-			return nil, &common.Retryable{Message: errMessage}
+			return nil, common.Retryable(errMessage)
 		}
 	})
 	if err != nil {
 		return nil, err
 	}
-	return res.(*Response), err
+	return res.(*Response), nil
 }
 
 // RPC sends a request and waits on a response for that request
@@ -121,23 +121,21 @@ func (l *Link) RPC(ctx context.Context, msg *amqp.Message) (*Response, error) {
 		return nil, err
 	}
 
-	response := &Response{
-		Message: res,
-	}
-
-	if statusCode, ok := res.ApplicationProperties[statusCodeKey].(int32); ok {
-		response.Code = int(statusCode)
-	} else {
+	statusCode, ok := res.ApplicationProperties[statusCodeKey].(int32)
+	if !ok {
 		return nil, errors.New("status codes was not found on rpc message")
 	}
 
-	if description, ok := res.ApplicationProperties[descriptionKey].(string); ok {
-		response.Description = description
-	} else {
+	description, ok := res.ApplicationProperties[descriptionKey].(string)
+	if !ok {
 		return nil, errors.New("description was not found on rpc message")
 	}
 
-	return response, err
+	return &Response{
+		Code:        int(statusCode),
+		Description: description,
+		Message:     res,
+	}, err
 }
 
 // Close the link receiver, sender and session
