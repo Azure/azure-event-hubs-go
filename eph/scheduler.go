@@ -25,7 +25,7 @@ type (
 
 	ownerCount struct {
 		Owner  string
-		Leases []*Lease
+		Leases []Lease
 	}
 )
 
@@ -63,7 +63,7 @@ func (s *scheduler) Run() {
 
 			// start receiving message from newly acquired partitions
 			for _, lease := range acquired {
-				s.startReceiver(ctx, lease)
+				s.startReceiver(ctx, &lease)
 			}
 
 			// calculate the number of leases we own including the newly acquired partitions
@@ -75,7 +75,7 @@ func (s *scheduler) Run() {
 			countOwnedByMe += len(acquired)
 
 			// gather all of the leases owned by others
-			var leasesOwnedByOthers []*Lease
+			var leasesOwnedByOthers []Lease
 			for key, value := range byOwner {
 				if key != s.processor.name {
 					leasesOwnedByOthers = append(leasesOwnedByOthers, value...)
@@ -93,7 +93,7 @@ func (s *scheduler) Run() {
 				}
 				if ok {
 					// we were able to steal the lease, so start handling messages
-					s.startReceiver(ctx, stolen)
+					s.startReceiver(ctx, &stolen)
 				}
 			}
 		}
@@ -118,25 +118,25 @@ func (s *scheduler) Stop() error {
 }
 
 func (s *scheduler) startReceiver(ctx context.Context, lease *Lease) error {
-	if receiver, ok := s.receivers[lease.partitionID]; ok {
+	if receiver, ok := s.receivers[lease.PartitionID]; ok {
 		// receiver thinks it's already running... this is probably a bug if it happens
 		if err := receiver.Close(); err != nil {
 			log.Error(err)
 		}
-		delete(s.receivers, lease.partitionID)
+		delete(s.receivers, lease.PartitionID)
 	}
 	lr := newLeasedReceiver(s.processor, lease)
 	if err := lr.Run(ctx); err != nil {
 		return err
 	}
-	s.receivers[lease.partitionID] = lr
+	s.receivers[lease.PartitionID] = lr
 	return nil
 }
 
 func (s *scheduler) stopReceiver(ctx context.Context, lease *Lease) error {
-	if receiver, ok := s.receivers[lease.partitionID]; ok {
+	if receiver, ok := s.receivers[lease.PartitionID]; ok {
 		err := receiver.Close()
-		delete(s.receivers, lease.partitionID)
+		delete(s.receivers, lease.PartitionID)
 		if err != nil {
 			return err
 		}
@@ -144,7 +144,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease *Lease) error {
 	return nil
 }
 
-func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []*Lease) (acquired []*Lease, notAcquired []*Lease, err error) {
+func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []Lease) (acquired []Lease, notAcquired []Lease, err error) {
 	for _, lease := range leases {
 		if lease.IsExpired() {
 			acquireCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -166,16 +166,16 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []*Lease) (
 	return acquired, notAcquired, nil
 }
 
-func leaseToSteal(candidates []*Lease, myLeaseCount int) (*Lease, bool) {
+func leaseToSteal(candidates []Lease, myLeaseCount int) (Lease, bool) {
 	biggestOwner := ownerWithMostLeases(candidates)
 	leasesByOwner := leasesByOwner(candidates)
 	if (len(biggestOwner.Leases)-myLeaseCount) >= 2 && len(leasesByOwner[biggestOwner.Owner]) >= 1 {
 		return leasesByOwner[biggestOwner.Owner][0], true
 	}
-	return nil, false
+	return Lease{}, false
 }
 
-func ownerWithMostLeases(candidates []*Lease) *ownerCount {
+func ownerWithMostLeases(candidates []Lease) *ownerCount {
 	var largest *ownerCount
 	for key, value := range leasesByOwner(candidates) {
 		if largest == nil || len(largest.Leases) < len(value) {
@@ -188,13 +188,13 @@ func ownerWithMostLeases(candidates []*Lease) *ownerCount {
 	return largest
 }
 
-func leasesByOwner(candidates []*Lease) map[string][]*Lease {
-	byOwner := make(map[string][]*Lease)
+func leasesByOwner(candidates []Lease) map[string][]Lease {
+	byOwner := make(map[string][]Lease)
 	for _, candidate := range candidates {
-		if val, ok := byOwner[candidate.owner]; ok {
-			byOwner[candidate.owner] = append(val, candidate)
+		if val, ok := byOwner[candidate.Owner]; ok {
+			byOwner[candidate.Owner] = append(val, candidate)
 		} else {
-			byOwner[candidate.owner] = []*Lease{candidate}
+			byOwner[candidate.Owner] = []Lease{candidate}
 		}
 	}
 	return byOwner

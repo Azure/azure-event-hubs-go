@@ -2,6 +2,7 @@ package eventhub
 
 import (
 	"context"
+	"io"
 	"os"
 	"path"
 	"sync"
@@ -48,11 +49,6 @@ type (
 		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error)
 	}
 
-	// Closer provides the ability to close a connection or client
-	Closer interface {
-		Close() error
-	}
-
 	// Manager provides the ability to query management node information about a node
 	Manager interface {
 		GetRuntimeInformation(context.Context) (*mgmt.HubRuntimeInformation, error)
@@ -63,7 +59,7 @@ type (
 	Client interface {
 		Sender
 		PartitionedReceiver
-		Closer
+		io.Closer
 		Manager
 	}
 

@@ -12,7 +12,6 @@ type (
 	// Event is an Event Hubs message to be sent or received
 	Event struct {
 		Data    []byte
-		batch   *EventBatch
 		message *amqp.Message
 	}
 

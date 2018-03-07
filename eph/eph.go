@@ -20,8 +20,9 @@ const (
  / /___ | |/ /  __/ / / / /_/ __  / /_/ / /_/ (__  )
 /_____/ |___/\___/_/ /_/\__/_/ /_/\__,_/_.___/____/
 
-=> processing events, ctrl+c to exit
 `
+
+	exitPrompt = "=> processing events, ctrl+c to exit"
 )
 
 type (
@@ -99,6 +100,7 @@ func (h *EventProcessorHost) Receive(ctx context.Context, handler eventhub.Handl
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
 func (h *EventProcessorHost) Start() error {
 	log.Println(banner)
+	log.Println(exitPrompt)
 	go h.scheduler.Run()
 
 	// Wait for a signal to quit:

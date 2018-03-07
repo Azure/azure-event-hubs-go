@@ -32,7 +32,7 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 	ctx, done := context.WithCancel(context.Background())
 	lr.done = done
 	go lr.periodicallyRenewLease(ctx)
-	closer, err := lr.processor.client.Receive(ctx, lr.lease.partitionID, lr.processor.compositeHandlers())
+	closer, err := lr.processor.client.Receive(ctx, lr.lease.PartitionID, lr.processor.compositeHandlers())
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease)
+			lease, ok, err := lr.processor.leaser.RenewLease(ctx, *lr.lease)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -72,7 +72,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 				return
 			}
 			// we were able to renew the lease, so save it and continue
-			lr.lease = lease
+			lr.lease = &lease
 			time.Sleep(defaultLeaseRenewalInterval)
 		}
 	}
