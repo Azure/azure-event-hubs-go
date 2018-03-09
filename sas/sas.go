@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/auth"
-	"github.com/Azure/azure-event-hubs-go/common"
+	"github.com/Azure/azure-event-hubs-go/internal/common"
 	"github.com/pkg/errors"
 )
 

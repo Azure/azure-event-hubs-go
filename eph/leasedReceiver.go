@@ -14,14 +14,14 @@ const (
 
 type (
 	leasedReceiver struct {
-		closeReceiver eventhub.ListenerHandle
-		processor     *EventProcessorHost
-		lease         *Lease
-		done          func()
+		handle    eventhub.ListenerHandle
+		processor *EventProcessorHost
+		lease     LeaseMarker
+		done      func()
 	}
 )
 
-func newLeasedReceiver(processor *EventProcessorHost, lease *Lease) *leasedReceiver {
+func newLeasedReceiver(processor *EventProcessorHost, lease LeaseMarker) *leasedReceiver {
 	return &leasedReceiver{
 		processor: processor,
 		lease:     lease,
@@ -29,24 +29,26 @@ func newLeasedReceiver(processor *EventProcessorHost, lease *Lease) *leasedRecei
 }
 
 func (lr *leasedReceiver) Run(ctx context.Context) error {
+	log.Debugf("running receiver for partitionID %q", lr.lease.GetPartitionID())
 	ctx, done := context.WithCancel(context.Background())
 	lr.done = done
 	go lr.periodicallyRenewLease(ctx)
-	closer, err := lr.processor.client.Receive(ctx, lr.lease.PartitionID, lr.processor.compositeHandlers())
+	handle, err := lr.processor.client.Receive(ctx, lr.lease.GetPartitionID(), lr.processor.compositeHandlers())
 	if err != nil {
 		return err
 	}
-	lr.closeReceiver = closer
+	lr.handle = handle
 	return nil
 }
 
 func (lr *leasedReceiver) Close() error {
+	log.Debugf("closing receiver for partitionID %q", lr.lease.GetPartitionID())
 	if lr.done != nil {
 		lr.done()
 	}
 
-	if lr.closeReceiver != nil {
-		return lr.closeReceiver.Close()
+	if lr.handle != nil {
+		return lr.handle.Close()
 	}
 
 	return nil
@@ -58,12 +60,14 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			lease, ok, err := lr.processor.leaser.RenewLease(ctx, *lr.lease)
+
+			lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease.GetPartitionID())
 			if err != nil {
 				log.Error(err)
 				continue
 			}
 			if !ok {
+				log.Debugf("stopping receive for partitionID %q -- can't renew lease", lr.lease.GetPartitionID())
 				// tell the scheduler we are not able to renew our lease and should stop receiving
 				err := lr.processor.scheduler.stopReceiver(ctx, lr.lease)
 				if err != nil {
@@ -71,8 +75,9 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 				}
 				return
 			}
+			log.Debugf("lease renewed for partitionID %q", lr.lease.GetPartitionID())
 			// we were able to renew the lease, so save it and continue
-			lr.lease = &lease
+			lr.lease = lease
 			time.Sleep(defaultLeaseRenewalInterval)
 		}
 	}

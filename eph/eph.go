@@ -2,9 +2,11 @@ package eph
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/auth"
@@ -48,10 +50,15 @@ type (
 	Receiver interface {
 		Receive(ctx context.Context, handler eventhub.Handler) (close func() error, err error)
 	}
+
+	// LeaseBuilder is the signature for building a Leaser to the Event Processor Host
+	LeaseBuilder func(processor *EventProcessorHost, defaultLeaseDuration time.Duration) Leaser
+	// CheckpointBuilder is the signature for building a Checkpointer to the Event Processor Host
+	CheckpointBuilder func(processor *EventProcessorHost) Checkpointer
 )
 
 // New constructs a new instance of an EventHostProcessor
-func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
+func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaseBuilder LeaseBuilder, checkpointBuilder CheckpointBuilder, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	client, err := eventhub.NewClient(namespace, hubName, tokenProvider)
 	if err != nil {
 		return nil, err
@@ -62,10 +69,11 @@ func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaser Lea
 		name:          uuid.NewV4().String(),
 		hubName:       hubName,
 		tokenProvider: tokenProvider,
-		leaser:        leaser,
-		checkpointer:  checkpointer,
 		client:        client,
+		handlers:      make(map[string]eventhub.Handler),
 	}
+	host.leaser = leaseBuilder(host, defaultLeaseDuration)
+	host.checkpointer = checkpointBuilder(host)
 
 	for _, opt := range opts {
 		err := opt(host)
@@ -78,11 +86,7 @@ func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaser Lea
 }
 
 // Receive provides the ability to register a handler for processing Event Hub messages
-func (h *EventProcessorHost) Receive(ctx context.Context, handler eventhub.Handler) (close func() error, err error) {
-	if err := h.setup(ctx); err != nil {
-		return nil, err
-	}
-
+func (h *EventProcessorHost) Receive(handler eventhub.Handler) (close func() error, err error) {
 	h.handlersMu.Lock()
 	defer h.handlersMu.Unlock()
 	id := uuid.NewV4().String()
@@ -98,30 +102,34 @@ func (h *EventProcessorHost) Receive(ctx context.Context, handler eventhub.Handl
 }
 
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
-func (h *EventProcessorHost) Start() error {
-	log.Println(banner)
-	log.Println(exitPrompt)
+func (h *EventProcessorHost) Start(ctx context.Context) error {
+	fmt.Println(banner)
+	fmt.Println(exitPrompt)
+	if err := h.setup(ctx); err != nil {
+		return err
+	}
 	go h.scheduler.Run()
 
 	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
-
-	log.Println("shutting down...")
-	return h.scheduler.Stop()
+	return h.Close()
 }
 
 // StartNonBlocking begins processing of messages for registered handlers
-func (h *EventProcessorHost) StartNonBlocking() {
-	log.Println(banner)
+func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
+	fmt.Println(banner)
+	if err := h.setup(ctx); err != nil {
+		return err
+	}
 	go h.scheduler.Run()
+	return nil
 }
 
 func (h *EventProcessorHost) setup(ctx context.Context) error {
 	h.hostMu.Lock()
 	defer h.hostMu.Unlock()
-
 	if h.scheduler == nil {
 		if err := h.leaser.EnsureStore(ctx); err != nil {
 			return err
@@ -132,6 +140,12 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 		}
 
 		scheduler, err := newScheduler(ctx, h)
+
+		for _, partitionID := range scheduler.partitionIDs {
+			h.leaser.EnsureLease(ctx, partitionID)
+			h.checkpointer.EnsureCheckpoint(ctx, partitionID)
+		}
+
 		if err != nil {
 			return err
 		}
@@ -158,7 +172,8 @@ func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 }
 
 // Close stops the EventHostProcessor from processing messages
-func (h *EventProcessorHost) Close(ctx context.Context) error {
+func (h *EventProcessorHost) Close() error {
+	log.Println("shutting down...")
 	if h.scheduler != nil {
 		if err := h.scheduler.Stop(); err != nil {
 			log.Error(err)

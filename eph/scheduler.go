@@ -25,7 +25,7 @@ type (
 
 	ownerCount struct {
 		Owner  string
-		Leases []Lease
+		Leases []LeaseMarker
 	}
 )
 
@@ -34,6 +34,7 @@ func newScheduler(ctx context.Context, eventHostProcessor *EventProcessorHost) (
 	return &scheduler{
 		processor:    eventHostProcessor,
 		partitionIDs: runtimeInfo.PartitionIDs,
+		receivers:    make(map[string]*leasedReceiver),
 	}, err
 }
 
@@ -45,6 +46,7 @@ func (s *scheduler) Run() {
 		case <-ctx.Done():
 			return
 		default:
+			log.Debugf("running scan")
 			// fetch updated view of all leases
 			leaseCtx, cancel := context.WithTimeout(ctx, timeout)
 			allLeases, err := s.processor.leaser.GetLeases(leaseCtx)
@@ -56,6 +58,7 @@ func (s *scheduler) Run() {
 
 			// try to acquire any leases that have expired
 			acquired, notAcquired, err := s.acquireExpiredLeases(ctx, allLeases)
+			log.Debugf("acquired: %v, not acquired: %v", acquired, notAcquired)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -63,7 +66,7 @@ func (s *scheduler) Run() {
 
 			// start receiving message from newly acquired partitions
 			for _, lease := range acquired {
-				s.startReceiver(ctx, &lease)
+				s.startReceiver(ctx, lease)
 			}
 
 			// calculate the number of leases we own including the newly acquired partitions
@@ -75,7 +78,7 @@ func (s *scheduler) Run() {
 			countOwnedByMe += len(acquired)
 
 			// gather all of the leases owned by others
-			var leasesOwnedByOthers []Lease
+			var leasesOwnedByOthers []LeaseMarker
 			for key, value := range byOwner {
 				if key != s.processor.name {
 					leasesOwnedByOthers = append(leasesOwnedByOthers, value...)
@@ -85,7 +88,7 @@ func (s *scheduler) Run() {
 			// try to steal work away from others if work has become imbalanced
 			if candidate, ok := leaseToSteal(leasesOwnedByOthers, countOwnedByMe); ok {
 				acquireCtx, cancel := context.WithTimeout(ctx, timeout)
-				stolen, ok, err := s.processor.leaser.AcquireLease(acquireCtx, candidate)
+				stolen, ok, err := s.processor.leaser.AcquireLease(acquireCtx, candidate.GetPartitionID())
 				cancel()
 				if err != nil {
 					log.Error(err)
@@ -93,9 +96,10 @@ func (s *scheduler) Run() {
 				}
 				if ok {
 					// we were able to steal the lease, so start handling messages
-					s.startReceiver(ctx, &stolen)
+					s.startReceiver(ctx, stolen)
 				}
 			}
+			time.Sleep(defaultLeaseRenewalInterval)
 		}
 	}
 }
@@ -117,26 +121,27 @@ func (s *scheduler) Stop() error {
 	return lastErr
 }
 
-func (s *scheduler) startReceiver(ctx context.Context, lease *Lease) error {
-	if receiver, ok := s.receivers[lease.PartitionID]; ok {
+func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error {
+	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		// receiver thinks it's already running... this is probably a bug if it happens
 		if err := receiver.Close(); err != nil {
 			log.Error(err)
 		}
-		delete(s.receivers, lease.PartitionID)
+		delete(s.receivers, lease.GetPartitionID())
 	}
 	lr := newLeasedReceiver(s.processor, lease)
 	if err := lr.Run(ctx); err != nil {
 		return err
 	}
-	s.receivers[lease.PartitionID] = lr
+	s.receivers[lease.GetPartitionID()] = lr
 	return nil
 }
 
-func (s *scheduler) stopReceiver(ctx context.Context, lease *Lease) error {
-	if receiver, ok := s.receivers[lease.PartitionID]; ok {
+func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
+	log.Debugf("stopping receiver for partitionID %q", lease.GetPartitionID())
+	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		err := receiver.Close()
-		delete(s.receivers, lease.PartitionID)
+		delete(s.receivers, lease.GetPartitionID())
 		if err != nil {
 			return err
 		}
@@ -144,11 +149,11 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease *Lease) error {
 	return nil
 }
 
-func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []Lease) (acquired []Lease, notAcquired []Lease, err error) {
+func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMarker) (acquired []LeaseMarker, notAcquired []LeaseMarker, err error) {
 	for _, lease := range leases {
 		if lease.IsExpired() {
 			acquireCtx, cancel := context.WithTimeout(ctx, timeout)
-			if acquiredLease, ok, err := s.processor.leaser.AcquireLease(acquireCtx, lease); ok {
+			if acquiredLease, ok, err := s.processor.leaser.AcquireLease(acquireCtx, lease.GetPartitionID()); ok {
 				cancel()
 				acquired = append(acquired, acquiredLease)
 			} else {
@@ -166,16 +171,18 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []Lease) (a
 	return acquired, notAcquired, nil
 }
 
-func leaseToSteal(candidates []Lease, myLeaseCount int) (Lease, bool) {
+func leaseToSteal(candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {
 	biggestOwner := ownerWithMostLeases(candidates)
 	leasesByOwner := leasesByOwner(candidates)
-	if (len(biggestOwner.Leases)-myLeaseCount) >= 2 && len(leasesByOwner[biggestOwner.Owner]) >= 1 {
+	log.Println(leasesByOwner, biggestOwner)
+	if biggestOwner != nil && leasesByOwner[biggestOwner.Owner] != nil &&
+		(len(biggestOwner.Leases)-myLeaseCount) >= 2 && len(leasesByOwner[biggestOwner.Owner]) >= 1 {
 		return leasesByOwner[biggestOwner.Owner][0], true
 	}
-	return Lease{}, false
+	return nil, false
 }
 
-func ownerWithMostLeases(candidates []Lease) *ownerCount {
+func ownerWithMostLeases(candidates []LeaseMarker) *ownerCount {
 	var largest *ownerCount
 	for key, value := range leasesByOwner(candidates) {
 		if largest == nil || len(largest.Leases) < len(value) {
@@ -188,13 +195,13 @@ func ownerWithMostLeases(candidates []Lease) *ownerCount {
 	return largest
 }
 
-func leasesByOwner(candidates []Lease) map[string][]Lease {
-	byOwner := make(map[string][]Lease)
+func leasesByOwner(candidates []LeaseMarker) map[string][]LeaseMarker {
+	byOwner := make(map[string][]LeaseMarker)
 	for _, candidate := range candidates {
-		if val, ok := byOwner[candidate.Owner]; ok {
-			byOwner[candidate.Owner] = append(val, candidate)
+		if val, ok := byOwner[candidate.GetOwner()]; ok {
+			byOwner[candidate.GetOwner()] = append(val, candidate)
 		} else {
-			byOwner[candidate.Owner] = []Lease{candidate}
+			byOwner[candidate.GetOwner()] = []LeaseMarker{candidate}
 		}
 	}
 	return byOwner

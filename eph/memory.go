@@ -8,14 +8,9 @@ import (
 )
 
 type (
-	memoryLease struct {
-		*Lease
-		expirationTime time.Time
-	}
-
 	memoryLeaser struct {
-		leases        map[string]*memoryLease
-		processor     *EventProcessorHost
+		leases        map[string]*Lease
+		ownerName     string
 		leaseDuration time.Duration
 	}
 
@@ -25,23 +20,9 @@ type (
 	}
 )
 
-func newMemoryLease(lease *Lease) *memoryLease {
-	return &memoryLease{
-		Lease: lease,
-	}
-}
-
-func (l *memoryLease) ExpireAfter(d time.Duration) {
-	l.expirationTime = time.Now().Add(d)
-}
-
-func (l *memoryLease) IsExpired() bool {
-	return time.Now().After(l.expirationTime)
-}
-
-func newMemoryLeaser(processor *EventProcessorHost, leaseDuration time.Duration) *memoryLeaser {
+func newMemoryLeaser(ownerName string, leaseDuration time.Duration) Leaser {
 	return &memoryLeaser{
-		processor:     processor,
+		ownerName:     ownerName,
 		leaseDuration: leaseDuration,
 	}
 }
@@ -52,7 +33,7 @@ func (ml *memoryLeaser) StoreExists(ctx context.Context) (bool, error) {
 
 func (ml *memoryLeaser) EnsureStore(ctx context.Context) error {
 	if ml.leases == nil {
-		ml.leases = make(map[string]*memoryLease)
+		ml.leases = make(map[string]*Lease)
 	}
 	return nil
 }
@@ -61,58 +42,58 @@ func (ml *memoryLeaser) DeleteStore(ctx context.Context) error {
 	return ml.EnsureStore(ctx)
 }
 
-func (ml *memoryLeaser) GetLeases(ctx context.Context) ([]Lease, error) {
-	leases := make([]Lease, len(ml.leases))
+func (ml *memoryLeaser) GetLeases(ctx context.Context) ([]LeaseMarker, error) {
+	leases := make([]LeaseMarker, len(ml.leases))
 	count := 0
 	for _, lease := range ml.leases {
-		leases[count] = *lease.Lease
+		leases[count] = lease
 		count++
 	}
 	return leases, nil
 }
 
-func (ml *memoryLeaser) EnsureLease(ctx context.Context, partitionID string) (Lease, error) {
+func (ml *memoryLeaser) EnsureLease(ctx context.Context, partitionID string) (LeaseMarker, error) {
 	l, ok := ml.leases[partitionID]
 	if !ok {
-		l = newMemoryLease(NewLease(partitionID))
+		l = NewLease(partitionID)
 		ml.leases[l.PartitionID] = l
 	}
-	return *l.Lease, nil
+	return l, nil
 }
 
-func (ml *memoryLeaser) DeleteLease(ctx context.Context, lease Lease) error {
-	delete(ml.leases, lease.PartitionID)
+func (ml *memoryLeaser) DeleteLease(ctx context.Context, partitionID string) error {
+	delete(ml.leases, partitionID)
 	return nil
 }
 
-func (ml *memoryLeaser) AcquireLease(ctx context.Context, partitionID string) (Lease, bool, error) {
+func (ml *memoryLeaser) AcquireLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
 	l, ok := ml.leases[partitionID]
 	if !ok {
 		// lease is not in store
-		return Lease{}, false, errors.New("lease is not in the store")
+		return nil, false, errors.New("lease is not in the store")
 	}
 
-	if l.IsNotOwnedOrExpired() || l.Owner != ml.processor.name {
+	if l.IsNotOwnedOrExpired() || l.Owner != ml.ownerName {
 		// no one owns it or owned by someone else
-		l.Owner = ml.processor.name
+		l.Owner = ml.ownerName
 	}
-	l.ExpireAfter(ml.leaseDuration)
-	return *l.Lease, true, nil
+	l.expireAfter(ml.leaseDuration)
+	return l, true, nil
 }
 
-func (ml *memoryLeaser) RenewLease(ctx context.Context, partitionID string) (Lease, bool, error) {
+func (ml *memoryLeaser) RenewLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
 	l, ok := ml.leases[partitionID]
 	if !ok {
 		// lease is not in store
-		return Lease{}, false, errors.New("lease is not in the store")
+		return nil, false, errors.New("lease is not in the store")
 	}
 
-	if l.Owner != ml.processor.name {
-		return Lease{}, false, nil
+	if l.Owner != ml.ownerName {
+		return nil, false, nil
 	}
 
-	l.ExpireAfter(ml.leaseDuration)
-	return *l.Lease, true, nil
+	l.expireAfter(ml.leaseDuration)
+	return l, true, nil
 }
 
 func (ml *memoryLeaser) ReleaseLease(ctx context.Context, partitionID string) (bool, error) {
@@ -122,7 +103,7 @@ func (ml *memoryLeaser) ReleaseLease(ctx context.Context, partitionID string) (b
 		return false, errors.New("lease is not in the store")
 	}
 
-	if l.IsExpired() || l.Owner != ml.processor.name {
+	if l.IsExpired() || l.Owner != ml.ownerName {
 		return false, nil
 	}
 
@@ -132,16 +113,16 @@ func (ml *memoryLeaser) ReleaseLease(ctx context.Context, partitionID string) (b
 	return false, nil
 }
 
-func (ml *memoryLeaser) UpdateLease(ctx context.Context, partitionID string) (Lease, bool, error) {
+func (ml *memoryLeaser) UpdateLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
 	l, ok, err := ml.RenewLease(ctx, partitionID)
 	if err != nil || !ok {
-		return Lease{}, ok, err
+		return nil, ok, err
 	}
 	l.IncrementEpoch()
 	return l, true, nil
 }
 
-func newMemoryCheckpointer(processor *EventProcessorHost) *memoryCheckpointer {
+func newMemoryCheckpointer(processor *EventProcessorHost) Checkpointer {
 	return &memoryCheckpointer{
 		processor: processor,
 	}

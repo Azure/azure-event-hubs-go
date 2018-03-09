@@ -10,7 +10,7 @@ type (
 		StoreExists(ctx context.Context) (bool, error)
 		EnsureStore(ctx context.Context) error
 		DeleteStore(ctx context.Context) error
-		GetCheckpoint(ctx context.Context, partitionID string) (Checkpoint, error)
+		GetCheckpoint(ctx context.Context, partitionID string) (Checkpoint, bool)
 		EnsureCheckpoint(ctx context.Context, partitionID string) (Checkpoint, error)
 		UpdateCheckpoint(ctx context.Context, checkpoint Checkpoint) error
 		DeleteCheckpoint(ctx context.Context, partitionID string) error
