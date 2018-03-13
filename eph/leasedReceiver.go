@@ -78,7 +78,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 			log.Debugf("lease renewed for partitionID %q", lr.lease.GetPartitionID())
 			// we were able to renew the lease, so save it and continue
 			lr.lease = lease
-			time.Sleep(defaultLeaseRenewalInterval)
+			time.Sleep(DefaultLeaseRenewalInterval)
 		}
 	}
 }

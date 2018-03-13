@@ -12,7 +12,11 @@ var (
 )
 
 const (
-	defaultLeaseRenewalInterval = 10 * time.Second
+	// DefaultLeaseRenewalInterval defines the default amount of time between lease renewal attempts
+	DefaultLeaseRenewalInterval = 10 * time.Second
+
+	// DefaultLeaseDurationInSeconds defines the default amount of time a lease is valid
+	DefaultLeaseDurationInSeconds = 30 * time.Second
 )
 
 type (
@@ -99,7 +103,7 @@ func (s *scheduler) Run() {
 					s.startReceiver(ctx, stolen)
 				}
 			}
-			time.Sleep(defaultLeaseRenewalInterval)
+			time.Sleep(DefaultLeaseRenewalInterval)
 		}
 	}
 }
@@ -151,7 +155,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 
 func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMarker) (acquired []LeaseMarker, notAcquired []LeaseMarker, err error) {
 	for _, lease := range leases {
-		if lease.IsExpired() {
+		if lease.IsExpired(ctx) {
 			acquireCtx, cancel := context.WithTimeout(ctx, timeout)
 			if acquiredLease, ok, err := s.processor.leaser.AcquireLease(acquireCtx, lease.GetPartitionID()); ok {
 				cancel()
@@ -174,7 +178,6 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMark
 func leaseToSteal(candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {
 	biggestOwner := ownerWithMostLeases(candidates)
 	leasesByOwner := leasesByOwner(candidates)
-	log.Println(leasesByOwner, biggestOwner)
 	if biggestOwner != nil && leasesByOwner[biggestOwner.Owner] != nil &&
 		(len(biggestOwner.Leases)-myLeaseCount) >= 2 && len(leasesByOwner[biggestOwner.Owner]) >= 1 {
 		return leasesByOwner[biggestOwner.Owner][0], true

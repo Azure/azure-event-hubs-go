@@ -44,7 +44,7 @@ func initHub() (eventhub.Client, []string) {
 		log.Fatal(err)
 	}
 
-	provider, err := aad.NewProviderFromEnvironment()
+	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	if err != nil {
 		log.Fatal(err)
 	}

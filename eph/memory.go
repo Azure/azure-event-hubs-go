@@ -9,7 +9,7 @@ import (
 
 type (
 	memoryLeaser struct {
-		leases        map[string]*Lease
+		leases        map[string]*memoryLease
 		ownerName     string
 		leaseDuration time.Duration
 	}
@@ -18,13 +18,41 @@ type (
 		checkpoints map[string]*Checkpoint
 		processor   *EventProcessorHost
 	}
+
+	memoryLease struct {
+		Lease
+		expirationTime time.Time
+	}
 )
 
-func newMemoryLeaser(ownerName string, leaseDuration time.Duration) Leaser {
+func newMemoryLease(partitionID string) *memoryLease {
+	lease := new(memoryLease)
+	lease.PartitionID = partitionID
+	return lease
+}
+
+// IsNotOwnedOrExpired indicates that the lease has expired and does not owned by a processor
+func (l *memoryLease) isNotOwnedOrExpired(ctx context.Context) bool {
+	return l.IsExpired(ctx) || l.Owner == ""
+}
+
+// IsExpired indicates that the lease has expired and is no longer valid
+func (l *memoryLease) IsExpired(_ context.Context) bool {
+	return time.Now().After(l.expirationTime)
+}
+
+func (l *memoryLease) expireAfter(d time.Duration) {
+	l.expirationTime = time.Now().Add(d)
+}
+
+func newMemoryLeaser(leaseDuration time.Duration) Leaser {
 	return &memoryLeaser{
-		ownerName:     ownerName,
 		leaseDuration: leaseDuration,
 	}
+}
+
+func (ml *memoryLeaser) SetEventHostProcessor(eph *EventProcessorHost) {
+	ml.ownerName = eph.name
 }
 
 func (ml *memoryLeaser) StoreExists(ctx context.Context) (bool, error) {
@@ -33,7 +61,7 @@ func (ml *memoryLeaser) StoreExists(ctx context.Context) (bool, error) {
 
 func (ml *memoryLeaser) EnsureStore(ctx context.Context) error {
 	if ml.leases == nil {
-		ml.leases = make(map[string]*Lease)
+		ml.leases = make(map[string]*memoryLease)
 	}
 	return nil
 }
@@ -55,7 +83,7 @@ func (ml *memoryLeaser) GetLeases(ctx context.Context) ([]LeaseMarker, error) {
 func (ml *memoryLeaser) EnsureLease(ctx context.Context, partitionID string) (LeaseMarker, error) {
 	l, ok := ml.leases[partitionID]
 	if !ok {
-		l = NewLease(partitionID)
+		l = newMemoryLease(partitionID)
 		ml.leases[l.PartitionID] = l
 	}
 	return l, nil
@@ -73,7 +101,7 @@ func (ml *memoryLeaser) AcquireLease(ctx context.Context, partitionID string) (L
 		return nil, false, errors.New("lease is not in the store")
 	}
 
-	if l.IsNotOwnedOrExpired() || l.Owner != ml.ownerName {
+	if l.isNotOwnedOrExpired(ctx) || l.Owner != ml.ownerName {
 		// no one owns it or owned by someone else
 		l.Owner = ml.ownerName
 	}
@@ -103,7 +131,7 @@ func (ml *memoryLeaser) ReleaseLease(ctx context.Context, partitionID string) (b
 		return false, errors.New("lease is not in the store")
 	}
 
-	if l.IsExpired() || l.Owner != ml.ownerName {
+	if l.IsExpired(ctx) || l.Owner != ml.ownerName {
 		return false, nil
 	}
 
@@ -122,10 +150,8 @@ func (ml *memoryLeaser) UpdateLease(ctx context.Context, partitionID string) (Le
 	return l, true, nil
 }
 
-func newMemoryCheckpointer(processor *EventProcessorHost) Checkpointer {
-	return &memoryCheckpointer{
-		processor: processor,
-	}
+func (mc *memoryCheckpointer) SetEventHostProcessor(eph *EventProcessorHost) {
+	// no op
 }
 
 func (mc *memoryCheckpointer) StoreExists(ctx context.Context) (bool, error) {
@@ -163,9 +189,9 @@ func (mc *memoryCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 }
 
 func (mc *memoryCheckpointer) UpdateCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
-	if cp, ok := mc.checkpoints[checkpoint.partitionID]; ok {
-		checkpoint.sequenceNumber = cp.sequenceNumber
-		checkpoint.offset = cp.offset
+	if cp, ok := mc.checkpoints[checkpoint.PartitionID]; ok {
+		checkpoint.SequenceNumber = cp.SequenceNumber
+		checkpoint.Offset = cp.Offset
 	}
 	return nil
 }

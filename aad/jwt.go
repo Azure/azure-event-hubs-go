@@ -17,17 +17,20 @@ import (
 )
 
 const (
-	resource = "https://eventhubs.azure.net/"
+	eventhubResourceURI = "https://eventhubs.azure.net/"
 )
 
 type (
-	tokenProviderConfiguration struct {
-		tenantID            string
-		clientID            string
-		clientSecret        string
-		certificatePath     string
-		certificatePassword string
-		env                 *azure.Environment
+	// TokenProviderConfiguration provides configuration parameters for building JWT AAD providers
+	TokenProviderConfiguration struct {
+		TenantID            string
+		ClientID            string
+		ClientSecret        string
+		CertificatePath     string
+		CertificatePassword string
+		ResourceURI         string
+		aadToken            *adal.ServicePrincipalToken
+		Env                 *azure.Environment
 	}
 
 	// TokenProvider provides cbs.TokenProvider functionality for Azure Active Directory JWTs
@@ -36,25 +39,18 @@ type (
 	}
 
 	// JWTProviderOption provides configuration options for constructing AAD Token Providers
-	JWTProviderOption func(provider *tokenProviderConfiguration) error
+	JWTProviderOption func(provider *TokenProviderConfiguration) error
 )
 
-// JWTProviderWithEnvironment configures the token provider to use a specific Azure Environment
-func JWTProviderWithEnvironment(env *azure.Environment) JWTProviderOption {
-	return func(config *tokenProviderConfiguration) error {
-		config.env = env
+// JWTProviderWithAzureEnvironment configures the token provider to use a specific Azure Environment
+func JWTProviderWithAzureEnvironment(env *azure.Environment) JWTProviderOption {
+	return func(config *TokenProviderConfiguration) error {
+		config.Env = env
 		return nil
 	}
 }
 
-// NewProvider builds an Azure Active Directory claims-based security token provider
-func NewProvider(tokenProvider *adal.ServicePrincipalToken) auth.TokenProvider {
-	return &TokenProvider{
-		tokenProvider: tokenProvider,
-	}
-}
-
-// NewProviderFromEnvironment builds a new TokenProvider using environment variable available
+// JWTProviderWithEnvironmentVars configures the TokenProvider using the environment variables available
 //
 // 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
 //    "AZURE_CLIENT_SECRET"
@@ -66,13 +62,45 @@ func NewProvider(tokenProvider *adal.ServicePrincipalToken) auth.TokenProvider {
 //
 //
 // The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
-func NewProviderFromEnvironment(opts ...JWTProviderOption) (auth.TokenProvider, error) {
-	config := &tokenProviderConfiguration{
-		tenantID:            os.Getenv("AZURE_TENANT_ID"),
-		clientID:            os.Getenv("AZURE_CLIENT_ID"),
-		clientSecret:        os.Getenv("AZURE_CLIENT_SECRET"),
-		certificatePath:     os.Getenv("AZURE_CERTIFICATE_PATH"),
-		certificatePassword: os.Getenv("AZURE_CERTIFICATE_PASSWORD"),
+func JWTProviderWithEnvironmentVars() JWTProviderOption {
+	return func(config *TokenProviderConfiguration) error {
+		config.TenantID = os.Getenv("AZURE_TENANT_ID")
+		config.ClientID = os.Getenv("AZURE_CLIENT_ID")
+		config.ClientSecret = os.Getenv("AZURE_CLIENT_SECRET")
+		config.CertificatePath = os.Getenv("AZURE_CERTIFICATE_PATH")
+		config.CertificatePassword = os.Getenv("AZURE_CERTIFICATE_PASSWORD")
+
+		if config.Env == nil {
+			env, err := azureEnvFromEnvironment()
+			if err != nil {
+				return err
+			}
+			config.Env = env
+		}
+		return nil
+	}
+}
+
+// JWTProviderWithResourceURI configures the token provider to use a specific eventhubResourceURI URI
+func JWTProviderWithResourceURI(resourceURI string) JWTProviderOption {
+	return func(config *TokenProviderConfiguration) error {
+		config.ResourceURI = resourceURI
+		return nil
+	}
+}
+
+// JWTProviderWithAADToken configures the token provider to use a specific Azure Active Directory Service Principal token
+func JWTProviderWithAADToken(aadToken *adal.ServicePrincipalToken) JWTProviderOption {
+	return func(config *TokenProviderConfiguration) error {
+		config.aadToken = aadToken
+		return nil
+	}
+}
+
+// NewJWTProvider builds an Azure Active Directory claims-based security token provider
+func NewJWTProvider(opts ...JWTProviderOption) (auth.TokenProvider, error) {
+	config := &TokenProviderConfiguration{
+		ResourceURI: eventhubResourceURI,
 	}
 
 	for _, opt := range opts {
@@ -82,31 +110,27 @@ func NewProviderFromEnvironment(opts ...JWTProviderOption) (auth.TokenProvider, 
 		}
 	}
 
-	if config.env == nil {
-		env, err := azureEnvFromEnvironment()
+	if config.aadToken == nil {
+		spToken, err := config.NewServicePrincipalToken()
 		if err != nil {
 			return nil, err
 		}
-		config.env = env
+		config.aadToken = spToken
 	}
-
-	spToken, err := config.newServicePrincipalToken()
-	if err != nil {
-		return nil, err
-	}
-	return NewProvider(spToken), nil
+	return &TokenProvider{tokenProvider: config.aadToken}, nil
 }
 
-func (c *tokenProviderConfiguration) newServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
-	oauthConfig, err := adal.NewOAuthConfig(c.env.ActiveDirectoryEndpoint, c.tenantID)
+// NewServicePrincipalToken creates a new Azure Active Directory Service Principal token provider
+func (c *TokenProviderConfiguration) NewServicePrincipalToken() (*adal.ServicePrincipalToken, error) {
+	oauthConfig, err := adal.NewOAuthConfig(c.Env.ActiveDirectoryEndpoint, c.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
 	// 1.Client Credentials
-	if c.clientSecret != "" {
+	if c.ClientSecret != "" {
 		log.Debug("creating a token via a service principal client secret")
-		spToken, err := adal.NewServicePrincipalToken(*oauthConfig, c.clientID, c.clientSecret, resource)
+		spToken, err := adal.NewServicePrincipalToken(*oauthConfig, c.ClientID, c.ClientSecret, c.ResourceURI)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get oauth token from client credentials: %v", err)
 		}
@@ -117,17 +141,17 @@ func (c *tokenProviderConfiguration) newServicePrincipalToken() (*adal.ServicePr
 	}
 
 	// 2. Client Certificate
-	if c.certificatePath != "" {
+	if c.CertificatePath != "" {
 		log.Debug("creating a token via a service principal client certificate")
-		certData, err := ioutil.ReadFile(c.certificatePath)
+		certData, err := ioutil.ReadFile(c.CertificatePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", c.certificatePath, err)
+			return nil, fmt.Errorf("failed to read the certificate file (%s): %v", c.CertificatePath, err)
 		}
-		certificate, rsaPrivateKey, err := decodePkcs12(certData, c.certificatePassword)
+		certificate, rsaPrivateKey, err := decodePkcs12(certData, c.CertificatePassword)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode pkcs12 certificate while creating spt: %v", err)
 		}
-		spToken, err := adal.NewServicePrincipalTokenFromCertificate(*oauthConfig, c.clientID, certificate, rsaPrivateKey, resource)
+		spToken, err := adal.NewServicePrincipalTokenFromCertificate(*oauthConfig, c.ClientID, certificate, rsaPrivateKey, c.ResourceURI)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get oauth token from certificate auth: %v", err)
 		}
@@ -143,7 +167,7 @@ func (c *tokenProviderConfiguration) newServicePrincipalToken() (*adal.ServicePr
 	if err != nil {
 		return nil, err
 	}
-	spToken, err := adal.NewServicePrincipalTokenFromMSI(msiEndpoint, resource)
+	spToken, err := adal.NewServicePrincipalTokenFromMSI(msiEndpoint, c.ResourceURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get oauth token from MSI: %v", err)
 	}

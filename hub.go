@@ -92,8 +92,8 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 // environment variables with supplied namespace and name
 func NewClientWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (Client, error) {
 	var provider auth.TokenProvider
-	aadProvider, aadErr := aad.NewProviderFromEnvironment()
-	sasProvider, sasErr := sas.NewProviderFromEnvironment()
+	aadProvider, aadErr := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
+	sasProvider, sasErr := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
 
 	if aadErr != nil && sasErr != nil {
 		// both failed

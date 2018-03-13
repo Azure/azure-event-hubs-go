@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/auth"
@@ -50,15 +49,10 @@ type (
 	Receiver interface {
 		Receive(ctx context.Context, handler eventhub.Handler) (close func() error, err error)
 	}
-
-	// LeaseBuilder is the signature for building a Leaser to the Event Processor Host
-	LeaseBuilder func(processor *EventProcessorHost, defaultLeaseDuration time.Duration) Leaser
-	// CheckpointBuilder is the signature for building a Checkpointer to the Event Processor Host
-	CheckpointBuilder func(processor *EventProcessorHost) Checkpointer
 )
 
 // New constructs a new instance of an EventHostProcessor
-func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaseBuilder LeaseBuilder, checkpointBuilder CheckpointBuilder, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
+func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	client, err := eventhub.NewClient(namespace, hubName, tokenProvider)
 	if err != nil {
 		return nil, err
@@ -71,9 +65,9 @@ func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaseBuild
 		tokenProvider: tokenProvider,
 		client:        client,
 		handlers:      make(map[string]eventhub.Handler),
+		leaser:        leaser,
+		checkpointer:  checkpointer,
 	}
-	host.leaser = leaseBuilder(host, defaultLeaseDuration)
-	host.checkpointer = checkpointBuilder(host)
 
 	for _, opt := range opts {
 		err := opt(host)
@@ -127,10 +121,22 @@ func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 	return nil
 }
 
+// GetName returns the name of the EventProcessorHost
+func (h *EventProcessorHost) GetName() string {
+	return h.name
+}
+
+// GetPartitionIDs fetches the partition IDs for the Event Hub
+func (h *EventProcessorHost) GetPartitionIDs() []string {
+	return h.scheduler.partitionIDs
+}
+
 func (h *EventProcessorHost) setup(ctx context.Context) error {
 	h.hostMu.Lock()
 	defer h.hostMu.Unlock()
 	if h.scheduler == nil {
+		h.leaser.SetEventHostProcessor(h)
+		h.checkpointer.SetEventHostProcessor(h)
 		if err := h.leaser.EnsureStore(ctx); err != nil {
 			return err
 		}
@@ -173,7 +179,7 @@ func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 
 // Close stops the EventHostProcessor from processing messages
 func (h *EventProcessorHost) Close() error {
-	log.Println("shutting down...")
+	fmt.Println("shutting down...")
 	if h.scheduler != nil {
 		if err := h.scheduler.Stop(); err != nil {
 			log.Error(err)

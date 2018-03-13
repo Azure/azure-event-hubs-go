@@ -44,7 +44,7 @@ func (suite *eventHubSuite) TestSasToken() {
 				t.Fatal(err)
 			}
 			defer suite.DeleteEventHub(context.Background(), hubName)
-			provider, err := sas.NewProviderFromEnvironment()
+			provider, err := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,11 +106,11 @@ func testBatchSendAndReceive(t *testing.T, client Client, partitionID string) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	err := client.SendBatch(ctx, batch)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cancel()
 
 	count := 0
 	_, err = client.Receive(context.Background(), partitionID, func(ctx context.Context, event *Event) error {
@@ -147,13 +147,13 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 
 	count := 0
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 		assert.Equal(t, messages[count], string(event.Data))
 		count++
 		wg.Done()
 		return nil
 	}, ReceiveWithPrefetchCount(100))
-	cancel()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,13 +197,13 @@ func testEpochGreaterThenLess(t *testing.T, client Client, partitionIDs []string
 	}
 
 	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	select {
 	case <-r2.Done():
 		break
 	case <-doneCtx.Done():
 		t.Error("r2 didn't finish in time")
 	}
-	cancel()
 
 	if r1.Err() != nil {
 		t.Error("r1 should still be running with the higher epoch")
@@ -228,13 +228,13 @@ func testEpochLessThenGreater(t *testing.T, client Client, partitionIDs []string
 	}
 
 	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	select {
 	case <-r1.Done():
 		break
 	case <-doneCtx.Done():
 		t.Error("r1 didn't finish in time")
 	}
-	cancel()
 
 	if r1.Err() == nil {
 		t.Error("r1 should have died with error since it has a lower epoch value")
@@ -289,6 +289,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	for _, partitionID := range partitionIDs {
 		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 			wg.Done()
@@ -298,7 +299,6 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 			t.Fatal(err)
 		}
 	}
-	cancel()
 	waitUntil(t, &wg, 15*time.Second)
 }
 
@@ -371,7 +371,7 @@ func BenchmarkReceive(b *testing.B) {
 		messages[i] = test.RandomName("hello", 10)
 	}
 
-	provider, err := aad.NewProviderFromEnvironment()
+	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -397,6 +397,7 @@ func BenchmarkReceive(b *testing.B) {
 	b.ResetTimer()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	// receive from all partition IDs
 	for _, partitionID := range *mgmtHub.PartitionIds {
 		_, err = hub.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
@@ -407,13 +408,12 @@ func BenchmarkReceive(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	cancel()
 	wg.Wait()
 	b.StopTimer()
 }
 
 func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) Client {
-	provider, err := aad.NewProviderFromEnvironment(aad.JWTProviderWithEnvironment(&suite.Env))
+	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&suite.Env))
 	if err != nil {
 		t.Fatal(err)
 	}

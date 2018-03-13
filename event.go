@@ -28,6 +28,20 @@ func NewEventFromString(message string) *Event {
 	}
 }
 
+// NewEvent builds an Event from a slice of data
+func NewEvent(data []byte) *Event {
+	return &Event{
+		Data: data,
+	}
+}
+
+// NewEventBatch builds an EventBatch from an array of Events
+func NewEventBatch(events []*Event) *EventBatch {
+	return &EventBatch{
+		Events: events,
+	}
+}
+
 func newEvent(data []byte, msg *amqp.Message) *Event {
 	return &Event{
 		Data:    data,

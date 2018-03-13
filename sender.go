@@ -65,6 +65,7 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 		}
 	}
 
+	// TODO: add partition-key to the Event or EventBatch -- this is different than partitionID
 	if s.partitionID != nil {
 		msg.Annotations["x-opt-partition-key"] = s.partitionID
 	}
