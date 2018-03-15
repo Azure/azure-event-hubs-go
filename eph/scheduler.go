@@ -2,6 +2,7 @@ package eph
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -21,10 +22,11 @@ const (
 
 type (
 	scheduler struct {
-		processor    *EventProcessorHost
-		partitionIDs []string
-		receivers    map[string]*leasedReceiver
-		done         func()
+		processor            *EventProcessorHost
+		partitionIDs         []string
+		receivers            map[string]*leasedReceiver
+		done                 func()
+		leaseRenewalInterval time.Duration
 	}
 
 	ownerCount struct {
@@ -36,9 +38,10 @@ type (
 func newScheduler(ctx context.Context, eventHostProcessor *EventProcessorHost) (*scheduler, error) {
 	runtimeInfo, err := eventHostProcessor.client.GetRuntimeInformation(ctx)
 	return &scheduler{
-		processor:    eventHostProcessor,
-		partitionIDs: runtimeInfo.PartitionIDs,
-		receivers:    make(map[string]*leasedReceiver),
+		processor:            eventHostProcessor,
+		partitionIDs:         runtimeInfo.PartitionIDs,
+		receivers:            make(map[string]*leasedReceiver),
+		leaseRenewalInterval: DefaultLeaseRenewalInterval,
 	}, err
 }
 
@@ -103,7 +106,8 @@ func (s *scheduler) Run() {
 					s.startReceiver(ctx, stolen)
 				}
 			}
-			time.Sleep(DefaultLeaseRenewalInterval)
+			skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
+			time.Sleep(s.leaseRenewalInterval + skew)
 		}
 	}
 }

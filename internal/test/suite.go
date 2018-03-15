@@ -24,8 +24,11 @@ var (
 )
 
 const (
-	location          = "eastus"
-	resourceGroupName = "ehtest"
+	// Location is the Azure geographic location the test suite will use for provisioning
+	Location = "eastus"
+
+	// ResourceGroupName is the name of the resource group the test suite will use for provisioning
+	ResourceGroupName = "ehtest"
 )
 
 type (
@@ -96,7 +99,7 @@ func (suite *BaseSuite) TearDownSuite() {
 // EnsureEventHub creates an Event Hub if it doesn't exist
 func (suite *BaseSuite) EnsureEventHub(ctx context.Context, name string, opts ...HubMgmtOption) (*mgmt.Model, error) {
 	client := suite.getEventHubMgmtClient()
-	hub, err := client.Get(ctx, resourceGroupName, suite.Namespace, name)
+	hub, err := client.Get(ctx, ResourceGroupName, suite.Namespace, name)
 
 	if err != nil {
 		newHub := &mgmt.Model{
@@ -113,7 +116,7 @@ func (suite *BaseSuite) EnsureEventHub(ctx context.Context, name string, opts ..
 			}
 		}
 
-		hub, err = client.CreateOrUpdate(ctx, resourceGroupName, suite.Namespace, name, *newHub)
+		hub, err = client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *newHub)
 		if err != nil {
 			return nil, err
 		}
@@ -124,12 +127,12 @@ func (suite *BaseSuite) EnsureEventHub(ctx context.Context, name string, opts ..
 // DeleteEventHub deletes an Event Hub within the given Namespace
 func (suite *BaseSuite) DeleteEventHub(ctx context.Context, name string) error {
 	client := suite.getEventHubMgmtClient()
-	_, err := client.Delete(ctx, resourceGroupName, suite.Namespace, name)
+	_, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, name)
 	return err
 }
 
 func (suite *BaseSuite) ensureProvisioned(tier mgmt.SkuTier) error {
-	_, err := ensureResourceGroup(context.Background(), suite.SubscriptionID, resourceGroupName, location, suite.Env)
+	_, err := ensureResourceGroup(context.Background(), suite.SubscriptionID, ResourceGroupName, Location, suite.Env)
 	if err != nil {
 		return err
 	}
@@ -217,7 +220,7 @@ func (suite *BaseSuite) getEventHubMgmtClient() *mgmt.EventHubsClient {
 }
 
 func (suite *BaseSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
-	ns, err := ensureNamespace(context.Background(), suite.SubscriptionID, resourceGroupName, suite.Namespace, location, suite.Env)
+	ns, err := ensureNamespace(context.Background(), suite.SubscriptionID, ResourceGroupName, suite.Namespace, Location, suite.Env)
 	if err != nil {
 		return nil, err
 	}

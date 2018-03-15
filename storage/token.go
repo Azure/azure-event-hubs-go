@@ -2,27 +2,31 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/aad"
-	storMgmt "github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
+	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
+	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
 )
 
 type (
-	// AADSASTokenProvider represents a token provider for Azure Storage SAS using AAD to authorize signing
-	AADSASTokenProvider struct {
+	// AADSASCredential represents a token provider for Azure Storage SAS using AAD to authorize signing
+	AADSASCredential struct {
+		azblob.Credential
 		ResourceGroup    string
 		SubscriptionID   string
 		AccountName      string
+		ContainerName    string
 		aadTokenProvider *adal.ServicePrincipalToken
-		tokens           map[string]SASToken
+		token            *SASToken
 		env              *azure.Environment
-		mu               sync.Mutex
 	}
 
 	// SASToken contains the expiry time and token for a given SAS
@@ -31,11 +35,11 @@ type (
 		sas    string
 	}
 
-	// AADSASTokenProviderOption provides options for configuring AAD SAS Token Providers
-	AADSASTokenProviderOption func(*aad.TokenProviderConfiguration) error
+	// AADSASCredentialOption provides options for configuring AAD SAS Token Providers
+	AADSASCredentialOption func(*aad.TokenProviderConfiguration) error
 )
 
-// AADSASTokenProviderWithEnvironmentVars configures the TokenProvider using the environment variables available
+// AADSASCredentialWithEnvironmentVars configures the TokenProvider using the environment variables available
 //
 // 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
 //    "AZURE_CLIENT_SECRET"
@@ -47,7 +51,7 @@ type (
 //
 //
 // The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
-func AADSASTokenProviderWithEnvironmentVars() AADSASTokenProviderOption {
+func AADSASCredentialWithEnvironmentVars() AADSASCredentialOption {
 	return func(config *aad.TokenProviderConfiguration) error {
 		config.TenantID = os.Getenv("AZURE_TENANT_ID")
 		config.ClientID = os.Getenv("AZURE_CLIENT_ID")
@@ -66,10 +70,13 @@ func AADSASTokenProviderWithEnvironmentVars() AADSASTokenProviderOption {
 	}
 }
 
-// NewAADSASTokenProvider constructs a SAS token provider for Azure storage using Azure Active Directory credentials
-func NewAADSASTokenProvider(subscriptionID, resourceGroup, accountName string, opts ...AADSASTokenProviderOption) (*AADSASTokenProvider, error) {
+// NewAADSASCredential constructs a SAS token provider for Azure storage using Azure Active Directory credentials
+//
+// canonicalizedResource should be formed as described here: https://docs.microsoft.com/en-us/rest/api/storagerp/storageaccounts/listservicesas
+func NewAADSASCredential(subscriptionID, resourceGroup, accountName, containerName string, opts ...AADSASCredentialOption) (*AADSASCredential, error) {
 	config := &aad.TokenProviderConfiguration{
 		ResourceURI: azure.PublicCloud.ResourceManagerEndpoint,
+		Env:         &azure.PublicCloud,
 	}
 
 	for _, opt := range opts {
@@ -84,45 +91,66 @@ func NewAADSASTokenProvider(subscriptionID, resourceGroup, accountName string, o
 		return nil, err
 	}
 
-	return &AADSASTokenProvider{
+	return &AADSASCredential{
 		aadTokenProvider: spToken,
-		tokens:           make(map[string]SASToken),
 		env:              config.Env,
 		SubscriptionID:   subscriptionID,
 		ResourceGroup:    resourceGroup,
 		AccountName:      accountName,
+		ContainerName:    containerName,
 	}, nil
 }
 
-// GetToken gets a CBS JWT
-func (t *AADSASTokenProvider) GetToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+// New creates a credential policy object.
+func (t *AADSASCredential) New(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.Policy {
+	return pipeline.PolicyFunc(func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
+		// Add a x-ms-date header if it doesn't already exist
+		token, err := t.getToken(ctx)
+		if err != nil {
+			return nil, err
+		}
 
-	token, ok := t.tokens[canonicalizedResource]
-	if ok {
-		if token.expiry.Before(time.Now().Add(-5 * time.Minute)) {
-			return token, nil
+		fmt.Println(request.URL)
+		fmt.Println(request.URL.RawQuery)
+		if request.URL.RawQuery != "" {
+			request.URL.RawQuery = request.URL.RawQuery + "&" + token.sas
+		} else {
+			request.URL.RawQuery = token.sas
+		}
+
+		response, err := next.Do(ctx, request)
+		return response, err
+	})
+}
+
+// GetToken fetches a Azure Storage SAS token using an AAD token
+func (t *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
+	if t.token != nil {
+		if t.token.expiry.Before(time.Now().Add(-5 * time.Minute)) {
+			return *t.token, nil
 		}
 	}
-	token, err := t.getToken(ctx, canonicalizedResource)
+	token, err := t.refeshToken(ctx, "/blob/"+t.AccountName+"/"+t.ContainerName)
 	if err != nil {
 		return SASToken{}, err
 	}
 
-	t.tokens[canonicalizedResource] = token
+	t.token = &token
 	return token, nil
 }
 
-func (t *AADSASTokenProvider) getToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
-	now := &date.Time{}
+func (t *AADSASCredential) refeshToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
+	now := time.Now().Add(-1 * time.Second)
 	expiry := now.Add(1 * time.Hour)
-	client := storMgmt.NewAccountsClientWithBaseURI(t.env.ResourceManagerEndpoint, t.SubscriptionID)
-	res, err := client.ListServiceSAS(ctx, t.ResourceGroup, t.AccountName, storMgmt.ServiceSasParameters{
-		CanonicalizedResource:  &canonicalizedResource,
-		Protocols:              "https",
-		SharedAccessStartTime:  now,
-		SharedAccessExpiryTime: &date.Time{Time: expiry},
+	client := storage.NewAccountsClientWithBaseURI(t.env.ResourceManagerEndpoint, t.SubscriptionID)
+	client.Authorizer = autorest.NewBearerAuthorizer(t.aadTokenProvider)
+	res, err := client.ListAccountSAS(ctx, t.ResourceGroup, t.AccountName, storage.AccountSasParameters{
+		Protocols:              storage.HTTPS,
+		ResourceTypes:          storage.SignedResourceTypesS + storage.SignedResourceTypesC + storage.SignedResourceTypesO,
+		Services:               storage.B,
+		SharedAccessStartTime:  &date.Time{Time: now.Round(time.Second).UTC()},
+		SharedAccessExpiryTime: &date.Time{Time: expiry.Round(time.Second).UTC()},
+		Permissions:            storage.R + storage.W + storage.D + storage.L + storage.A + storage.C + storage.U,
 	})
 
 	if err != nil {
@@ -130,7 +158,7 @@ func (t *AADSASTokenProvider) getToken(ctx context.Context, canonicalizedResourc
 	}
 
 	return SASToken{
-		sas:    *res.ServiceSasToken,
+		sas:    *res.AccountSasToken,
 		expiry: expiry,
 	}, err
 }

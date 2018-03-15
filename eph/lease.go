@@ -39,6 +39,7 @@ type (
 		IsExpired(context.Context) bool
 		GetOwner() string
 		IncrementEpoch() int64
+		GetEpoch() int64
 	}
 )
 
@@ -55,4 +56,9 @@ func (l *Lease) GetOwner() string {
 // IncrementEpoch increase the time on the lease by one
 func (l *Lease) IncrementEpoch() int64 {
 	return atomic.AddInt64(&l.Epoch, 1)
+}
+
+// GetEpoch returns the value of the epoch
+func (l *Lease) GetEpoch() int64 {
+	return l.Epoch
 }

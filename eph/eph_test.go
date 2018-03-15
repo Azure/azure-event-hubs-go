@@ -12,21 +12,21 @@ import (
 	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
-	testSuite "github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/suite"
 )
 
 type (
 	// eventHubSuite encapsulates a end to end test of Event Hubs with build up and tear down of all EH resources
-	suite struct {
+	testSuite struct {
 		test.BaseSuite
 	}
 )
 
 func TestEventProcessorHost(t *testing.T) {
-	testSuite.Run(t, new(suite))
+	suite.Run(t, new(testSuite))
 }
 
-func (s *suite) TestSingle() {
+func (s *testSuite) TestSingle() {
 	hub, del := s.ensureRandomHub("goEPH", 10)
 	defer del()
 
@@ -54,12 +54,12 @@ func (s *suite) TestSingle() {
 	waitUntil(s.T(), &wg, 30*time.Second)
 }
 
-func (s *suite) TestMultiple() {
+func (s *testSuite) TestMultiple() {
 	hub, del := s.ensureRandomHub("goEPH", 10)
 	defer del()
 
 	numPartitions := len(*hub.PartitionIds)
-	leaser := newMemoryLeaser(2 * time.Second)
+	leaser := newMemoryLeaser(11 * time.Second)
 	checkpointer := new(memoryCheckpointer)
 	processors := make([]*EventProcessorHost, numPartitions)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -84,15 +84,19 @@ func (s *suite) TestMultiple() {
 	for {
 		<-time.After(1 * time.Second)
 		count++
-		if count > 20 {
+		if count > 30 {
 			break
 		}
 
 		allBalanced = true
 		for i := 0; i < numPartitions; i++ {
-			if len(processors[i].scheduler.receivers) < 1 {
+			numReceivers := len(processors[i].scheduler.receivers)
+			if numReceivers != 1 {
 				allBalanced = false
 			}
+		}
+		if allBalanced {
+			break
 		}
 	}
 	if !allBalanced {
@@ -112,16 +116,20 @@ func (s *suite) TestMultiple() {
 
 		partitionsProcessing := 0
 		for i := 0; i < numPartitions-1; i++ {
-			partitionsProcessing += len(processors[i].scheduler.receivers)
+			numReceivers := len(processors[i].scheduler.receivers)
+			partitionsProcessing += numReceivers
 		}
 		allBalanced = partitionsProcessing == numPartitions
+		if allBalanced {
+			break
+		}
 	}
 	if !allBalanced {
 		s.T().Error("didn't balance after closing a processor")
 	}
 }
 
-func (s *suite) sendMessages(hubName string, length int) ([]string, error) {
+func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	client := s.newClient(s.T(), hubName)
 	defer client.Close()
 
@@ -142,7 +150,7 @@ func (s *suite) sendMessages(hubName string, length int) ([]string, error) {
 	return messages, ctx.Err()
 }
 
-func (s *suite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
+func (s *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
 	hubName := test.RandomName(prefix, length)
 	hub, err := s.EnsureEventHub(context.Background(), hubName)
 	if err != nil {
@@ -154,13 +162,13 @@ func (s *suite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func())
 	}
 }
 
-func (s *suite) newInMemoryEPH(hubName string) (*EventProcessorHost, error) {
+func (s *testSuite) newInMemoryEPH(hubName string) (*EventProcessorHost, error) {
 	leaser := newMemoryLeaser(2 * time.Second)
 	checkpointer := new(memoryCheckpointer)
 	return s.newInMemoryEPHWithOptions(hubName, leaser, checkpointer)
 }
 
-func (s *suite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, checkpointer Checkpointer) (*EventProcessorHost, error) {
+func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, checkpointer Checkpointer) (*EventProcessorHost, error) {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	if err != nil {
 		return nil, err
@@ -174,7 +182,7 @@ func (s *suite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, checkpo
 	return processor, nil
 }
 
-func (s *suite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) eventhub.Client {
+func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) eventhub.Client {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&s.Env))
 	if err != nil {
 		t.Fatal(err)
@@ -182,7 +190,7 @@ func (s *suite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOpti
 	return s.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (s *suite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) eventhub.Client {
+func (s *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) eventhub.Client {
 	opts = append(opts, eventhub.HubWithEnvironment(s.Env))
 	client, err := eventhub.NewClient(s.Namespace, hubName, provider, opts...)
 	if err != nil {

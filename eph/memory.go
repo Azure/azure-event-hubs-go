@@ -2,6 +2,7 @@ package eph
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -12,11 +13,13 @@ type (
 		leases        map[string]*memoryLease
 		ownerName     string
 		leaseDuration time.Duration
+		memMu         sync.Mutex
 	}
 
 	memoryCheckpointer struct {
 		checkpoints map[string]*Checkpoint
 		processor   *EventProcessorHost
+		memMu       sync.Mutex
 	}
 
 	memoryLease struct {
@@ -71,6 +74,9 @@ func (ml *memoryLeaser) DeleteStore(ctx context.Context) error {
 }
 
 func (ml *memoryLeaser) GetLeases(ctx context.Context) ([]LeaseMarker, error) {
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	leases := make([]LeaseMarker, len(ml.leases))
 	count := 0
 	for _, lease := range ml.leases {
@@ -81,6 +87,9 @@ func (ml *memoryLeaser) GetLeases(ctx context.Context) ([]LeaseMarker, error) {
 }
 
 func (ml *memoryLeaser) EnsureLease(ctx context.Context, partitionID string) (LeaseMarker, error) {
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	l, ok := ml.leases[partitionID]
 	if !ok {
 		l = newMemoryLease(partitionID)
@@ -90,11 +99,17 @@ func (ml *memoryLeaser) EnsureLease(ctx context.Context, partitionID string) (Le
 }
 
 func (ml *memoryLeaser) DeleteLease(ctx context.Context, partitionID string) error {
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	delete(ml.leases, partitionID)
 	return nil
 }
 
 func (ml *memoryLeaser) AcquireLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	l, ok := ml.leases[partitionID]
 	if !ok {
 		// lease is not in store
@@ -106,10 +121,14 @@ func (ml *memoryLeaser) AcquireLease(ctx context.Context, partitionID string) (L
 		l.Owner = ml.ownerName
 	}
 	l.expireAfter(ml.leaseDuration)
+	l.IncrementEpoch()
 	return l, true, nil
 }
 
 func (ml *memoryLeaser) RenewLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	l, ok := ml.leases[partitionID]
 	if !ok {
 		// lease is not in store
@@ -125,6 +144,9 @@ func (ml *memoryLeaser) RenewLease(ctx context.Context, partitionID string) (Lea
 }
 
 func (ml *memoryLeaser) ReleaseLease(ctx context.Context, partitionID string) (bool, error) {
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	l, ok := ml.leases[partitionID]
 	if !ok {
 		// lease is not in store
@@ -143,6 +165,10 @@ func (ml *memoryLeaser) ReleaseLease(ctx context.Context, partitionID string) (b
 
 func (ml *memoryLeaser) UpdateLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
 	l, ok, err := ml.RenewLease(ctx, partitionID)
+
+	ml.memMu.Lock()
+	defer ml.memMu.Unlock()
+
 	if err != nil || !ok {
 		return nil, ok, err
 	}
@@ -171,6 +197,9 @@ func (mc *memoryCheckpointer) DeleteStore(ctx context.Context) error {
 }
 
 func (mc *memoryCheckpointer) GetCheckpoint(ctx context.Context, partitionID string) (Checkpoint, bool) {
+	mc.memMu.Lock()
+	defer mc.memMu.Unlock()
+
 	checkpoint, ok := mc.checkpoints[partitionID]
 	if !ok {
 		return *new(Checkpoint), ok
@@ -180,6 +209,9 @@ func (mc *memoryCheckpointer) GetCheckpoint(ctx context.Context, partitionID str
 }
 
 func (mc *memoryCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID string) (Checkpoint, error) {
+	mc.memMu.Lock()
+	defer mc.memMu.Unlock()
+
 	checkpoint, ok := mc.checkpoints[partitionID]
 	if !ok {
 		checkpoint = NewCheckpoint(partitionID)
@@ -189,6 +221,9 @@ func (mc *memoryCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 }
 
 func (mc *memoryCheckpointer) UpdateCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
+	mc.memMu.Lock()
+	defer mc.memMu.Unlock()
+
 	if cp, ok := mc.checkpoints[checkpoint.PartitionID]; ok {
 		checkpoint.SequenceNumber = cp.SequenceNumber
 		checkpoint.Offset = cp.Offset
@@ -197,6 +232,9 @@ func (mc *memoryCheckpointer) UpdateCheckpoint(ctx context.Context, checkpoint C
 }
 
 func (mc *memoryCheckpointer) DeleteCheckpoint(ctx context.Context, partitionID string) error {
+	mc.memMu.Lock()
+	defer mc.memMu.Unlock()
+
 	delete(mc.checkpoints, partitionID)
 	return nil
 }
