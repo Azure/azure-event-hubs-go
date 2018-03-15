@@ -174,7 +174,9 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, che
 		return nil, err
 	}
 
-	processor, err := New(s.Namespace, hubName, provider, leaser, checkpointer)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	processor, err := New(ctx, s.Namespace, hubName, provider, leaser, checkpointer)
 	if err != nil {
 		return nil, err
 	}

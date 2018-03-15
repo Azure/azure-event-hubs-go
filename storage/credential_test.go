@@ -39,7 +39,7 @@ func (ts *testSuite) SetupSuite() {
 	}
 }
 
-func (ts *testSuite) TestToken() {
+func (ts *testSuite) TestCredential() {
 	containerName := "foo"
 	blobName := "bar"
 	message := "Hello World!!"

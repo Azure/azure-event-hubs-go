@@ -23,7 +23,6 @@ const (
 type (
 	scheduler struct {
 		processor            *EventProcessorHost
-		partitionIDs         []string
 		receivers            map[string]*leasedReceiver
 		done                 func()
 		leaseRenewalInterval time.Duration
@@ -35,14 +34,12 @@ type (
 	}
 )
 
-func newScheduler(ctx context.Context, eventHostProcessor *EventProcessorHost) (*scheduler, error) {
-	runtimeInfo, err := eventHostProcessor.client.GetRuntimeInformation(ctx)
+func newScheduler(eventHostProcessor *EventProcessorHost) *scheduler {
 	return &scheduler{
 		processor:            eventHostProcessor,
-		partitionIDs:         runtimeInfo.PartitionIDs,
 		receivers:            make(map[string]*leasedReceiver),
 		leaseRenewalInterval: DefaultLeaseRenewalInterval,
-	}, err
+	}
 }
 
 func (s *scheduler) Run() {

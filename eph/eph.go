@@ -40,6 +40,7 @@ type (
 		handlers      map[string]eventhub.Handler
 		hostMu        sync.Mutex
 		handlersMu    sync.Mutex
+		partitionIDs  []string
 	}
 
 	// EventProcessorHostOption provides configuration options for an EventProcessorHost
@@ -52,8 +53,13 @@ type (
 )
 
 // New constructs a new instance of an EventHostProcessor
-func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
+func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	client, err := eventhub.NewClient(namespace, hubName, tokenProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	runtimeInfo, err := client.GetRuntimeInformation(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +73,7 @@ func New(namespace, hubName string, tokenProvider auth.TokenProvider, leaser Lea
 		handlers:      make(map[string]eventhub.Handler),
 		leaser:        leaser,
 		checkpointer:  checkpointer,
+		partitionIDs:  runtimeInfo.PartitionIDs,
 	}
 
 	for _, opt := range opts {
@@ -128,7 +135,7 @@ func (h *EventProcessorHost) GetName() string {
 
 // GetPartitionIDs fetches the partition IDs for the Event Hub
 func (h *EventProcessorHost) GetPartitionIDs() []string {
-	return h.scheduler.partitionIDs
+	return h.partitionIDs
 }
 
 func (h *EventProcessorHost) setup(ctx context.Context) error {
@@ -145,16 +152,13 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 			return err
 		}
 
-		scheduler, err := newScheduler(ctx, h)
+		scheduler := newScheduler(h)
 
-		for _, partitionID := range scheduler.partitionIDs {
+		for _, partitionID := range h.partitionIDs {
 			h.leaser.EnsureLease(ctx, partitionID)
 			h.checkpointer.EnsureCheckpoint(ctx, partitionID)
 		}
 
-		if err != nil {
-			return err
-		}
 		h.scheduler = scheduler
 	}
 	return nil

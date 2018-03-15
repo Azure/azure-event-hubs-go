@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 )
@@ -19,27 +20,45 @@ type (
 		leases        map[string]*storageLease
 		processor     *eph.EventProcessorHost
 		leaseDuration time.Duration
-		tokenProvider auth.TokenProvider
+		credential    Credential
 		containerURL  *azblob.ContainerURL
 		serviceURL    *azblob.ServiceURL
 		containerName string
+		accountName   string
+		env           azure.Environment
 	}
 
 	storageLease struct {
 		*eph.Lease
 		leaser     *Leaser
-		Checkpoint *eph.Checkpoint
-		State      azblob.LeaseStateType
-		Token      string `json:"token"`
+		Checkpoint *eph.Checkpoint       `json:"checkpoint"`
+		State      azblob.LeaseStateType `json:"state"`
+		Token      string                `json:"token"`
+	}
+
+	// Credential is a wrapper for the Azure Storage azblob.Credential
+	Credential interface {
+		azblob.Credential
 	}
 )
 
 // NewStorageLeaser builds a Leaser which uses Azure Storage to store partition leases
-func NewStorageLeaser(tokenProvider auth.TokenProvider, accountName, containerName string, leaseDuration time.Duration) *Leaser {
-	return &Leaser{
-		tokenProvider: tokenProvider,
-		leaseDuration: eph.DefaultLeaseDurationInSeconds,
+func NewStorageLeaser(credential Credential, accountName, containerName string, env azure.Environment) (*Leaser, error) {
+	storageURL, err := url.Parse("https://" + accountName + ".blob." + env.StorageEndpointSuffix)
+	if err != nil {
+		return nil, err
 	}
+	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{}))
+
+	return &Leaser{
+		credential:    credential,
+		containerName: containerName,
+		accountName:   accountName,
+		leaseDuration: eph.DefaultLeaseDurationInSeconds,
+		env:           env,
+		serviceURL:    &svURL,
+		leases:        make(map[string]*storageLease),
+	}, nil
 }
 
 // SetEventHostProcessor sets the EventHostProcessor on the instance of the Leaser
@@ -100,7 +119,7 @@ func (sl *Leaser) GetLeases(ctx context.Context) ([]eph.LeaseMarker, error) {
 		}
 		leases[idx] = lease
 	}
-	return nil, nil
+	return leases, nil
 }
 
 // EnsureLease creates a lease in the container if it doesn't exist
@@ -133,7 +152,7 @@ func (sl *Leaser) AcquireLease(ctx context.Context, partitionID string) (eph.Lea
 	}
 
 	newToken := uuid.NewV4().String()
-	_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration*time.Second), azblob.HTTPAccessConditions{})
+	_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.HTTPAccessConditions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -145,6 +164,7 @@ func (sl *Leaser) AcquireLease(ctx context.Context, partitionID string) (eph.Lea
 	if err != nil {
 		return nil, false, err
 	}
+	sl.leases[partitionID] = lease
 	return lease, true, nil
 }
 
@@ -171,10 +191,11 @@ func (sl *Leaser) ReleaseLease(ctx context.Context, partitionID string) (bool, e
 		return false, errors.New("lease was not found")
 	}
 
-	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
+	_, err := blobURL.ReleaseLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
 		return false, err
 	}
+	delete(sl.leases, partitionID)
 	return true, nil
 }
 
@@ -210,10 +231,7 @@ func (sl *Leaser) uploadLease(ctx context.Context, lease *storageLease) error {
 		},
 	})
 
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (sl *Leaser) createOrGetLease(ctx context.Context, partitionID string) (*storageLease, error) {
@@ -250,25 +268,18 @@ func (sl *Leaser) getLease(ctx context.Context, partitionID string) (*storageLea
 	if err != nil {
 		return nil, err
 	}
-	checkpoint, err := leaseFromResponse(res)
-	if err != nil {
-		return nil, err
-	}
-
-	return &storageLease{
-		Checkpoint: checkpoint,
-		State:      res.LeaseState(),
-	}, nil
+	return sl.leaseFromResponse(res)
 }
 
-func leaseFromResponse(res *azblob.GetResponse) (*eph.Checkpoint, error) {
+func (sl *Leaser) leaseFromResponse(res *azblob.GetResponse) (*storageLease, error) {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Response().Body)
-	var checkpoint eph.Checkpoint
-	if err := json.Unmarshal(buf.Bytes(), &checkpoint); err != nil {
+	var lease storageLease
+	if err := json.Unmarshal(buf.Bytes(), &lease); err != nil {
 		return nil, err
 	}
-	return &checkpoint, nil
+	lease.leaser = sl
+	return &lease, nil
 }
 
 // IsExpired checks to see if the blob is not still leased
