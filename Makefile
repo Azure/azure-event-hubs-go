@@ -17,7 +17,7 @@ DEP   	= dep
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
-TIMEOUT = 200
+TIMEOUT = 300
 
 .PHONY: all
 all: fmt vendor lint vet megacheck | $(BASE) ; $(info $(M) building library…) @ ## Build program
@@ -50,7 +50,7 @@ test-short:   ARGS=-short        ## Run only short tests
 test-verbose: ARGS=-v            ## Run tests in verbose mode
 test-debug:   ARGS=-v -debug     ## Run tests in verbose mode with debug output
 test-race:    ARGS=-race         ## Run tests with race detector
-test-cover:   ARGS=-v -cover     ## Run tests in verbose mode with coverage
+test-cover:   ARGS=-cover     ## Run tests in verbose mode with coverage
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
 check test tests: cyclo lint vet vendor megacheck | $(BASE) ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests

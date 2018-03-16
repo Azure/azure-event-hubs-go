@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-event-hubs-go/persist"
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
@@ -50,11 +52,16 @@ type (
 	Receiver interface {
 		Receive(ctx context.Context, handler eventhub.Handler) (close func() error, err error)
 	}
+
+	checkpointPersister struct {
+		checkpointer Checkpointer
+	}
 )
 
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
-	client, err := eventhub.NewClient(namespace, hubName, tokenProvider)
+	persister := checkpointPersister{checkpointer: checkpointer}
+	client, err := eventhub.NewClient(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
 	if err != nil {
 		return nil, err
 	}
@@ -194,8 +201,31 @@ func (h *EventProcessorHost) Close() error {
 		}
 	}
 
+	if h.leaser != nil {
+		if err := h.leaser.Close(); err != nil {
+			log.Errorln(err)
+		}
+	}
+
+	if h.checkpointer != nil {
+		if err := h.checkpointer.Close(); err != nil {
+			log.Errorln(err)
+		}
+	}
+
 	if h.client != nil {
 		return h.client.Close()
 	}
 	return nil
+}
+
+func (c checkpointPersister) Write(namespace, name, consumerGroup, partitionID string, checkpoint persist.Checkpoint) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return c.checkpointer.UpdateCheckpoint(ctx, partitionID, checkpoint)
+}
+func (c checkpointPersister) Read(namespace, name, consumerGroup, partitionID string) (persist.Checkpoint, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return c.checkpointer.EnsureCheckpoint(ctx, partitionID)
 }

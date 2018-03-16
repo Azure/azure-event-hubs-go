@@ -3,6 +3,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/azure-event-hubs-go/persist"
@@ -14,16 +15,10 @@ const (
 	// DefaultConsumerGroup is the default name for a event stream consumer group
 	DefaultConsumerGroup = "$Default"
 
-	// StartOfStream is a constant defined to represent the start of a partition stream in EventHub.
-	StartOfStream = "-1"
-
-	// EndOfStream is a constant defined to represent the current end of a partition stream in EventHub.
-	// This can be used as an offset argument in receiver creation to start receiving from the latest
-	// event, instead of a specific offset or point in time.
-	EndOfStream = "@latest"
+	offsetAnnotationName = "x-opt-offset"
 
 	amqpAnnotationFormat = "amqp.annotation.%s >%s '%s'"
-	offsetAnnotationName = "x-opt-offset"
+
 	defaultPrefetchCount = 100
 
 	epochKey = mgmt.MsftVendor + ":epoch"
@@ -70,7 +65,7 @@ func ReceiveWithConsumerGroup(consumerGroup string) ReceiveOption {
 // ReceiveWithStartingOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithStartingOffset(offset string) ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedOffset(offset)
+		receiver.storeLastReceivedOffset(persist.NewCheckpoint(offset, 0, time.Time{}))
 		return nil
 	}
 }
@@ -78,7 +73,7 @@ func ReceiveWithStartingOffset(offset string) ReceiveOption {
 // ReceiveWithLatestOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithLatestOffset() ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedOffset(EndOfStream)
+		receiver.storeLastReceivedOffset(persist.NewCheckpointFromEndOfStream())
 		return nil
 	}
 }
@@ -177,6 +172,7 @@ func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Messa
 			}
 			msg.Accept()
 			r.debugLogf("message accepted: id: %v", id)
+			r.storeLastReceivedOffset(event.GetCheckpoint())
 		}
 	}
 }
@@ -250,18 +246,19 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 }
 
 func (r *receiver) getLastReceivedOffset() (string, error) {
-	return r.offsetPersister().Read(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID)
+	checkpoint, err := r.offsetPersister().Read(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID)
+	return checkpoint.Offset, err
 }
 
-func (r *receiver) storeLastReceivedOffset(offset string) error {
-	return r.offsetPersister().Write(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID, offset)
+func (r *receiver) storeLastReceivedOffset(checkpoint persist.Checkpoint) error {
+	return r.offsetPersister().Write(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID, checkpoint)
 }
 
 func (r *receiver) getOffsetExpression() (string, error) {
 	offset, err := r.getLastReceivedOffset()
 	if err != nil {
 		// assume err read is due to not having an offset -- probably want to change this as it's ambiguous
-		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", StartOfStream), nil
+		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", persist.StartOfStream), nil
 	}
 	return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "", offset), nil
 }
@@ -285,7 +282,7 @@ func (r *receiver) hubName() string {
 	return r.hub.name
 }
 
-func (r *receiver) offsetPersister() persist.OffsetPersister {
+func (r *receiver) offsetPersister() persist.CheckpointPersister {
 	return r.hub.offsetPersister
 }
 

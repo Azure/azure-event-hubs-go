@@ -2,6 +2,7 @@ package eph
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 )
 
@@ -13,9 +14,16 @@ type (
 		DeleteStore(ctx context.Context) error
 	}
 
+	// EventProcessHostSetter provides the ability to set an EventHostProcessor on the implementor
+	EventProcessHostSetter interface {
+		SetEventHostProcessor(eph *EventProcessorHost)
+	}
+
 	// Leaser provides the functionality needed to persist and coordinate leases for partitions
 	Leaser interface {
+		io.Closer
 		StoreProvisioner
+		EventProcessHostSetter
 		GetLeases(ctx context.Context) ([]LeaseMarker, error)
 		EnsureLease(ctx context.Context, partitionID string) (LeaseMarker, error)
 		DeleteLease(ctx context.Context, partitionID string) error
@@ -23,7 +31,6 @@ type (
 		RenewLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error)
 		ReleaseLease(ctx context.Context, partitionID string) (bool, error)
 		UpdateLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error)
-		SetEventHostProcessor(eph *EventProcessorHost)
 	}
 
 	// Lease represents the information needed to coordinate partitions

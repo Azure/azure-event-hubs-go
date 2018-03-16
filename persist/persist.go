@@ -7,31 +7,38 @@ import (
 )
 
 type (
-	// OffsetPersister provides persistence for the received offset for a given namespace, hub name, consumer group, partition Id and
+	// CheckpointPersister provides persistence for the received offset for a given namespace, hub name, consumer group, partition Id and
 	// offset so that if a receiver where to be interrupted, it could resume after the last consumed event.
-	OffsetPersister interface {
-		Write(namespace, name, consumerGroup, partitionID, offset string) error
-		Read(namespace, name, consumerGroup, partitionID string) (string, error)
+	CheckpointPersister interface {
+		Write(namespace, name, consumerGroup, partitionID string, checkpoint Checkpoint) error
+		Read(namespace, name, consumerGroup, partitionID string) (Checkpoint, error)
 	}
 
-	// MemoryPersister is a default implementation of a Hub OffsetPersister, which will persist offset information in
+	// MemoryPersister is a default implementation of a Hub CheckpointPersister, which will persist offset information in
 	// memory.
 	MemoryPersister struct {
-		values map[string]string
+		values map[string]Checkpoint
 		mu     sync.Mutex
 	}
 )
 
-func (p *MemoryPersister) Write(namespace, name, consumerGroup, partitionID, offset string) error {
+// NewMemoryPersister creates a new in-memory storage for checkpoints
+func NewMemoryPersister() *MemoryPersister {
+	return &MemoryPersister{
+		values: make(map[string]Checkpoint),
+	}
+}
+
+func (p *MemoryPersister) Write(namespace, name, consumerGroup, partitionID string, checkpoint Checkpoint) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	key := getPersistenceKey(namespace, name, consumerGroup, partitionID)
-	p.values[key] = offset
+	p.values[key] = checkpoint
 	return nil
 }
 
-func (p *MemoryPersister) Read(namespace, name, consumerGroup, partitionID string) (string, error) {
+func (p *MemoryPersister) Read(namespace, name, consumerGroup, partitionID string) (Checkpoint, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -39,7 +46,7 @@ func (p *MemoryPersister) Read(namespace, name, consumerGroup, partitionID strin
 	if offset, ok := p.values[key]; ok {
 		return offset, nil
 	}
-	return "", errors.Errorf("could not read the offset for the key %s", key)
+	return NewCheckpointFromStartOfStream(), errors.Errorf("could not read the offset for the key %s", key)
 }
 
 func getPersistenceKey(namespace, name, consumerGroup, partitionID string) string {

@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"log"
 	"strings"
 	"time"
 
@@ -65,7 +64,6 @@ func (ts *testSuite) TestLeaserAcquire() {
 	assert.Equal(ts.T(), len(leaser.processor.GetPartitionIDs()), len(leases))
 
 	for _, lease := range leases {
-		log.Println(lease)
 		epochBefore := lease.GetEpoch()
 		acquiredLease, ok, err := leaser.AcquireLease(ctx, lease.GetPartitionID())
 		if err != nil {
@@ -132,7 +130,7 @@ func (ts *testSuite) TestLeaserRelease() {
 	assert.Equal(ts.T(), 0, len(leaser.leases))
 }
 
-func (ts *testSuite) leaserWithEPHAndLeases() (*Leaser, func()) {
+func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.leaserWithEPH()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -148,7 +146,7 @@ func (ts *testSuite) leaserWithEPHAndLeases() (*Leaser, func()) {
 	return leaser, del
 }
 
-func (ts *testSuite) leaserWithEPH() (*Leaser, func()) {
+func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.newLeaser()
 	hub, delHub := ts.ensureRandomHub("stortest", 4)
 
@@ -175,7 +173,7 @@ func (ts *testSuite) leaserWithEPH() (*Leaser, func()) {
 	return leaser, delAll
 }
 
-func (ts *testSuite) newLeaser() (*Leaser, func()) {
+func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	containerName := strings.ToLower(test.RandomName("stortest", 4))
 	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.accountName, containerName, AADSASCredentialWithEnvironmentVars())
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-event-hubs-go/persist"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +18,7 @@ type (
 	}
 
 	memoryCheckpointer struct {
-		checkpoints map[string]*Checkpoint
+		checkpoints map[string]*persist.Checkpoint
 		processor   *EventProcessorHost
 		memMu       sync.Mutex
 	}
@@ -186,7 +187,7 @@ func (mc *memoryCheckpointer) StoreExists(ctx context.Context) (bool, error) {
 
 func (mc *memoryCheckpointer) EnsureStore(ctx context.Context) error {
 	if mc.checkpoints == nil {
-		mc.checkpoints = make(map[string]*Checkpoint)
+		mc.checkpoints = make(map[string]*persist.Checkpoint)
 	}
 	return nil
 }
@@ -196,35 +197,36 @@ func (mc *memoryCheckpointer) DeleteStore(ctx context.Context) error {
 	return nil
 }
 
-func (mc *memoryCheckpointer) GetCheckpoint(ctx context.Context, partitionID string) (Checkpoint, bool) {
+func (mc *memoryCheckpointer) GetCheckpoint(ctx context.Context, partitionID string) (persist.Checkpoint, bool) {
 	mc.memMu.Lock()
 	defer mc.memMu.Unlock()
 
 	checkpoint, ok := mc.checkpoints[partitionID]
 	if !ok {
-		return *new(Checkpoint), ok
+		return *new(persist.Checkpoint), ok
 	}
 
 	return *checkpoint, true
 }
 
-func (mc *memoryCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID string) (Checkpoint, error) {
+func (mc *memoryCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID string) (persist.Checkpoint, error) {
 	mc.memMu.Lock()
 	defer mc.memMu.Unlock()
 
 	checkpoint, ok := mc.checkpoints[partitionID]
 	if !ok {
-		checkpoint = NewCheckpoint(partitionID)
+		chkpnt := persist.NewCheckpointFromStartOfStream()
+		checkpoint = &chkpnt
 		mc.checkpoints[partitionID] = checkpoint
 	}
 	return *checkpoint, nil
 }
 
-func (mc *memoryCheckpointer) UpdateCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
+func (mc *memoryCheckpointer) UpdateCheckpoint(ctx context.Context, partitionID string, checkpoint persist.Checkpoint) error {
 	mc.memMu.Lock()
 	defer mc.memMu.Unlock()
 
-	if cp, ok := mc.checkpoints[checkpoint.PartitionID]; ok {
+	if cp, ok := mc.checkpoints[partitionID]; ok {
 		checkpoint.SequenceNumber = cp.SequenceNumber
 		checkpoint.Offset = cp.Offset
 	}
@@ -236,5 +238,13 @@ func (mc *memoryCheckpointer) DeleteCheckpoint(ctx context.Context, partitionID 
 	defer mc.memMu.Unlock()
 
 	delete(mc.checkpoints, partitionID)
+	return nil
+}
+
+func (ml *memoryLeaser) Close() error {
+	return nil
+}
+
+func (mc *memoryCheckpointer) Close() error {
 	return nil
 }

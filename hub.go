@@ -31,7 +31,7 @@ type (
 		senderPartitionID *string
 		receiverMu        sync.Mutex
 		senderMu          sync.Mutex
-		offsetPersister   persist.OffsetPersister
+		offsetPersister   persist.CheckpointPersister
 		userAgent         string
 	}
 
@@ -73,7 +73,7 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 	h := &hub{
 		name:            name,
 		namespace:       ns,
-		offsetPersister: new(persist.MemoryPersister),
+		offsetPersister: persist.NewMemoryPersister(),
 		userAgent:       rootUserAgent,
 		receivers:       make(map[string]*receiver),
 	}
@@ -227,7 +227,7 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 
 // HubWithOffsetPersistence configures the hub instance to read and write offsets so that if a hub is interrupted, it
 // can resume after the last consumed event.
-func HubWithOffsetPersistence(offsetPersister persist.OffsetPersister) HubOption {
+func HubWithOffsetPersistence(offsetPersister persist.CheckpointPersister) HubOption {
 	return func(h *hub) error {
 		h.offsetPersister = offsetPersister
 		return nil
