@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -54,80 +55,94 @@ func (ts *testSuite) TestSingle() {
 	waitUntil(ts.T(), &wg, 30*time.Second)
 }
 
-//func (ts *testSuite) TestMultiple() {
-//	hub, del := s.ensureRandomHub("goEPH", 10)
-//	defer del()
-//
-//	numPartitions := len(*hub.PartitionIds)
-//	leaser := newMemoryLeaser(11 * time.Second)
-//	checkpointer := new(memoryCheckpointer)
-//	processors := make([]*EventProcessorHost, numPartitions)
-//	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-//	defer cancel()
-//	for i := 0; i < numPartitions; i++ {
-//		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, leaser, checkpointer)
-//		if err != nil {
-//			s.T().Fatal(err)
-//		}
-//		processors[i] = processor
-//		processor.StartNonBlocking(ctx)
-//	}
-//
-//	defer func() {
-//		for i := 0; i < numPartitions; i++ {
-//			processors[i].Close()
-//		}
-//	}()
-//
-//	count := 0
-//	allBalanced := false
-//	for {
-//		<-time.After(1 * time.Second)
-//		count++
-//		if count > 30 {
-//			break
-//		}
-//
-//		allBalanced = true
-//		for i := 0; i < numPartitions; i++ {
-//			numReceivers := len(processors[i].scheduler.receivers)
-//			if numReceivers != 1 {
-//				allBalanced = false
-//			}
-//		}
-//		if allBalanced {
-//			break
-//		}
-//	}
-//	if !allBalanced {
-//		s.T().Error("never balanced work within allotted time")
-//		return
-//	}
-//
-//	processors[numPartitions-1].Close() // close the last partition
-//	allBalanced = false
-//	count = 0
-//	for {
-//		<-time.After(1 * time.Second)
-//		count++
-//		if count > 20 {
-//			break
-//		}
-//
-//		partitionsProcessing := 0
-//		for i := 0; i < numPartitions-1; i++ {
-//			numReceivers := len(processors[i].scheduler.receivers)
-//			partitionsProcessing += numReceivers
-//		}
-//		allBalanced = partitionsProcessing == numPartitions
-//		if allBalanced {
-//			break
-//		}
-//	}
-//	if !allBalanced {
-//		s.T().Error("didn't balance after closing a processor")
-//	}
-//}
+func (ts *testSuite) TestMultiple() {
+	randomName := strings.ToLower(test.RandomName("gostoreph", 4))
+	hub, delHub := ts.ensureRandomHubByName(randomName)
+	delContainer := ts.newTestContainerByName(randomName)
+	defer delContainer()
+
+	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, randomName, AADSASCredentialWithEnvironmentVars())
+	if err != nil {
+		ts.T().Fatal(err)
+	}
+
+	numPartitions := len(*hub.PartitionIds)
+	processors := make([]*eph.EventProcessorHost, numPartitions)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	for i := 0; i < numPartitions; i++ {
+		leaserCheckpointer, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, randomName, ts.Env)
+		if err != nil {
+			ts.T().Fatal(err)
+		}
+
+		processor, err := ts.newStorageBackedEPHOptions(*hub.Name, leaserCheckpointer, leaserCheckpointer)
+		if err != nil {
+			ts.T().Fatal(err)
+		}
+
+		processors[i] = processor
+		processor.StartNonBlocking(ctx)
+	}
+
+	defer func() {
+		for i := 0; i < numPartitions; i++ {
+			processors[i].Close()
+		}
+		delHub()
+	}()
+
+	count := 0
+	var partitionMap map[string]bool
+	for {
+		<-time.After(2 * time.Second)
+		count++
+		if count > 60 {
+			break
+		}
+
+		partitionMap = newPartitionMap(*hub.PartitionIds)
+		for i := 0; i < numPartitions; i++ {
+			partitions := processors[i].PartitionsIDsBeingProcessed()
+			if len(partitions) == 1 {
+				partitionMap[partitions[0]] = true
+			}
+		}
+		log.Println(partitionMap)
+		if allTrue(partitionMap) {
+			break
+		}
+	}
+	if !allTrue(partitionMap) {
+		ts.T().Error("never balanced work within allotted time")
+		return
+	}
+
+	processors[numPartitions-1].Close() // close the last partition
+	count = 0
+	for {
+		<-time.After(2 * time.Second)
+		count++
+		if count > 60 {
+			break
+		}
+
+		partitionMap = newPartitionMap(*hub.PartitionIds)
+		for i := 0; i < numPartitions-1; i++ {
+			partitions := processors[i].PartitionsIDsBeingProcessed()
+			for _, partition := range partitions {
+				partitionMap[partition] = true
+			}
+		}
+		log.Println(partitionMap)
+		if allTrue(partitionMap) {
+			break
+		}
+	}
+	if !allTrue(partitionMap) {
+		ts.T().Error("didn't balance after closing a processor")
+	}
+}
 
 func (ts *testSuite) newTestContainerByName(containerName string) func() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -247,4 +262,21 @@ func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 func fmtDuration(d time.Duration) string {
 	d = d.Round(time.Second) / time.Second
 	return fmt.Sprintf("%d seconds", d)
+}
+
+func allTrue(partitionMap map[string]bool) bool {
+	for key := range partitionMap {
+		if !partitionMap[key] {
+			return false
+		}
+	}
+	return true
+}
+
+func newPartitionMap(partitionIDs []string) map[string]bool {
+	partitionMap := make(map[string]bool)
+	for _, partition := range partitionIDs {
+		partitionMap[partition] = false
+	}
+	return partitionMap
 }

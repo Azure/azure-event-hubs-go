@@ -2,6 +2,7 @@ package eph
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -48,9 +49,10 @@ func (s *scheduler) Run() {
 	for {
 		select {
 		case <-ctx.Done():
+			s.dlog("shutting down scan")
 			return
 		default:
-			log.Debugf("running scan")
+			s.dlog("running scan")
 			// fetch updated view of all leases
 			leaseCtx, cancel := context.WithTimeout(ctx, timeout)
 			allLeases, err := s.processor.leaser.GetLeases(leaseCtx)
@@ -62,7 +64,7 @@ func (s *scheduler) Run() {
 
 			// try to acquire any leases that have expired
 			acquired, notAcquired, err := s.acquireExpiredLeases(ctx, allLeases)
-			log.Debugf("acquired: %v, not acquired: %v", acquired, notAcquired)
+			s.dlog(fmt.Sprintf("acquired: %v, not acquired: %v", acquired, notAcquired))
 			if err != nil {
 				log.Error(err)
 				continue
@@ -91,15 +93,19 @@ func (s *scheduler) Run() {
 
 			// try to steal work away from others if work has become imbalanced
 			if candidate, ok := leaseToSteal(leasesOwnedByOthers, countOwnedByMe); ok {
+				s.dlog(fmt.Sprintf("attempting to steal: %v", candidate))
 				acquireCtx, cancel := context.WithTimeout(ctx, timeout)
 				stolen, ok, err := s.processor.leaser.AcquireLease(acquireCtx, candidate.GetPartitionID())
 				cancel()
-				if err != nil {
+				switch {
+				case err != nil:
 					log.Error(err)
-					continue
-				}
-				if ok {
-					// we were able to steal the lease, so start handling messages
+					break
+				case !ok:
+					s.dlog(fmt.Sprintf("failed to steal: %v", candidate))
+					break
+				default:
+					s.dlog(fmt.Sprintf("stole: %v", stolen))
 					s.startReceiver(ctx, stolen)
 				}
 			}
@@ -143,7 +149,7 @@ func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error 
 }
 
 func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
-	log.Debugf("stopping receiver for partitionID %q", lease.GetPartitionID())
+	s.dlog(fmt.Sprintf("stopping receiver for partitionID %q", lease.GetPartitionID()))
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		err := receiver.Close()
 		delete(s.receivers, lease.GetPartitionID())
@@ -174,6 +180,11 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMark
 
 	}
 	return acquired, notAcquired, nil
+}
+
+func (s *scheduler) dlog(msg string) {
+	name := s.processor.name
+	log.Debugf("eph %q: "+msg, name)
 }
 
 func leaseToSteal(candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {

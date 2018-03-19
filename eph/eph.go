@@ -145,6 +145,47 @@ func (h *EventProcessorHost) GetPartitionIDs() []string {
 	return h.partitionIDs
 }
 
+func (h *EventProcessorHost) PartitionsIDsBeingProcessed() []string {
+	ids := make([]string, len(h.scheduler.receivers))
+	count := 0
+	for key := range h.scheduler.receivers {
+		ids[count] = key
+		count++
+	}
+	return ids
+}
+
+// Close stops the EventHostProcessor from processing messages
+func (h *EventProcessorHost) Close() error {
+	fmt.Println("shutting down...")
+	if h.scheduler != nil {
+		if err := h.scheduler.Stop(); err != nil {
+			log.Error(err)
+			if h.client != nil {
+				_ = h.client.Close()
+			}
+			return err
+		}
+	}
+
+	if h.leaser != nil {
+		if err := h.leaser.Close(); err != nil {
+			log.Errorln(err)
+		}
+	}
+
+	if h.checkpointer != nil {
+		if err := h.checkpointer.Close(); err != nil {
+			log.Errorln(err)
+		}
+	}
+
+	if h.client != nil {
+		return h.client.Close()
+	}
+	return nil
+}
+
 func (h *EventProcessorHost) setup(ctx context.Context) error {
 	h.hostMu.Lock()
 	defer h.hostMu.Unlock()
@@ -186,37 +227,6 @@ func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 		wg.Wait()
 		return nil
 	}
-}
-
-// Close stops the EventHostProcessor from processing messages
-func (h *EventProcessorHost) Close() error {
-	fmt.Println("shutting down...")
-	if h.scheduler != nil {
-		if err := h.scheduler.Stop(); err != nil {
-			log.Error(err)
-			if h.client != nil {
-				_ = h.client.Close()
-			}
-			return err
-		}
-	}
-
-	if h.leaser != nil {
-		if err := h.leaser.Close(); err != nil {
-			log.Errorln(err)
-		}
-	}
-
-	if h.checkpointer != nil {
-		if err := h.checkpointer.Close(); err != nil {
-			log.Errorln(err)
-		}
-	}
-
-	if h.client != nil {
-		return h.client.Close()
-	}
-	return nil
 }
 
 func (c checkpointPersister) Write(namespace, name, consumerGroup, partitionID string, checkpoint persist.Checkpoint) error {

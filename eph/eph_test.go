@@ -56,8 +56,6 @@ func (s *testSuite) TestSingle() {
 
 func (s *testSuite) TestMultiple() {
 	hub, del := s.ensureRandomHub("goEPH", 10)
-	defer del()
-
 	numPartitions := len(*hub.PartitionIds)
 	leaser := newMemoryLeaser(11 * time.Second)
 	checkpointer := new(memoryCheckpointer)
@@ -77,6 +75,7 @@ func (s *testSuite) TestMultiple() {
 		for i := 0; i < numPartitions; i++ {
 			processors[i].Close()
 		}
+		del()
 	}()
 
 	count := 0

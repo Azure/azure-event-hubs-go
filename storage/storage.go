@@ -10,7 +10,8 @@ import (
 
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/persist"
-	//"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-pipeline-go/pipeline"
+
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
@@ -59,36 +60,39 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 		return nil, err
 	}
 
-	//logOptions := pipeline.LogOptions{
-	//	Log: func(level pipeline.LogLevel, message string) {
-	//		log.Println("foo", level, message)
-	//		switch level {
-	//		case pipeline.LogError:
-	//			log.Errorln(message)
-	//		case pipeline.LogFatal:
-	//			log.Fatalln(message)
-	//		case pipeline.LogInfo:
-	//			log.Infoln(message)
-	//		case pipeline.LogPanic:
-	//			log.Panicln(message)
-	//		case pipeline.LogWarning:
-	//			log.Warnln(message)
-	//		case pipeline.LogNone:
-	//			log.Debugln(message)
-	//		default:
-	//			log.Debugln(message)
-	//		}
-	//	},
-	//	MinimumLevelToLog: func() pipeline.LogLevel {
-	//		if log.GetLevel() == log.DebugLevel {
-	//			return pipeline.LogInfo
-	//		}
-	//		return pipeline.LogFatal
-	//	},
-	//}
+	logOptions := pipeline.LogOptions{
+		Log: func(level pipeline.LogLevel, message string) {
+			log.Println("foo", level, message)
+			switch level {
+			case pipeline.LogError:
+				log.Errorln(message)
+			case pipeline.LogFatal:
+				log.Fatalln(message)
+			case pipeline.LogInfo:
+				log.Infoln(message)
+			case pipeline.LogPanic:
+				log.Panicln(message)
+			case pipeline.LogWarning:
+				log.Warnln(message)
+			case pipeline.LogNone:
+				log.Debugln(message)
+			default:
+				log.Debugln(message)
+			}
+		},
+		MinimumLevelToLog: func() pipeline.LogLevel {
+			if log.GetLevel() == log.DebugLevel {
+				return pipeline.LogError
+			}
+			return pipeline.LogFatal
+		},
+	}
 
 	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{
-		//Log: logOptions,
+		Log: logOptions,
+		RequestLog: azblob.RequestLogOptions{
+			LogWarningIfTryOverThreshold: 200 * time.Millisecond,
+		},
 	}))
 
 	containerURL := svURL.NewContainerURL(containerName)
@@ -207,23 +211,29 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	lease, err := sl.getLease(ctx, partitionID)
 	if err != nil {
+		sl.dlog("acquirelease: failed to get lease for partition id: " + partitionID)
 		return nil, false, nil
 	}
 
 	res, err := blobURL.GetPropertiesAndMetadata(ctx, azblob.BlobAccessConditions{})
 	if err != nil {
+		sl.dlog("acquirelease: failed to get properties and metadata for partition id: " + partitionID)
 		return nil, false, err
-	}
-
-	if res.LeaseState() == azblob.LeaseStateLeased {
-		// is leased by someone else due to a race to acquire
-		return nil, false, nil
 	}
 
 	newToken := uuid.NewV4().String()
-	_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.HTTPAccessConditions{})
-	if err != nil {
-		return nil, false, err
+	if res.LeaseState() == azblob.LeaseStateLeased {
+		// is leased by someone else due to a race to acquire
+		_, err := blobURL.ChangeLease(ctx, lease.Token, newToken, azblob.HTTPAccessConditions{})
+		if err != nil {
+			sl.dlog("acquirelease: failed to change lease for partition id: " + partitionID)
+			return nil, false, err
+		}
+	} else {
+		_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.HTTPAccessConditions{})
+		if err != nil {
+			return nil, false, err
+		}
 	}
 
 	lease.Token = newToken
@@ -250,6 +260,7 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 
 	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
+		sl.dlog("renew lease failed for partitionID: " + partitionID)
 		return nil, false, err
 	}
 	return lease, true, nil
@@ -268,6 +279,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 
 	_, err := blobURL.ReleaseLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
+		sl.dlog("release lease failed for partitionID: " + partitionID)
 		return false, err
 	}
 	delete(sl.leases, partitionID)
@@ -291,6 +303,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 
 	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
+		sl.dlog("renew lease failed when updating lease for partitionID: " + partitionID)
 		return nil, false, err
 	}
 
@@ -300,6 +313,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 
 	err = sl.uploadLease(ctx, lease)
 	if err != nil {
+		sl.dlog("update lease failed for partitionID: " + partitionID)
 		return nil, false, err
 	}
 
@@ -471,7 +485,13 @@ func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.GetResponse) (*stora
 		return nil, err
 	}
 	lease.leaser = sl
+	lease.State = res.LeaseState()
 	return &lease, nil
+}
+
+func (sl *LeaserCheckpointer) dlog(msg string) {
+	name := sl.processor.GetName()
+	log.Debugf("storage leaser eph %q: "+msg, name)
 }
 
 // IsExpired checks to see if the blob is not still leased
@@ -481,4 +501,13 @@ func (s *storageLease) IsExpired(ctx context.Context) bool {
 		return false
 	}
 	return lease.State != azblob.LeaseStateLeased
+}
+
+func (s *storageLease) String() string {
+	bits, err := json.Marshal(s)
+	if err != nil {
+		log.Errorln(err)
+		return ""
+	}
+	return string(bits)
 }
