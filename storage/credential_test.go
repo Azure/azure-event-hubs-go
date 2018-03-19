@@ -22,8 +22,8 @@ type (
 	// eventHubSuite encapsulates a end to end test of Event Hubs with build up and tear down of all EH resources
 	testSuite struct {
 		test.BaseSuite
-		accountName  string
-		containerURL *azblob.ContainerURL
+		AccountName string
+		ServiceURL  *azblob.ServiceURL
 	}
 )
 
@@ -33,7 +33,7 @@ func TestStorage(t *testing.T) {
 
 func (ts *testSuite) SetupSuite() {
 	ts.BaseSuite.SetupSuite()
-	ts.accountName = strings.ToLower("ehtest" + ts.SubscriptionID[len(ts.SubscriptionID)-5:])
+	ts.AccountName = strings.ToLower("ehtest" + ts.SubscriptionID[len(ts.SubscriptionID)-5:])
 	if err := ts.ensureStorageAccount(); err != nil {
 		ts.T().Fatal(err)
 	}
@@ -43,7 +43,7 @@ func (ts *testSuite) TestCredential() {
 	containerName := "foo"
 	blobName := "bar"
 	message := "Hello World!!"
-	tokenProvider, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.accountName, containerName, AADSASCredentialWithEnvironmentVars())
+	tokenProvider, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	if err != nil {
 		ts.T().Fatal(err)
 	}
@@ -51,7 +51,7 @@ func (ts *testSuite) TestCredential() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pipeline := azblob.NewPipeline(tokenProvider, azblob.PipelineOptions{})
-	fooURL, err := url.Parse("https://" + ts.accountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
+	fooURL, err := url.Parse("https://" + ts.AccountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
 	if err != nil {
 		ts.T().Error(err)
 	}
@@ -82,14 +82,14 @@ func (ts *testSuite) ensureStorageAccount() error {
 	}
 
 	for _, account := range *accounts.Value {
-		if ts.accountName == *account.Name {
+		if ts.AccountName == *account.Name {
 			// provisioned, so return
 			fmt.Println(*account.Name)
 			return nil
 		}
 	}
 
-	res, err := client.Create(ctx, test.ResourceGroupName, ts.accountName, storage.AccountCreateParameters{
+	res, err := client.Create(ctx, test.ResourceGroupName, ts.AccountName, storage.AccountCreateParameters{
 		Sku: &storage.Sku{
 			Name: storage.StandardLRS,
 			Tier: storage.Standard,

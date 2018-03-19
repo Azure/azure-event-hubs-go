@@ -10,7 +10,7 @@ import (
 
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/persist"
-	"github.com/Azure/azure-pipeline-go/pipeline"
+	//"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
@@ -51,44 +51,47 @@ type (
 	}
 )
 
-// NewStorageLeaser builds a LeaserCheckpointer which uses Azure Storage to store partition leases
-func NewStorageLeaser(credential Credential, accountName, containerName string, env azure.Environment) (*LeaserCheckpointer, error) {
+// NewStorageLeaserCheckpointer builds an Azure Storage Leaser Checkpointer which handles leasing and checkpointing for
+// the EventProcessorHost
+func NewStorageLeaserCheckpointer(credential Credential, accountName, containerName string, env azure.Environment) (*LeaserCheckpointer, error) {
 	storageURL, err := url.Parse("https://" + accountName + ".blob." + env.StorageEndpointSuffix)
 	if err != nil {
 		return nil, err
 	}
 
-	logOptions := pipeline.LogOptions{
-		Log: func(level pipeline.LogLevel, message string) {
-			log.Println("foo", level, message)
-			switch level {
-			case pipeline.LogError:
-				log.Errorln(message)
-			case pipeline.LogFatal:
-				log.Fatalln(message)
-			case pipeline.LogInfo:
-				log.Infoln(message)
-			case pipeline.LogPanic:
-				log.Panicln(message)
-			case pipeline.LogWarning:
-				log.Warnln(message)
-			case pipeline.LogNone:
-				log.Debugln(message)
-			default:
-				log.Debugln(message)
-			}
-		},
-		MinimumLevelToLog: func() pipeline.LogLevel {
-			if log.GetLevel() == log.DebugLevel {
-				return pipeline.LogInfo
-			}
-			return pipeline.LogFatal
-		},
-	}
+	//logOptions := pipeline.LogOptions{
+	//	Log: func(level pipeline.LogLevel, message string) {
+	//		log.Println("foo", level, message)
+	//		switch level {
+	//		case pipeline.LogError:
+	//			log.Errorln(message)
+	//		case pipeline.LogFatal:
+	//			log.Fatalln(message)
+	//		case pipeline.LogInfo:
+	//			log.Infoln(message)
+	//		case pipeline.LogPanic:
+	//			log.Panicln(message)
+	//		case pipeline.LogWarning:
+	//			log.Warnln(message)
+	//		case pipeline.LogNone:
+	//			log.Debugln(message)
+	//		default:
+	//			log.Debugln(message)
+	//		}
+	//	},
+	//	MinimumLevelToLog: func() pipeline.LogLevel {
+	//		if log.GetLevel() == log.DebugLevel {
+	//			return pipeline.LogInfo
+	//		}
+	//		return pipeline.LogFatal
+	//	},
+	//}
 
 	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{
-		Log: logOptions,
+		//Log: logOptions,
 	}))
+
+	containerURL := svURL.NewContainerURL(containerName)
 
 	return &LeaserCheckpointer{
 		credential:        credential,
@@ -97,6 +100,7 @@ func NewStorageLeaser(credential Credential, accountName, containerName string, 
 		leaseDuration:     eph.DefaultLeaseDurationInSeconds,
 		env:               env,
 		serviceURL:        &svURL,
+		containerURL:      &containerURL,
 		leases:            make(map[string]*storageLease),
 		dirtyPartitions:   make(map[string]uuid.UUID),
 		updatedPartitions: make(map[string]uuid.UUID),
@@ -321,6 +325,10 @@ func (sl *LeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 
 	lease, ok := sl.leases[partitionID]
 	if ok {
+		if lease.Checkpoint == nil {
+			checkpoint := persist.NewCheckpointFromStartOfStream()
+			lease.Checkpoint = &checkpoint
+		}
 		return *lease.Checkpoint, nil
 	}
 	return persist.NewCheckpointFromStartOfStream(), nil

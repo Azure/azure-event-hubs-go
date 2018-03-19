@@ -175,12 +175,12 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 
 func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	containerName := strings.ToLower(test.RandomName("stortest", 4))
-	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.accountName, containerName, AADSASCredentialWithEnvironmentVars())
+	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	if err != nil {
 		ts.T().Fatal(err)
 	}
 
-	leaser, err := NewStorageLeaser(cred, ts.accountName, containerName, ts.Env)
+	leaser, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, containerName, ts.Env)
 	if err != nil {
 		ts.T().Fatal(err)
 	}
@@ -194,8 +194,7 @@ func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	}
 }
 
-func (ts *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
-	hubName := test.RandomName(prefix, length)
+func (ts *testSuite) ensureRandomHubByName(hubName string) (*mgmt.Model, func()) {
 	hub, err := ts.EnsureEventHub(context.Background(), hubName)
 	if err != nil {
 		ts.T().Fatal(err)
@@ -209,4 +208,8 @@ func (ts *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, fu
 			ts.T().Fatal(err)
 		}
 	}
+}
+
+func (ts *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
+	return ts.ensureRandomHubByName(test.RandomName(prefix, length))
 }
