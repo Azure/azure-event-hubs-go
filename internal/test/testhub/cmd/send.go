@@ -46,7 +46,10 @@ var (
 
 			for _, event := range events {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				hub.Send(ctx, event)
+				err := hub.Send(ctx, event)
+				if err != nil {
+					log.Errorln(err)
+				}
 				cancel()
 			}
 		},
