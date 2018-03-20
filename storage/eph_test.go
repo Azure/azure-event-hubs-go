@@ -16,12 +16,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
-	"github.com/stretchr/testify/suite"
 )
-
-func TestEventProcessorHost(t *testing.T) {
-	suite.Run(t, new(testSuite))
-}
 
 func (ts *testSuite) TestSingle() {
 	randomName := strings.ToLower(test.RandomName("gostoreph", 4))
@@ -103,7 +98,7 @@ func (ts *testSuite) TestMultiple() {
 
 		partitionMap = newPartitionMap(*hub.PartitionIds)
 		for i := 0; i < numPartitions; i++ {
-			partitions := processors[i].PartitionsIDsBeingProcessed()
+			partitions := processors[i].PartitionIDsBeingProcessed()
 			if len(partitions) == 1 {
 				partitionMap[partitions[0]] = true
 			}
@@ -129,7 +124,7 @@ func (ts *testSuite) TestMultiple() {
 
 		partitionMap = newPartitionMap(*hub.PartitionIds)
 		for i := 0; i < numPartitions-1; i++ {
-			partitions := processors[i].PartitionsIDsBeingProcessed()
+			partitions := processors[i].PartitionIDsBeingProcessed()
 			for _, partition := range partitions {
 				partitionMap[partition] = true
 			}

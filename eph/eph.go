@@ -145,7 +145,8 @@ func (h *EventProcessorHost) GetPartitionIDs() []string {
 	return h.partitionIDs
 }
 
-func (h *EventProcessorHost) PartitionsIDsBeingProcessed() []string {
+// PartitionIDsBeingProcessed returns the partition IDs currently receiving messages
+func (h *EventProcessorHost) PartitionIDsBeingProcessed() []string {
 	ids := make([]string, len(h.scheduler.receivers))
 	count := 0
 	for key := range h.scheduler.receivers {

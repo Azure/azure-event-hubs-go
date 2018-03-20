@@ -3,6 +3,7 @@ package eph
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"testing"
 	"time"
@@ -79,51 +80,53 @@ func (s *testSuite) TestMultiple() {
 	}()
 
 	count := 0
-	allBalanced := false
+	var partitionMap map[string]bool
 	for {
-		<-time.After(1 * time.Second)
+		<-time.After(2 * time.Second)
 		count++
-		if count > 30 {
+		if count > 60 {
 			break
 		}
 
-		allBalanced = true
+		partitionMap = newPartitionMap(*hub.PartitionIds)
 		for i := 0; i < numPartitions; i++ {
-			numReceivers := len(processors[i].scheduler.receivers)
-			if numReceivers != 1 {
-				allBalanced = false
+			partitions := processors[i].PartitionIDsBeingProcessed()
+			if len(partitions) == 1 {
+				partitionMap[partitions[0]] = true
 			}
 		}
-		if allBalanced {
+		log.Println(partitionMap)
+		if allTrue(partitionMap) {
 			break
 		}
 	}
-	if !allBalanced {
+	if !allTrue(partitionMap) {
 		s.T().Error("never balanced work within allotted time")
 		return
 	}
 
 	processors[numPartitions-1].Close() // close the last partition
-	allBalanced = false
 	count = 0
 	for {
-		<-time.After(1 * time.Second)
+		<-time.After(2 * time.Second)
 		count++
-		if count > 20 {
+		if count > 60 {
 			break
 		}
 
-		partitionsProcessing := 0
+		partitionMap = newPartitionMap(*hub.PartitionIds)
 		for i := 0; i < numPartitions-1; i++ {
-			numReceivers := len(processors[i].scheduler.receivers)
-			partitionsProcessing += numReceivers
+			partitions := processors[i].PartitionIDsBeingProcessed()
+			for _, partition := range partitions {
+				partitionMap[partition] = true
+			}
 		}
-		allBalanced = partitionsProcessing == numPartitions
-		if allBalanced {
+		log.Println(partitionMap)
+		if allTrue(partitionMap) {
 			break
 		}
 	}
-	if !allBalanced {
+	if !allTrue(partitionMap) {
 		s.T().Error("didn't balance after closing a processor")
 	}
 }
@@ -218,4 +221,21 @@ func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 func fmtDuration(d time.Duration) string {
 	d = d.Round(time.Second) / time.Second
 	return fmt.Sprintf("%d seconds", d)
+}
+
+func allTrue(partitionMap map[string]bool) bool {
+	for key := range partitionMap {
+		if !partitionMap[key] {
+			return false
+		}
+	}
+	return true
+}
+
+func newPartitionMap(partitionIDs []string) map[string]bool {
+	partitionMap := make(map[string]bool)
+	for _, partition := range partitionIDs {
+		partitionMap[partition] = false
+	}
+	return partitionMap
 }
