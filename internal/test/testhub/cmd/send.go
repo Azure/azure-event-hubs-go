@@ -24,6 +24,9 @@ var (
 		Use:   "send",
 		Short: "Send messages to an Event Hub",
 		Args: func(cmd *cobra.Command, args []string) error {
+			if debug {
+				log.SetLevel(log.DebugLevel)
+			}
 			return checkAuthFlags()
 		},
 		Run: func(cmd *cobra.Command, args []string) {

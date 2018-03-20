@@ -13,10 +13,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&hubName, "hub", "", "name of the Event Hub")
 	rootCmd.PersistentFlags().StringVar(&sasKeyName, "key-name", "", "SAS key name for the Event Hub")
 	rootCmd.PersistentFlags().StringVar(&sasKey, "key", "", "SAS key for the key-name")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug level logging")
 }
 
 var (
 	namespace, hubName, sasKeyName, sasKey string
+	debug bool
 
 	rootCmd = &cobra.Command{
 		Use:              "hubtest",
