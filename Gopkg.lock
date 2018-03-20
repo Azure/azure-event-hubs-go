@@ -2,14 +2,27 @@
 
 
 [[projects]]
+  name = "github.com/Azure/azure-pipeline-go"
+  packages = ["pipeline"]
+  revision = "0f0dbf237bd47d5688310dbd3fac369353f280d0"
+  version = "0.1.5"
+
+[[projects]]
   name = "github.com/Azure/azure-sdk-for-go"
   packages = [
     "services/eventhub/mgmt/2017-04-01/eventhub",
     "services/resources/mgmt/2017-05-10/resources",
+    "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "1e334c402ea1460704b0263e5d188f28ad946ce1"
-  version = "14.1.1"
+  revision = "bbb570615c58626208d0a4af51ef2226aee6c729"
+  version = "v14.4.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/Azure/azure-storage-blob-go"
+  packages = ["2016-05-31/azblob"]
+  revision = "70edea0000eaac722aa45821797ffdedba6b53b8"
 
 [[projects]]
   name = "github.com/Azure/go-autorest"
@@ -22,8 +35,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "1e3943ee722538420f21945f4bc820347abe433d"
-  version = "v10.1.2"
+  revision = "0ae36a9e544696de46fdadb7b0d5fb38af48c063"
+  version = "v10.2.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -34,14 +47,20 @@
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
-  revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
-  version = "v3.1.0"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/dimchansky/utfbom"
   packages = ["."]
   revision = "6c6132ff69f0f6c088739067407b5d32c52e1d0f"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/mapstructure"
+  packages = ["."]
+  revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -62,10 +81,16 @@
   version = "v1.2.0"
 
 [[projects]]
+  name = "github.com/satori/uuid"
+  packages = ["."]
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
-  revision = "d682213848ed68c0a260ca37d6dd5ace8423f5ba"
-  version = "v1.0.4"
+  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
+  version = "v1.0.5"
 
 [[projects]]
   name = "github.com/stretchr/testify"
@@ -85,7 +110,7 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "432090b8f568c018896cd8a0fb0345872bbac6ce"
+  revision = "b4956d363a8b14623cc81db401707679605930a3"
 
 [[projects]]
   branch = "master"
@@ -94,20 +119,20 @@
     "unix",
     "windows"
   ]
-  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
+  revision = "cc7307a45468e49eaf2997c890f14aa03a26917b"
 
 [[projects]]
+  branch = "master"
   name = "pack.ag/amqp"
   packages = [
     ".",
     "internal/testconn"
   ]
-  revision = "a0dd226acfbfe50b70ce3380963ed2018ddc68ad"
-  version = "v0.4.0"
+  revision = "fc71119dfd03ed44d0aba09806e4a7d1584b74b1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ba2c4b282a80f80853ac403c1d0d0b2556faa19bd890174ca2a2cc7d06b810f2"
+  inputs-digest = "ce25b73a8755714479d93947b93cbd6bbeb38464bfb83e12ec13e3ffd2dcf013"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/auth"
-	"github.com/Azure/azure-event-hubs-go/common"
+	"github.com/Azure/azure-event-hubs-go/internal/common"
 	"github.com/pkg/errors"
 )
 
@@ -28,16 +28,12 @@ type (
 	TokenProvider struct {
 		signer *Signer
 	}
+
+	// TokenProviderOption provides configuration options for SAS Token Providers
+	TokenProviderOption func(*TokenProvider) error
 )
 
-// NewProvider builds a SAS claims-based security token provider
-func NewProvider(namespace, keyName, key string) auth.TokenProvider {
-	return &TokenProvider{
-		signer: NewSigner(namespace, keyName, key),
-	}
-}
-
-// NewProviderFromEnvironment creates a new SAS TokenProvider from environment variables
+// TokenProviderWithEnvironmentVars creates a new SAS TokenProvider from environment variables
 //
 // There are two sets of environment variables which can produce a SAS TokenProvider
 //
@@ -50,27 +46,50 @@ func NewProvider(namespace, keyName, key string) auth.TokenProvider {
 //   - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
 //
 // looks like: Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=
-func NewProviderFromEnvironment() (auth.TokenProvider, error) {
-	connStr := os.Getenv("EVENTHUB_CONNECTION_STRING")
-	if connStr != "" {
-		parsed, err := common.ParsedConnectionFromStr(connStr)
+func TokenProviderWithEnvironmentVars() TokenProviderOption {
+	return func(provider *TokenProvider) error {
+		connStr := os.Getenv("EVENTHUB_CONNECTION_STRING")
+		if connStr != "" {
+			parsed, err := common.ParsedConnectionFromStr(connStr)
+			if err != nil {
+				return err
+			}
+			provider.signer = NewSigner(parsed.Namespace, parsed.KeyName, parsed.Key)
+			return nil
+		}
+
+		var (
+			keyName   = os.Getenv("EVENTHUB_KEY_NAME")
+			keyValue  = os.Getenv("EVENTHUB_KEY_VALUE")
+			namespace = os.Getenv("EVENTHUB_NAMESPACE")
+		)
+
+		if keyName == "" || keyValue == "" || namespace == "" {
+			return errors.New("unable to build SAS token provider because (EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE and EVENTHUB_NAMESPACE) were empty, and EVENTHUB_CONNECTION_STRING was empty")
+		}
+		provider.signer = NewSigner(namespace, keyName, keyValue)
+		return nil
+	}
+}
+
+// TokenProviderWithNamespaceAndKey configures a SAS TokenProvider to use the given namespace and key combination for signing
+func TokenProviderWithNamespaceAndKey(namespace, keyName, key string) TokenProviderOption {
+	return func(provider *TokenProvider) error {
+		provider.signer = NewSigner(namespace, keyName, key)
+		return nil
+	}
+}
+
+// NewTokenProvider builds a SAS claims-based security token provider
+func NewTokenProvider(opts ...TokenProviderOption) (auth.TokenProvider, error) {
+	provider := new(TokenProvider)
+	for _, opt := range opts {
+		err := opt(provider)
 		if err != nil {
 			return nil, err
 		}
-		return NewProvider(parsed.Namespace, parsed.KeyName, parsed.Key), nil
 	}
-
-	var (
-		keyName   = os.Getenv("EVENTHUB_KEY_NAME")
-		keyValue  = os.Getenv("EVENTHUB_KEY_VALUE")
-		namespace = os.Getenv("EVENTHUB_NAMESPACE")
-	)
-
-	if keyName == "" || keyValue == "" || namespace == "" {
-		return nil, errors.New("unable to build SAS token provider because (EVENTHUB_KEY_NAME, EVENTHUB_KEY_VALUE and EVENTHUB_NAMESPACE) were empty, and EVENTHUB_CONNECTION_STRING was empty")
-	}
-
-	return NewProvider(namespace, keyName, keyValue), nil
+	return provider, nil
 }
 
 // GetToken gets a CBS SAS token

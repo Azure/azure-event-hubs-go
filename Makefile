@@ -17,10 +17,10 @@ DEP   	= dep
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
-TIMEOUT = 200
+TIMEOUT = 360
 
 .PHONY: all
-all: fmt vendor lint vet | $(BASE) ; $(info $(M) building library…) @ ## Build program
+all: fmt vendor lint vet megacheck | $(BASE) ; $(info $(M) building library…) @ ## Build program
 	$Q cd $(BASE) && $(GO) build \
 		-tags release \
 		-ldflags '-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.BuildDate=$(DATE)'
@@ -50,10 +50,10 @@ test-short:   ARGS=-short        ## Run only short tests
 test-verbose: ARGS=-v            ## Run tests in verbose mode
 test-debug:   ARGS=-v -debug     ## Run tests in verbose mode with debug output
 test-race:    ARGS=-race         ## Run tests with race detector
-test-cover:   ARGS=-v -cover     ## Run tests in verbose mode with coverage
+test-cover:   ARGS=-cover     ## Run tests in verbose mode with coverage
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
-check test tests: cyclo lint vet vendor | $(BASE) ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
+check test tests: cyclo lint vet vendor megacheck | $(BASE) ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
 	$Q cd $(BASE) && $(GO) test -timeout $(TIMEOUT)s $(ARGS) $(TESTPKGS)
 
 .PHONY: vet
@@ -65,6 +65,10 @@ lint: vendor | $(BASE) $(GOLINT) ; $(info $(M) running golint…) @ ## Run golin
 	$Q cd $(BASE) && ret=0 && for pkg in $(PKGS); do \
 		test -z "$$($(GOLINT) $$pkg | tee /dev/stderr)" || ret=1 ; \
 	 done ; exit $$ret
+
+.PHONY: megacheck
+megacheck: vendor | $(BASE) ; $(info $(M) running megacheck…) @ ## Run megacheck
+	$Q cd $(BASE) && megacheck
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files

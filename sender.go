@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/satori/uuid"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
@@ -64,16 +65,17 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 		}
 	}
 
+	// TODO: add partition-key to the Event or EventBatch -- this is different than partitionID
 	if s.partitionID != nil {
 		msg.Annotations["x-opt-partition-key"] = s.partitionID
 	}
 
+	if msg.Properties.MessageID == nil {
+		msg.Properties.MessageID = uuid.NewV4().String()
+	}
+
 	return s.sender.Send(ctx, msg)
 }
-
-//func (s *sender) SendBatch(ctx context.Context, messages []*amqp.Message) error {
-//
-//}
 
 func (s *sender) String() string {
 	return s.Name

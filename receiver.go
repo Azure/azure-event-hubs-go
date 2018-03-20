@@ -3,8 +3,9 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
+	"time"
 
+	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
@@ -14,34 +15,43 @@ const (
 	// DefaultConsumerGroup is the default name for a event stream consumer group
 	DefaultConsumerGroup = "$Default"
 
-	// StartOfStream is a constant defined to represent the start of a partition stream in EventHub.
-	StartOfStream = "-1"
-
-	// EndOfStream is a constant defined to represent the current end of a partition stream in EventHub.
-	// This can be used as an offset argument in receiver creation to start receiving from the latest
-	// event, instead of a specific offset or point in time.
-	EndOfStream = "@latest"
+	offsetAnnotationName = "x-opt-offset"
 
 	amqpAnnotationFormat = "amqp.annotation.%s >%s '%s'"
-	offsetAnnotationName = "x-opt-offset"
+
 	defaultPrefetchCount = 100
+
+	epochKey = mgmt.MsftVendor + ":epoch"
 )
 
 // receiver provides session and link handling for a receiving entity path
 type (
 	receiver struct {
-		hub                *hub
-		session            *session
-		receiver           *amqp.Receiver
-		consumerGroup      string
-		partitionID        string
-		prefetchCount      uint32
-		done               func()
-		lastReceivedOffset atomic.Value
+		hub           *hub
+		session       *session
+		receiver      *amqp.Receiver
+		consumerGroup string
+		partitionID   string
+		prefetchCount uint32
+		done          func()
+		epoch         *int64
+		lastError     error
 	}
 
 	// ReceiveOption provides a structure for configuring receivers
 	ReceiveOption func(receiver *receiver) error
+
+	// ListenerHandle provides a way to manage the lifespan of a listener
+	ListenerHandle interface {
+		Done() <-chan struct{}
+		Err() error
+		Close() error
+	}
+
+	listenerHandle struct {
+		r   *receiver
+		ctx context.Context
+	}
 )
 
 // ReceiveWithConsumerGroup configures the receiver to listen to a specific consumer group
@@ -55,7 +65,7 @@ func ReceiveWithConsumerGroup(consumerGroup string) ReceiveOption {
 // ReceiveWithStartingOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithStartingOffset(offset string) ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedOffset(offset)
+		receiver.storeLastReceivedOffset(persist.NewCheckpoint(offset, 0, time.Time{}))
 		return nil
 	}
 }
@@ -63,7 +73,7 @@ func ReceiveWithStartingOffset(offset string) ReceiveOption {
 // ReceiveWithLatestOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithLatestOffset() ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedOffset(EndOfStream)
+		receiver.storeLastReceivedOffset(persist.NewCheckpointFromEndOfStream())
 		return nil
 	}
 }
@@ -72,6 +82,14 @@ func ReceiveWithLatestOffset() ReceiveOption {
 func ReceiveWithPrefetchCount(prefetch uint32) ReceiveOption {
 	return func(receiver *receiver) error {
 		receiver.prefetchCount = prefetch
+		return nil
+	}
+}
+
+// ReceiveWithEpoch configures the receiver to use an epoch -- see https://blogs.msdn.microsoft.com/gyan/2014/09/02/event-hubs-receiver-epoch/
+func ReceiveWithEpoch(epoch int64) ReceiveOption {
+	return func(receiver *receiver) error {
+		receiver.epoch = &epoch
 		return nil
 	}
 }
@@ -91,7 +109,7 @@ func (h *hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		}
 	}
 
-	log.Debugf("creating a new receiver for entity path %s", receiver.getAddress())
+	receiver.debugLogf("creating a new receiver")
 	err := receiver.newSessionAndLink(ctx)
 	return receiver, err
 }
@@ -122,32 +140,39 @@ func (r *receiver) Recover(ctx context.Context) error {
 }
 
 // Listen start a listener for messages sent to the entity path
-func (r *receiver) Listen(handler Handler) {
+func (r *receiver) Listen(handler Handler) ListenerHandle {
 	ctx, done := context.WithCancel(context.Background())
 	r.done = done
+
 	messages := make(chan *amqp.Message)
 	go r.listenForMessages(ctx, messages)
 	go r.handleMessages(ctx, messages, handler)
+
+	return &listenerHandle{
+		r:   r,
+		ctx: ctx,
+	}
 }
 
 func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Message, handler Handler) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debug("done handling messages")
+			r.debugLogf("done handling messages")
 			return
 		case msg := <-messages:
 			id := messageID(msg)
-			log.Debugf("message id: %v is being passed to handler", id)
-
-			err := handler(ctx, msg)
+			r.debugLogf("message id: %v is being passed to handler", id)
+			event := eventFromMsg(msg)
+			err := handler(ctx, event)
 			if err != nil {
 				msg.Reject()
-				log.Debugf("message rejected: id: %v", id)
+				r.debugLogf("message rejected: id: %v", id)
 				continue
 			}
 			msg.Accept()
-			log.Debugf("message accepted: id: %v", id)
+			r.debugLogf("message accepted: id: %v", id)
+			r.storeLastReceivedOffset(event.GetCheckpoint())
 		}
 	}
 }
@@ -159,12 +184,13 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			if ctx.Err() != nil {
 				return
 			}
-			log.Error(err)
+			r.done()
+			r.lastError = err
 			return
 		}
 
 		id := messageID(msg)
-		log.Debugf("Message received: %s", id)
+		r.debugLogf("Message received: %s", id)
 		select {
 		case msgChan <- msg:
 		case <-ctx.Done():
@@ -206,6 +232,10 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 		amqp.LinkSelectorFilter(offsetExpression),
 	}
 
+	if r.epoch != nil {
+		opts = append(opts, amqp.LinkPropertyInt64(epochKey, *r.epoch))
+	}
+
 	amqpReceiver, err := amqpSession.NewReceiver(opts...)
 	if err != nil {
 		return err
@@ -216,24 +246,32 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 }
 
 func (r *receiver) getLastReceivedOffset() (string, error) {
-	return r.offsetPersister().Read(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID)
+	checkpoint, err := r.offsetPersister().Read(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID)
+	return checkpoint.Offset, err
 }
 
-func (r *receiver) storeLastReceivedOffset(offset string) error {
-	return r.offsetPersister().Write(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID, offset)
+func (r *receiver) storeLastReceivedOffset(checkpoint persist.Checkpoint) error {
+	return r.offsetPersister().Write(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID, checkpoint)
 }
 
 func (r *receiver) getOffsetExpression() (string, error) {
 	offset, err := r.getLastReceivedOffset()
 	if err != nil {
 		// assume err read is due to not having an offset -- probably want to change this as it's ambiguous
-		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", StartOfStream), nil
+		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", persist.StartOfStream), nil
 	}
 	return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "", offset), nil
 }
 
 func (r *receiver) getAddress() string {
 	return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s", r.hubName(), r.consumerGroup, r.partitionID)
+}
+
+func (r *receiver) getIdentifier() string {
+	if r.epoch != nil {
+		return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s/epoch/%d", r.hubName(), r.consumerGroup, r.partitionID, *r.epoch)
+	}
+	return r.getAddress()
 }
 
 func (r *receiver) namespaceName() string {
@@ -244,28 +282,8 @@ func (r *receiver) hubName() string {
 	return r.hub.name
 }
 
-func (r *receiver) offsetPersister() persist.OffsetPersister {
+func (r *receiver) offsetPersister() persist.CheckpointPersister {
 	return r.hub.offsetPersister
-}
-
-func (r *receiver) receivedMessage(msg *amqp.Message) {
-	id := messageID(msg)
-	log.Debugf("message id: %v received", id)
-
-	if msg.Annotations == nil {
-		// this case should not happen and will cause replay of the event log
-		log.Warnln("message id: %v does not have annotations and will not have an offset.", id)
-		return
-	}
-
-	offset, ok := msg.Annotations[offsetAnnotationName]
-	if !ok {
-		// this case should not happen and will cause replay of the event log
-		log.Warnln("message id: %v has annotations, but doesn't contain an offset.", id)
-	}
-
-	log.Debugf("message id: %v has offset of %s", id, offset)
-	r.storeLastReceivedOffset(offset.(string))
 }
 
 func messageID(msg *amqp.Message) interface{} {
@@ -274,4 +292,30 @@ func messageID(msg *amqp.Message) interface{} {
 		id = msg.Properties.MessageID
 	}
 	return id
+}
+
+func (r *receiver) debugLogf(format string, args ...interface{}) {
+	var msg string
+	if len(args) > 0 {
+		msg = fmt.Sprintf(format, args)
+	} else {
+		msg = format
+	}
+
+	log.Debugf(msg+" for entity identifier %q", r.getIdentifier())
+}
+
+func (lc *listenerHandle) Close() error {
+	return lc.r.Close()
+}
+
+func (lc *listenerHandle) Done() <-chan struct{} {
+	return lc.ctx.Done()
+}
+
+func (lc *listenerHandle) Err() error {
+	if lc.r.lastError != nil {
+		return lc.r.lastError
+	}
+	return lc.ctx.Err()
 }

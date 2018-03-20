@@ -2,7 +2,7 @@ package eventhub
 
 import (
 	"context"
-	"fmt"
+	"io"
 	"os"
 	"path"
 	"sync"
@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"pack.ag/amqp"
 )
 
 const (
@@ -27,31 +26,27 @@ type (
 	hub struct {
 		name              string
 		namespace         *namespace
-		receivers         []*receiver
+		receivers         map[string]*receiver
 		sender            *sender
 		senderPartitionID *string
 		receiverMu        sync.Mutex
 		senderMu          sync.Mutex
-		offsetPersister   persist.OffsetPersister
+		offsetPersister   persist.CheckpointPersister
 		userAgent         string
 	}
 
 	// Handler is the function signature for any receiver of AMQP messages
-	Handler func(context.Context, *amqp.Message) error
+	Handler func(ctx context.Context, event *Event) error
 
 	// Sender provides the ability to send a messages
 	Sender interface {
-		Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error
+		Send(ctx context.Context, event *Event, opts ...SendOption) error
+		SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error
 	}
 
-	// Receiver provides the ability to receive messages
-	Receiver interface {
-		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error
-	}
-
-	// Closer provides the ability to close a connection or client
-	Closer interface {
-		Close() error
+	// PartitionedReceiver provides the ability to receive messages from a given partition
+	PartitionedReceiver interface {
+		Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error)
 	}
 
 	// Manager provides the ability to query management node information about a node
@@ -63,8 +58,8 @@ type (
 	// Client provides the ability to send and receive Event Hub messages
 	Client interface {
 		Sender
-		Receiver
-		Closer
+		PartitionedReceiver
+		io.Closer
 		Manager
 	}
 
@@ -78,8 +73,9 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 	h := &hub{
 		name:            name,
 		namespace:       ns,
-		offsetPersister: new(persist.MemoryPersister),
+		offsetPersister: persist.NewMemoryPersister(),
 		userAgent:       rootUserAgent,
+		receivers:       make(map[string]*receiver),
 	}
 
 	for _, opt := range opts {
@@ -96,8 +92,8 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 // environment variables with supplied namespace and name
 func NewClientWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (Client, error) {
 	var provider auth.TokenProvider
-	aadProvider, aadErr := aad.NewProviderFromEnvironment()
-	sasProvider, sasErr := sas.NewProviderFromEnvironment()
+	aadProvider, aadErr := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
+	sasProvider, sasErr := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
 
 	if aadErr != nil && sasErr != nil {
 		// both failed
@@ -176,33 +172,49 @@ func (h *hub) Close() error {
 	return lastErr
 }
 
-// Listen subscribes for messages sent to the provided entityPath.
-func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) error {
+// Receive subscribes for messages sent to the provided entityPath.
+func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error) {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
 	receiver, err := h.newReceiver(ctx, partitionID, opts...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	h.receivers = append(h.receivers, receiver)
-	receiver.Listen(handler)
-	return nil
+	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
+		if err := r.Close(); err != nil {
+			log.Error(err)
+		}
+	}
+
+	h.receivers[receiver.getIdentifier()] = receiver
+	listenerContext := receiver.Listen(handler)
+
+	return listenerContext, nil
 }
 
 // Send sends an AMQP message to the broker
-func (h *hub) Send(ctx context.Context, message *amqp.Message, opts ...SendOption) error {
+func (h *hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
 	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
 	}
-	return sender.Send(ctx, message, opts...)
+
+	return sender.Send(ctx, event.toMsg(), opts...)
 }
 
 // Send sends a batch of AMQP message to the broker
-func (h *hub) SendBatch(ctx context.Context, messages []*amqp.Message, opts ...SendOption) error {
-	return fmt.Errorf("not implemented")
+func (h *hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
+	sender, err := h.getSender(ctx)
+	if err != nil {
+		return err
+	}
+	msg, err := batch.toMsg()
+	if err != nil {
+		return err
+	}
+	return sender.Send(ctx, msg, opts...)
 }
 
 // HubWithPartitionedSender configures the hub instance to send to a specific event hub partition
@@ -215,7 +227,7 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 
 // HubWithOffsetPersistence configures the hub instance to read and write offsets so that if a hub is interrupted, it
 // can resume after the last consumed event.
-func HubWithOffsetPersistence(offsetPersister persist.OffsetPersister) HubOption {
+func HubWithOffsetPersistence(offsetPersister persist.CheckpointPersister) HubOption {
 	return func(h *hub) error {
 		h.offsetPersister = offsetPersister
 		return nil
