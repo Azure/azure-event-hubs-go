@@ -2,6 +2,22 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/Azure/azure-amqp-common-go"
+  packages = [
+    ".",
+    "aad",
+    "auth",
+    "cbs",
+    "conn",
+    "persist",
+    "rpc",
+    "sas",
+    "uuid"
+  ]
+  revision = "0c963221f36785ab28d12e04842c081a3c02e014"
+
+[[projects]]
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
   revision = "0f0dbf237bd47d5688310dbd3fac369353f280d0"
@@ -35,8 +51,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "0ae36a9e544696de46fdadb7b0d5fb38af48c063"
-  version = "v10.2.0"
+  revision = "7909b98056dd6f6a9fc9b7745af1810c93c15939"
+  version = "v10.3.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -131,7 +147,7 @@
     "unix",
     "windows"
   ]
-  revision = "bb729a57828d76e3050e664d86aa052741ab620f"
+  revision = "c488ab1dd8481ef762f96a79a9577c27825be697"
 
 [[projects]]
   branch = "master"
@@ -145,6 +161,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "dfadd367c8f00b0744d9151a51bd4d3b6c2a3c161c68754fb0c84785ca1dadfe"
+  inputs-digest = "448203bef1c54b23fb9f2d57a85572e16d66f91856483508a159c00fabc095bc"
   solver-name = "gps-cdcl"
   solver-version = 1

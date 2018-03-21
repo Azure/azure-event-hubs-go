@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
-	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )

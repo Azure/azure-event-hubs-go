@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/aad"
+	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/aad"
-	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"

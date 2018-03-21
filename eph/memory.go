@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/persist"
+	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/pkg/errors"
 )
 

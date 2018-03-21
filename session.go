@@ -1,7 +1,7 @@
 package eventhub
 
 import (
-	"github.com/Azure/azure-event-hubs-go/internal/uuid"
+	"github.com/Azure/azure-amqp-common-go/uuid"
 	"pack.ag/amqp"
 )
 

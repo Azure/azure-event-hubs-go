@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/auth"
-	"github.com/Azure/azure-event-hubs-go/rpc"
+	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/rpc"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"

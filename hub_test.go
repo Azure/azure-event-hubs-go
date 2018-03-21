@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/aad"
-	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-amqp-common-go/aad"
+	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	"github.com/Azure/azure-event-hubs-go/sas"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"

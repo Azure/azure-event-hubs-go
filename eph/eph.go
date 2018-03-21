@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/persist"
+	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/auth"
-	"github.com/Azure/azure-event-hubs-go/internal/uuid"
-	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
 )
 

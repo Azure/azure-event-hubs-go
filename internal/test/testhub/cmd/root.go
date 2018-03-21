@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Azure/azure-event-hubs-go/internal/common"
+	"github.com/Azure/azure-amqp-common-go/conn"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -40,7 +40,7 @@ func Execute() {
 
 func checkAuthFlags() error {
 	if connStr != "" {
-		parsed, err := common.ParsedConnectionFromStr(connStr)
+		parsed, err := conn.ParsedConnectionFromStr(connStr)
 		if err != nil {
 			return err
 		}

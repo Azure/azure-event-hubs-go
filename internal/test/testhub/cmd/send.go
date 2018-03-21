@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/sas"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

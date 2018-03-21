@@ -3,7 +3,7 @@ package eventhub
 import (
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/persist"
+	"github.com/Azure/azure-amqp-common-go/persist"
 	"pack.ag/amqp"
 )
 

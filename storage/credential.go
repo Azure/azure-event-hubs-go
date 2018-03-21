@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/aad"
+	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"

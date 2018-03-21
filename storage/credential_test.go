@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go/internal/common"
+	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
