@@ -4,7 +4,7 @@
 ### Usage
 When simply executing `testhub`, you will be greeted with a help page. `help` can be called on each command.
 ```bash
-$ ./bin/testhub
+$ testhub
 hubtest is a simple command line testing tool for the Event Hub library
 
 Usage:
@@ -18,6 +18,7 @@ Available Commands:
   version     Print the git ref
 
 Flags:
+      --conn-str string    Connection string for Event Hub
       --debug              debug level logging
   -h, --help               help for hubtest
       --hub string         name of the Event Hub
@@ -29,20 +30,28 @@ Use "hubtest [command] --help" for more information about a command.
 ```
 
 #### Send
-Send will by default send 10 messages of 256 bytes.
+Send will by default send 1 messages of 256 bytes.
 ```bash
-$ ./bin/testhub send --namespace yourNamespace --hub yourHub --key-name yourKeyName --key yourKey
+$ testhub send --namespace yourNamespace --hub yourHub --key-name yourKeyName --key yourKey
+```
+Send with a connection string.
+```bash
+$ testhub send --conn-str yourConnectionString
 ```
 
 You can specify more messages by using `--msg-count` and `--msg-size`.
 ```bash
-$ ./bin/testhub send --namespace yourNamespace --hub yourHub \
-    --key-name yourKeyName --key yourKey --msg-count 100 --msg-size 100
+$ testhub send --conn-str yourConnectionString --msg-count 100 --msg-size 100
 ```
 
 #### Receive
+Listen for messages on all partitions of a given Event Hub.
 ```bash
-$ ./bin/testhub receive --namespace yourNamespace --hub yourHub --key-name yourKeyName --key yourKey
+$ testhub receive --namespace yourNamespace --hub yourHub --key-name yourKeyName --key yourKey
+```
+Use a connection string instead.
+```bash
+$ testhub receive --conn-str yourConnectionString
 ```
 
 #### Debug
