@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Azure/azure-event-hubs-go/internal/common"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -13,12 +15,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&hubName, "hub", "", "name of the Event Hub")
 	rootCmd.PersistentFlags().StringVar(&sasKeyName, "key-name", "", "SAS key name for the Event Hub")
 	rootCmd.PersistentFlags().StringVar(&sasKey, "key", "", "SAS key for the key-name")
+	rootCmd.PersistentFlags().StringVar(&connStr, "conn-str", "", "Connection string for Event Hub")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug level logging")
 }
 
 var (
-	namespace, hubName, sasKeyName, sasKey string
-	debug bool
+	namespace, suffix, hubName, sasKeyName, sasKey, connStr string
+	debug                                                   bool
 
 	rootCmd = &cobra.Command{
 		Use:              "hubtest",
@@ -36,6 +39,19 @@ func Execute() {
 }
 
 func checkAuthFlags() error {
+	if connStr != "" {
+		parsed, err := common.ParsedConnectionFromStr(connStr)
+		if err != nil {
+			return err
+		}
+		namespace = parsed.Namespace
+		hubName = parsed.HubName
+		suffix = parsed.Suffix
+		sasKeyName = parsed.KeyName
+		sasKey = parsed.Key
+		return nil
+	}
+
 	if namespace == "" {
 		return errors.New("namespace is required")
 	}
@@ -52,4 +68,12 @@ func checkAuthFlags() error {
 		return errors.New("key-name is required")
 	}
 	return nil
+}
+
+func environment() azure.Environment {
+	env := azure.PublicCloud
+	if suffix != "" {
+		env.ServiceBusEndpointSuffix = suffix
+	}
+	return env
 }
