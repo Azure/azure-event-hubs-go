@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/aad"
+	"github.com/Azure/azure-amqp-common-go/aad"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
@@ -53,7 +53,7 @@ func main() {
 	}
 }
 
-func initHub() (eventhub.Client, []string) {
+func initHub() (*eventhub.Hub, []string) {
 	namespace := mustGetenv("EVENTHUB_NAMESPACE")
 	hubMgmt, err := ensureEventHub(context.Background(), HubName)
 	if err != nil {
@@ -64,7 +64,7 @@ func initHub() (eventhub.Client, []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	hub, err := eventhub.NewClient(namespace, HubName, provider)
+	hub, err := eventhub.NewHub(namespace, HubName, provider)
 	if err != nil {
 		panic(err)
 	}

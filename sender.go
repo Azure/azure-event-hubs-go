@@ -1,5 +1,27 @@
 package eventhub
 
+//	MIT License
+//
+//	Copyright (c) Microsoft Corporation. All rights reserved.
+//
+//	Permission is hereby granted, free of charge, to any person obtaining a copy
+//	of this software and associated documentation files (the "Software"), to deal
+//	in the Software without restriction, including without limitation the rights
+//	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//	copies of the Software, and to permit persons to whom the Software is
+//	furnished to do so, subject to the following conditions:
+//
+//	The above copyright notice and this permission notice shall be included in all
+//	copies or substantial portions of the Software.
+//
+//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+//	SOFTWARE
+
 import (
 	"context"
 	"fmt"
@@ -12,7 +34,7 @@ import (
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
-		hub         *hub
+		hub         *Hub
 		session     *session
 		sender      *amqp.Sender
 		partitionID *string
@@ -24,7 +46,7 @@ type (
 )
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
-func (h *hub) newSender(ctx context.Context) (*sender, error) {
+func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 	s := &sender{
 		hub:         h,
 		partitionID: h.senderPartitionID,
@@ -120,7 +142,11 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	s.session = newSession(amqpSession)
+	s.session, err = newSession(amqpSession)
+	if err != nil {
+		return err
+	}
+
 	s.sender = amqpSender
 	return nil
 }

@@ -1,12 +1,34 @@
 package eventhub
 
+//	MIT License
+//
+//	Copyright (c) Microsoft Corporation. All rights reserved.
+//
+//	Permission is hereby granted, free of charge, to any person obtaining a copy
+//	of this software and associated documentation files (the "Software"), to deal
+//	in the Software without restriction, including without limitation the rights
+//	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//	copies of the Software, and to permit persons to whom the Software is
+//	furnished to do so, subject to the following conditions:
+//
+//	The above copyright notice and this permission notice shall be included in all
+//	copies or substantial portions of the Software.
+//
+//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+//	SOFTWARE
+
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
-	"github.com/Azure/azure-event-hubs-go/persist"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
@@ -27,7 +49,7 @@ const (
 // receiver provides session and link handling for a receiving entity path
 type (
 	receiver struct {
-		hub           *hub
+		hub           *Hub
 		session       *session
 		receiver      *amqp.Receiver
 		consumerGroup string
@@ -95,7 +117,7 @@ func ReceiveWithEpoch(epoch int64) ReceiveOption {
 }
 
 // newReceiver creates a new Service Bus message listener given an AMQP client and an entity path
-func (h *hub) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
+func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
 	receiver := &receiver{
 		hub:           h,
 		consumerGroup: DefaultConsumerGroup,
@@ -222,7 +244,11 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	r.session = newSession(amqpSession)
+	r.session, err = newSession(amqpSession)
+	if err != nil {
+		return err
+	}
+
 	opts := []amqp.LinkOption{
 		amqp.LinkSourceAddress(address),
 		amqp.LinkCredit(r.prefetchCount),

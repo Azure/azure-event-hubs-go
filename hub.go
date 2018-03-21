@@ -1,17 +1,39 @@
+// Package eventhub provides functionality for interacting with Azure Event Hubs.
 package eventhub
+
+//	MIT License
+//
+//	Copyright (c) Microsoft Corporation. All rights reserved.
+//
+//	Permission is hereby granted, free of charge, to any person obtaining a copy
+//	of this software and associated documentation files (the "Software"), to deal
+//	in the Software without restriction, including without limitation the rights
+//	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//	copies of the Software, and to permit persons to whom the Software is
+//	furnished to do so, subject to the following conditions:
+//
+//	The above copyright notice and this permission notice shall be included in all
+//	copies or substantial portions of the Software.
+//
+//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+//	SOFTWARE
 
 import (
 	"context"
-	"io"
 	"os"
 	"path"
 	"sync"
 
-	"github.com/Azure/azure-event-hubs-go/aad"
-	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-amqp-common-go/aad"
+	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/persist"
+	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
-	"github.com/Azure/azure-event-hubs-go/persist"
-	"github.com/Azure/azure-event-hubs-go/sas"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +45,8 @@ const (
 )
 
 type (
-	hub struct {
+	// Hub provides the ability to send and receive Event Hub messages
+	Hub struct {
 		name              string
 		namespace         *namespace
 		receivers         map[string]*receiver
@@ -35,7 +58,7 @@ type (
 		userAgent         string
 	}
 
-	// Handler is the function signature for any receiver of AMQP messages
+	// Handler is the function signature for any receiver of events
 	Handler func(ctx context.Context, event *Event) error
 
 	// Sender provides the ability to send a messages
@@ -55,22 +78,14 @@ type (
 		GetPartitionInformation(context.Context, string) (*mgmt.HubPartitionRuntimeInformation, error)
 	}
 
-	// Client provides the ability to send and receive Event Hub messages
-	Client interface {
-		Sender
-		PartitionedReceiver
-		io.Closer
-		Manager
-	}
-
 	// HubOption provides structure for configuring new Event Hub instances
-	HubOption func(h *hub) error
+	HubOption func(h *Hub) error
 )
 
-// NewClient creates a new Event Hub client for sending and receiving messages
-func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (Client, error) {
+// NewHub creates a new Event Hub client for sending and receiving messages
+func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (*Hub, error) {
 	ns := newNamespace(namespace, tokenProvider, azure.PublicCloud)
-	h := &hub{
+	h := &Hub{
 		name:            name,
 		namespace:       ns,
 		offsetPersister: persist.NewMemoryPersister(),
@@ -88,9 +103,9 @@ func NewClient(namespace, name string, tokenProvider auth.TokenProvider, opts ..
 	return h, nil
 }
 
-// NewClientWithNamespaceNameAndEnvironment creates a new Event Hub client for sending and receiving messages from
+// NewHubWithNamespaceNameAndEnvironment creates a new Event Hub client for sending and receiving messages from
 // environment variables with supplied namespace and name
-func NewClientWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (Client, error) {
+func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (*Hub, error) {
 	var provider auth.TokenProvider
 	aadProvider, aadErr := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	sasProvider, sasErr := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
@@ -109,7 +124,7 @@ func NewClientWithNamespaceNameAndEnvironment(namespace, name string, opts ...Hu
 		provider = sasProvider
 	}
 
-	h, err := NewClient(namespace, name, provider, opts...)
+	h, err := NewHub(namespace, name, provider, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +132,8 @@ func NewClientWithNamespaceNameAndEnvironment(namespace, name string, opts ...Hu
 	return h, nil
 }
 
-// NewClientFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
-func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
+// NewHubFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
+func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 	const envErrMsg = "environment var %s must not be empty"
 	var namespace, name string
 
@@ -130,11 +145,11 @@ func NewClientFromEnvironment(opts ...HubOption) (Client, error) {
 		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAME")
 	}
 
-	return NewClientWithNamespaceNameAndEnvironment(namespace, name, opts...)
+	return NewHubWithNamespaceNameAndEnvironment(namespace, name, opts...)
 }
 
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
-func (h *hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
+func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.connection()
 	if err != nil {
@@ -148,7 +163,7 @@ func (h *hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInform
 }
 
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
-func (h *hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
+func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.connection()
 	if err != nil {
@@ -162,7 +177,7 @@ func (h *hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 }
 
 // Close drains and closes all of the existing senders, receivers and connections
-func (h *hub) Close() error {
+func (h *Hub) Close() error {
 	var lastErr error
 	for _, r := range h.receivers {
 		if err := r.Close(); err != nil {
@@ -173,7 +188,7 @@ func (h *hub) Close() error {
 }
 
 // Receive subscribes for messages sent to the provided entityPath.
-func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error) {
+func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error) {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
@@ -194,8 +209,8 @@ func (h *hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 	return listenerContext, nil
 }
 
-// Send sends an AMQP message to the broker
-func (h *hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
+// Send sends an event to the Event Hub
+func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
 	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
@@ -204,8 +219,8 @@ func (h *hub) Send(ctx context.Context, event *Event, opts ...SendOption) error 
 	return sender.Send(ctx, event.toMsg(), opts...)
 }
 
-// Send sends a batch of AMQP message to the broker
-func (h *hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
+// SendBatch sends an EventBatch to the Event Hub
+func (h *Hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
 	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
@@ -217,45 +232,45 @@ func (h *hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOpti
 	return sender.Send(ctx, msg, opts...)
 }
 
-// HubWithPartitionedSender configures the hub instance to send to a specific event hub partition
+// HubWithPartitionedSender configures the Hub instance to send to a specific event Hub partition
 func HubWithPartitionedSender(partitionID string) HubOption {
-	return func(h *hub) error {
+	return func(h *Hub) error {
 		h.senderPartitionID = &partitionID
 		return nil
 	}
 }
 
-// HubWithOffsetPersistence configures the hub instance to read and write offsets so that if a hub is interrupted, it
+// HubWithOffsetPersistence configures the Hub instance to read and write offsets so that if a Hub is interrupted, it
 // can resume after the last consumed event.
 func HubWithOffsetPersistence(offsetPersister persist.CheckpointPersister) HubOption {
-	return func(h *hub) error {
+	return func(h *Hub) error {
 		h.offsetPersister = offsetPersister
 		return nil
 	}
 }
 
-// HubWithUserAgent configures the hub to append the given string to the user agent sent to the server
+// HubWithUserAgent configures the Hub to append the given string to the user agent sent to the server
 //
 // This option can be specified multiple times to add additional segments.
 //
 // Max user agent length is specified by the const maxUserAgentLen.
 func HubWithUserAgent(userAgent string) HubOption {
-	return func(h *hub) error {
+	return func(h *Hub) error {
 		return h.appendAgent(userAgent)
 	}
 }
 
-// HubWithEnvironment configures the hub to use the specified environment.
+// HubWithEnvironment configures the Hub to use the specified environment.
 //
-// By default, the hub instance will use Azure US Public cloud environment
+// By default, the Hub instance will use Azure US Public cloud environment
 func HubWithEnvironment(env azure.Environment) HubOption {
-	return func(h *hub) error {
+	return func(h *Hub) error {
 		h.namespace.environment = env
 		return nil
 	}
 }
 
-func (h *hub) appendAgent(userAgent string) error {
+func (h *Hub) appendAgent(userAgent string) error {
 	ua := path.Join(h.userAgent, userAgent)
 	if len(ua) > maxUserAgentLen {
 		return errors.Errorf("user agent string has surpassed the max length of %d", maxUserAgentLen)
@@ -264,7 +279,7 @@ func (h *hub) appendAgent(userAgent string) error {
 	return nil
 }
 
-func (h *hub) getSender(ctx context.Context) (*sender, error) {
+func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	h.senderMu.Lock()
 	defer h.senderMu.Unlock()
 

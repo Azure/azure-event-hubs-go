@@ -1,4 +1,28 @@
+// Package eph provides functionality for balancing load of Event Hub receivers through scheduling receivers across
+// processes and machines.
 package eph
+
+//	MIT License
+//
+//	Copyright (c) Microsoft Corporation. All rights reserved.
+//
+//	Permission is hereby granted, free of charge, to any person obtaining a copy
+//	of this software and associated documentation files (the "Software"), to deal
+//	in the Software without restriction, including without limitation the rights
+//	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//	copies of the Software, and to permit persons to whom the Software is
+//	furnished to do so, subject to the following conditions:
+//
+//	The above copyright notice and this permission notice shall be included in all
+//	copies or substantial portions of the Software.
+//
+//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+//	SOFTWARE
 
 import (
 	"context"
@@ -8,10 +32,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/persist"
+	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/auth"
-	"github.com/Azure/azure-event-hubs-go/persist"
-	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,7 +59,7 @@ type (
 		hubName       string
 		name          string
 		tokenProvider auth.TokenProvider
-		client        eventhub.Client
+		client        *eventhub.Hub
 		leaser        Leaser
 		checkpointer  Checkpointer
 		scheduler     *scheduler
@@ -61,7 +85,7 @@ type (
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	persister := checkpointPersister{checkpointer: checkpointer}
-	client, err := eventhub.NewClient(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
+	client, err := eventhub.NewHub(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +95,14 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		return nil, err
 	}
 
+	hostName, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
 	host := &EventProcessorHost{
 		namespace:     namespace,
-		name:          uuid.NewV4().String(),
+		name:          hostName.String(),
 		hubName:       hubName,
 		tokenProvider: tokenProvider,
 		client:        client,
@@ -97,13 +126,18 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 func (h *EventProcessorHost) Receive(handler eventhub.Handler) (close func() error, err error) {
 	h.handlersMu.Lock()
 	defer h.handlersMu.Unlock()
-	id := uuid.NewV4().String()
-	h.handlers[id] = handler
+
+	receiverID, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
+	h.handlers[receiverID.String()] = handler
 	close = func() error {
 		h.handlersMu.Lock()
 		defer h.handlersMu.Unlock()
 
-		delete(h.handlers, id)
+		delete(h.handlers, receiverID.String())
 		return nil
 	}
 	return close, nil

@@ -2,6 +2,22 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/Azure/azure-amqp-common-go"
+  packages = [
+    ".",
+    "aad",
+    "auth",
+    "cbs",
+    "conn",
+    "persist",
+    "rpc",
+    "sas",
+    "uuid"
+  ]
+  revision = "0c963221f36785ab28d12e04842c081a3c02e014"
+
+[[projects]]
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
   revision = "0f0dbf237bd47d5688310dbd3fac369353f280d0"
@@ -15,8 +31,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "bbb570615c58626208d0a4af51ef2226aee6c729"
-  version = "v14.4.0"
+  revision = "56a0b1d2af3b65d5f1f7a330e02faaf48b473c5a"
+  version = "v14.6.0"
 
 [[projects]]
   branch = "master"
@@ -35,8 +51,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "0ae36a9e544696de46fdadb7b0d5fb38af48c063"
-  version = "v10.2.0"
+  revision = "7909b98056dd6f6a9fc9b7745af1810c93c15939"
+  version = "v10.3.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -81,12 +97,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
-  version = "v1.2.0"
-
-[[projects]]
   name = "github.com/satori/uuid"
   packages = ["."]
   revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
@@ -128,7 +138,7 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "b4956d363a8b14623cc81db401707679605930a3"
+  revision = "80db560fac1fb3e6ac81dbc7f8ae4c061f5257bd"
 
 [[projects]]
   branch = "master"
@@ -137,7 +147,7 @@
     "unix",
     "windows"
   ]
-  revision = "cc7307a45468e49eaf2997c890f14aa03a26917b"
+  revision = "c488ab1dd8481ef762f96a79a9577c27825be697"
 
 [[projects]]
   branch = "master"
@@ -151,6 +161,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3ac527a386b7fffe1bae2b48d2c18e564739fa7d228083a2518fc441c2fc58dd"
+  inputs-digest = "492f1fa2fe01d5260cc55b8c770cad1f1d5377c184b20aa8c51ce9f0f25cd430"
   solver-name = "gps-cdcl"
   solver-version = 1

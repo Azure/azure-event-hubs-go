@@ -1,5 +1,27 @@
 package eph
 
+//	MIT License
+//
+//	Copyright (c) Microsoft Corporation. All rights reserved.
+//
+//	Permission is hereby granted, free of charge, to any person obtaining a copy
+//	of this software and associated documentation files (the "Software"), to deal
+//	in the Software without restriction, including without limitation the rights
+//	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//	copies of the Software, and to permit persons to whom the Software is
+//	furnished to do so, subject to the following conditions:
+//
+//	The above copyright notice and this permission notice shall be included in all
+//	copies or substantial portions of the Software.
+//
+//	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+//	SOFTWARE
+
 import (
 	"context"
 	"fmt"
@@ -8,9 +30,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/aad"
+	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/aad"
-	"github.com/Azure/azure-event-hubs-go/auth"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/stretchr/testify/suite"
@@ -186,7 +208,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, che
 	return processor, nil
 }
 
-func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) eventhub.Client {
+func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) *eventhub.Hub {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&s.Env))
 	if err != nil {
 		t.Fatal(err)
@@ -194,9 +216,9 @@ func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.Hub
 	return s.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (s *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) eventhub.Client {
+func (s *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) *eventhub.Hub {
 	opts = append(opts, eventhub.HubWithEnvironment(s.Env))
-	client, err := eventhub.NewClient(s.Namespace, hubName, provider, opts...)
+	client, err := eventhub.NewHub(s.Namespace, hubName, provider, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
