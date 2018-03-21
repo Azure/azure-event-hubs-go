@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/internal/common"
+	"github.com/Azure/azure-event-hubs-go/internal/uuid"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
@@ -53,7 +53,12 @@ func NewLink(conn *amqp.Client, address string) (*Link, error) {
 		return nil, err
 	}
 
-	id := uuid.NewV4().String()
+	linkID, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
+	id := linkID.String()
 	clientAddress := strings.Replace("$", "", address, -1) + replyPostfix + id
 	authReceiver, err := authSession.NewReceiver(
 		amqp.LinkSourceAddress(address),

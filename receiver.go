@@ -222,7 +222,11 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	r.session = newSession(amqpSession)
+	r.session, err = newSession(amqpSession)
+	if err != nil {
+		return err
+	}
+
 	opts := []amqp.LinkOption{
 		amqp.LinkSourceAddress(address),
 		amqp.LinkCredit(r.prefetchCount),

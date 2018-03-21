@@ -120,7 +120,11 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	s.session = newSession(amqpSession)
+	s.session, err = newSession(amqpSession)
+	if err != nil {
+		return err
+	}
+
 	s.sender = amqpSender
 	return nil
 }

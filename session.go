@@ -1,7 +1,7 @@
 package eventhub
 
 import (
-	"github.com/satori/go.uuid"
+	"github.com/Azure/azure-event-hubs-go/internal/uuid"
 	"pack.ag/amqp"
 )
 
@@ -14,11 +14,16 @@ type (
 )
 
 // newSession is a constructor for a Service Bus session which will pre-populate the SessionID with a new UUID
-func newSession(amqpSession *amqp.Session) *session {
+func newSession(amqpSession *amqp.Session) (*session, error) {
+	sessionID, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
 	return &session{
 		Session:   amqpSession,
-		SessionID: uuid.NewV4().String(),
-	}
+		SessionID: sessionID.String(),
+	}, nil
 }
 
 func (s *session) String() string {

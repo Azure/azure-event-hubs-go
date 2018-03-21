@@ -10,8 +10,8 @@ import (
 
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/auth"
+	"github.com/Azure/azure-event-hubs-go/internal/uuid"
 	"github.com/Azure/azure-event-hubs-go/persist"
-	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -71,9 +71,14 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		return nil, err
 	}
 
+	hostName, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
 	host := &EventProcessorHost{
 		namespace:     namespace,
-		name:          uuid.NewV4().String(),
+		name:          hostName.String(),
 		hubName:       hubName,
 		tokenProvider: tokenProvider,
 		client:        client,
@@ -97,13 +102,18 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 func (h *EventProcessorHost) Receive(handler eventhub.Handler) (close func() error, err error) {
 	h.handlersMu.Lock()
 	defer h.handlersMu.Unlock()
-	id := uuid.NewV4().String()
-	h.handlers[id] = handler
+
+	receiverID, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+
+	h.handlers[receiverID.String()] = handler
 	close = func() error {
 		h.handlersMu.Lock()
 		defer h.handlersMu.Unlock()
 
-		delete(h.handlers, id)
+		delete(h.handlers, receiverID.String())
 		return nil
 	}
 	return close, nil

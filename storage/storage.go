@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go/eph"
+	"github.com/Azure/azure-event-hubs-go/internal/uuid"
 	"github.com/Azure/azure-event-hubs-go/persist"
 	"github.com/Azure/azure-pipeline-go/pipeline"
 
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -221,7 +221,12 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 		return nil, false, err
 	}
 
-	newToken := uuid.NewV4().String()
+	uuidToken, err := uuid.NewV4()
+	if err != nil {
+		return nil, false, err
+	}
+
+	newToken := uuidToken.String()
 	if res.LeaseState() == azblob.LeaseStateLeased {
 		// is leased by someone else due to a race to acquire
 		_, err := blobURL.ChangeLease(ctx, lease.Token, newToken, azblob.HTTPAccessConditions{})
@@ -359,7 +364,11 @@ func (sl *LeaserCheckpointer) UpdateCheckpoint(ctx context.Context, partitionID 
 	}
 
 	lease.Checkpoint = &checkpoint
-	sl.dirtyPartitions[partitionID] = uuid.NewV4()
+	dirtyPartitionID, err := uuid.NewV4()
+	if err != nil {
+		return err
+	}
+	sl.dirtyPartitions[partitionID] = dirtyPartitionID
 	return nil
 }
 
