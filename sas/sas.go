@@ -1,3 +1,5 @@
+// Package sas provides SAS token functionality which implements TokenProvider from package auth for use with Azure
+// Event Hubs and Service Bus.
 package sas
 
 import (

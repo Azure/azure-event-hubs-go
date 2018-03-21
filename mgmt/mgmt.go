@@ -1,3 +1,4 @@
+// Package mgmt provides functionality for calling the Event Hubs management operations
 package mgmt
 
 import (

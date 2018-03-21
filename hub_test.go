@@ -30,7 +30,7 @@ func TestEventHub(t *testing.T) {
 }
 
 func (suite *eventHubSuite) TestSasToken() {
-	tests := map[string]func(*testing.T, Client, []string, string){
+	tests := map[string]func(*testing.T, *Hub, []string, string){
 		//"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
@@ -60,7 +60,7 @@ func (suite *eventHubSuite) TestSasToken() {
 }
 
 func (suite *eventHubSuite) TestPartitioned() {
-	tests := map[string]func(*testing.T, Client, string){
+	tests := map[string]func(*testing.T, *Hub, string){
 		"TestSend":                testBasicSend,
 		"TestSendAndReceive":      testBasicSendAndReceive,
 		"TestBatchSendAndReceive": testBatchSendAndReceive,
@@ -87,12 +87,12 @@ func (suite *eventHubSuite) TestPartitioned() {
 	}
 }
 
-func testBasicSend(t *testing.T, client Client, _ string) {
+func testBasicSend(t *testing.T, client *Hub, _ string) {
 	err := client.Send(context.Background(), NewEventFromString("Hello!"))
 	assert.Nil(t, err)
 }
 
-func testBatchSendAndReceive(t *testing.T, client Client, partitionID string) {
+func testBatchSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 	messages := []string{"hello", "world", "foo", "bar", "baz", "buzz"}
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
@@ -126,7 +126,7 @@ func testBatchSendAndReceive(t *testing.T, client Client, partitionID string) {
 	waitUntil(t, &wg, 15*time.Second)
 }
 
-func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
+func testBasicSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -161,7 +161,7 @@ func testBasicSendAndReceive(t *testing.T, client Client, partitionID string) {
 }
 
 func (suite *eventHubSuite) TestEpochReceivers() {
-	tests := map[string]func(*testing.T, Client, []string, string){
+	tests := map[string]func(*testing.T, *Hub, []string, string){
 		"TestEpochGreaterThenLess": testEpochGreaterThenLess,
 		"TestEpochLessThenGreater": testEpochLessThenGreater,
 	}
@@ -184,7 +184,7 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 	}
 }
 
-func testEpochGreaterThenLess(t *testing.T, client Client, partitionIDs []string, _ string) {
+func testEpochGreaterThenLess(t *testing.T, client *Hub, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
 	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
@@ -214,7 +214,7 @@ func testEpochGreaterThenLess(t *testing.T, client Client, partitionIDs []string
 	}
 }
 
-func testEpochLessThenGreater(t *testing.T, client Client, partitionIDs []string, _ string) {
+func testEpochLessThenGreater(t *testing.T, client *Hub, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
 	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
@@ -246,7 +246,7 @@ func testEpochLessThenGreater(t *testing.T, client Client, partitionIDs []string
 }
 
 func (suite *eventHubSuite) TestMultiPartition() {
-	tests := map[string]func(*testing.T, Client, []string, string){
+	tests := map[string]func(*testing.T, *Hub, []string, string){
 		"TestMultiSendAndReceive": testMultiSendAndReceive,
 	}
 
@@ -269,7 +269,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 	}
 }
 
-func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string, _ string) {
+func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _ string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -303,7 +303,7 @@ func testMultiSendAndReceive(t *testing.T, client Client, partitionIDs []string,
 }
 
 func (suite *eventHubSuite) TestHubManagement() {
-	tests := map[string]func(*testing.T, Client, []string, string){
+	tests := map[string]func(*testing.T, *Hub, []string, string){
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
@@ -327,7 +327,7 @@ func (suite *eventHubSuite) TestHubManagement() {
 	}
 }
 
-func testHubRuntimeInformation(t *testing.T, client Client, partitionIDs []string, hubName string) {
+func testHubRuntimeInformation(t *testing.T, client *Hub, partitionIDs []string, hubName string) {
 	info, err := client.GetRuntimeInformation(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -337,7 +337,7 @@ func testHubRuntimeInformation(t *testing.T, client Client, partitionIDs []strin
 	assert.Equal(t, hubName, info.Path)
 }
 
-func testHubPartitionRuntimeInformation(t *testing.T, client Client, partitionIDs []string, hubName string) {
+func testHubPartitionRuntimeInformation(t *testing.T, client *Hub, partitionIDs []string, hubName string) {
 	info, err := client.GetPartitionInformation(context.Background(), partitionIDs[0])
 	if err != nil {
 		t.Fatal(err)
@@ -349,7 +349,7 @@ func testHubPartitionRuntimeInformation(t *testing.T, client Client, partitionID
 
 func TestEnvironmentalCreation(t *testing.T) {
 	os.Setenv("EVENTHUB_NAME", "foo")
-	_, err := NewClientFromEnvironment()
+	_, err := NewHubFromEnvironment()
 	assert.Nil(t, err)
 	os.Unsetenv("EVENTHUB_NAME")
 }
@@ -375,7 +375,7 @@ func BenchmarkReceive(b *testing.B) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	hub, err := NewClient(suite.Namespace, *mgmtHub.Name, provider)
+	hub, err := NewHub(suite.Namespace, *mgmtHub.Name, provider)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -412,7 +412,7 @@ func BenchmarkReceive(b *testing.B) {
 	b.StopTimer()
 }
 
-func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) Client {
+func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) *Hub {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&suite.Env))
 	if err != nil {
 		t.Fatal(err)
@@ -420,9 +420,9 @@ func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubO
 	return suite.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) Client {
+func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) *Hub {
 	opts = append(opts, HubWithEnvironment(suite.Env))
-	client, err := NewClient(suite.Namespace, hubName, provider, opts...)
+	client, err := NewHub(suite.Namespace, hubName, provider, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}

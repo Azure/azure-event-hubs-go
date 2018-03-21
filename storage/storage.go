@@ -1,3 +1,5 @@
+// Package storage provides implementations for Checkpointer and Leaser from package eph for persisting leases and
+// checkpoints for the Event Processor Host using Azure Storage as a durable store.
 package storage
 
 import (

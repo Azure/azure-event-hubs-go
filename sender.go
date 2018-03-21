@@ -12,7 +12,7 @@ import (
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
-		hub         *hub
+		hub         *Hub
 		session     *session
 		sender      *amqp.Sender
 		partitionID *string
@@ -24,7 +24,7 @@ type (
 )
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
-func (h *hub) newSender(ctx context.Context) (*sender, error) {
+func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 	s := &sender{
 		hub:         h,
 		partitionID: h.senderPartitionID,

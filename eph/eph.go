@@ -1,3 +1,5 @@
+// Package eph provides functionality for balancing load of Event Hub receivers through scheduling receivers across
+// processes and machines.
 package eph
 
 import (
@@ -35,7 +37,7 @@ type (
 		hubName       string
 		name          string
 		tokenProvider auth.TokenProvider
-		client        eventhub.Client
+		client        *eventhub.Hub
 		leaser        Leaser
 		checkpointer  Checkpointer
 		scheduler     *scheduler
@@ -61,7 +63,7 @@ type (
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	persister := checkpointPersister{checkpointer: checkpointer}
-	client, err := eventhub.NewClient(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
+	client, err := eventhub.NewHub(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
 	if err != nil {
 		return nil, err
 	}

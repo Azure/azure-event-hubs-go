@@ -1,3 +1,5 @@
+// Package cbs provides the functionality for negotiating claims-based security over AMQP for use in Azure Service Bus
+// and Event Hubs.
 package cbs
 
 import (

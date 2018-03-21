@@ -37,7 +37,7 @@ func main() {
 	}
 }
 
-func initHub() (eventhub.Client, []string) {
+func initHub() (*eventhub.Hub, []string) {
 	namespace := mustGetenv("EVENTHUB_NAMESPACE")
 	hubMgmt, err := ensureEventHub(context.Background(), HubName)
 	if err != nil {
@@ -48,7 +48,7 @@ func initHub() (eventhub.Client, []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	hub, err := eventhub.NewClient(namespace, HubName, provider)
+	hub, err := eventhub.NewHub(namespace, HubName, provider)
 	if err != nil {
 		panic(err)
 	}

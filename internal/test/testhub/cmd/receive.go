@@ -44,7 +44,7 @@ var (
 				log.Error(err)
 				return
 			}
-			hub, err := eventhub.NewClient(namespace, hubName, provider, eventhub.HubWithEnvironment(environment()))
+			hub, err := eventhub.NewHub(namespace, hubName, provider, eventhub.HubWithEnvironment(environment()))
 			if err != nil {
 				log.Error(err)
 				return

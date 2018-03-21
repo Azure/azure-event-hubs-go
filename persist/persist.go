@@ -1,3 +1,4 @@
+// Package persist provides abstract structures for checkpoint persistence.
 package persist
 
 import (
@@ -23,6 +24,10 @@ type (
 )
 
 // NewMemoryPersister creates a new in-memory storage for checkpoints
+//
+// MemoryPersister is only intended to be shared with EventProcessorHosts within the same process. This implementation
+// is a toy. You should probably use the Azure Storage implementation or any other that provides durable storage for
+// checkpoints.
 func NewMemoryPersister() *MemoryPersister {
 	return &MemoryPersister{
 		values: make(map[string]Checkpoint),

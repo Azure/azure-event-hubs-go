@@ -222,7 +222,7 @@ func (ts *testSuite) newStorageBackedEPHOptions(hubName string, leaser eph.Lease
 	return processor, nil
 }
 
-func (ts *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) eventhub.Client {
+func (ts *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) *eventhub.Hub {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&ts.Env))
 	if err != nil {
 		t.Fatal(err)
@@ -230,9 +230,9 @@ func (ts *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.Hu
 	return ts.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (ts *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) eventhub.Client {
+func (ts *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) *eventhub.Hub {
 	opts = append(opts, eventhub.HubWithEnvironment(ts.Env))
-	client, err := eventhub.NewClient(ts.Namespace, hubName, provider, opts...)
+	client, err := eventhub.NewHub(ts.Namespace, hubName, provider, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}

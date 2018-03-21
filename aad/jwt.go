@@ -1,3 +1,5 @@
+// Package aad provides an implementation of an Azure Active Directory JWT provider which implements TokenProvider
+// from package auth for use with Azure Event Hubs and Service Bus.
 package aad
 
 import (

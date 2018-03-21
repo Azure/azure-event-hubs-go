@@ -1,3 +1,4 @@
+// Package rpc provides functionality for request / reply messaging. It is used by package mgmt and cbs.
 package rpc
 
 import (
