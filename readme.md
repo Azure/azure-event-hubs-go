@@ -36,7 +36,7 @@ In this section we'll cover some basics of the library to help you get started.
 
 This library has two main dependencies, [vcabbage/amqp](https://github.com/vcabbage/amqp) and 
 [Azure AMQP Common](https://github.com/Azure/azure-amqp-common-go). The former provides the AMQP protocol implementation
-and the later provides some common authentication, persistence and request-response message flows.
+and the latter provides some common authentication, persistence and request-response message flows.
 
 ### Quick start
 Let's send and receive `"hello, world!"`.
@@ -61,6 +61,7 @@ handler := func(c context.Context, event *eventhub.Event) error {
 // listen to each partition of the Event Hub
 runtimeInfo, err := hub.GetRuntimeInformation(ctx)
 for _, partitionID := range runtimeInfo.PartitionIDs {
+	// start receiving messages -- Receive is non-blocking and starts immediately
 	_, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
 	if err != nil {
 		// handle err
@@ -125,7 +126,7 @@ You can create new Shared access policies through the Azure portal as shown belo
 You can create a SAS token provider in a couple different ways. You can build one with a namespace, key name and key
 value like this.
 ```go
-provider, err := sas.NewTokenProvider("mynamespace", "myKeyName", "myKeyValue")
+provider, err := sas.TokenProviderWithNamespaceAndKey("mynamespace", "myKeyName", "myKeyValue")
 ```
 
 Or, you can create a token provider from environment variables like this.
@@ -177,7 +178,7 @@ spToken, err := config.NewServicePrincipalToken()
 if err != nil {
     // handle err
 }
-provider, err := aad.NewJWTProvider(aadToken)
+provider, err := aad.NewJWTProvider(aad.JWTProviderWithAADToken(aadToken))
 ```
 
 ### Send And Receive
@@ -188,15 +189,27 @@ By default, a Hub will send messages any of the load balanced partitions. Someti
 particular partition. You can do this in two ways.
 1) You can supply a partition key on an event
     ```go
-    event := NewEventFromString("foo")
+    event := eventhub.NewEventFromString("foo")
     event.PartitionKey = "bazz"
     hub.Send(ctx, event) // send event to the partition ID to which partition key hashes
     ```
 2) You can build a hub instance that will only send to one partition.
     ```go
     partitionID := "0"
-    hub, err := eventhub.NewHubFromEnvironment(HubWithPartitionedSender(partitionID))
+    hub, err := eventhub.NewHubFromEnvironment(eventhub.HubWithPartitionedSender(partitionID))
     ```
+
+#### Sending batches of events
+Sending a batch of messages is more efficient than sending a single message.
+```go
+batch := &EventBatch{
+            Events: []*eventhub.Event { 
+                eventhub.NewEventFromString("one"),
+                eventhub.NewEventFromString("two"),
+            },
+        }
+err := client.SendBatch(ctx, batch)
+```
 
 #### Receiving
 When receiving messages from an Event Hub, you always need to specify the partition you'd like to receive from. 
@@ -240,7 +253,7 @@ CheckpointPersister interface {
 
 For example, you could create a simple files system persister and use it likes so.
 ```go
-hub, err := eventhub.NewHubFromEnvironment(HubWithOffsetPersistence(fileSystemPersister))
+hub, err := eventhub.NewHubFromEnvironment(eventhub.HubWithOffsetPersistence(fileSystemPersister))
 ```
 
 ## Examples
