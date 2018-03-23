@@ -2,7 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -15,7 +14,8 @@
     "sas",
     "uuid"
   ]
-  revision = "0c963221f36785ab28d12e04842c081a3c02e014"
+  revision = "695f326450a91e3b1fcb76240267180103e30f08"
+  version = "v0.2.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -138,7 +138,7 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "80db560fac1fb3e6ac81dbc7f8ae4c061f5257bd"
+  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
 
 [[projects]]
   branch = "master"
@@ -147,7 +147,7 @@
     "unix",
     "windows"
   ]
-  revision = "c488ab1dd8481ef762f96a79a9577c27825be697"
+  revision = "91ee8cde435411ca3f1cd365e8f20131aed4d0a1"
 
 [[projects]]
   branch = "master"
@@ -161,6 +161,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "492f1fa2fe01d5260cc55b8c770cad1f1d5377c184b20aa8c51ce9f0f25cd430"
+  inputs-digest = "d460f085ea3b80e08a989361736f397b5b8b6b63c4a262dc391705a7528b4131"
   solver-name = "gps-cdcl"
   solver-version = 1
