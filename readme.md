@@ -12,7 +12,7 @@ This library is a pure Golang implementation of Azure Event Hubs over AMQP.
 
 
 ## Preview of Event Hubs for Golang
-This library is currently a preview. There may be breaking interface change until it reaches `v1.0.0`. If you run into an
+This library is currently a preview. There may be breaking interface changes until it reaches `v1.0.0`. If you run into an
 issue, please don't hesitate to log a [new issue](https://github.com/Azure/azure-event-hubs-go/issues/new) or open a
 pull request.
 
