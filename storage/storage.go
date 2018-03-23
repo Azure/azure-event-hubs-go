@@ -125,7 +125,7 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 		credential:        credential,
 		containerName:     containerName,
 		accountName:       accountName,
-		leaseDuration:     eph.DefaultLeaseDurationInSeconds,
+		leaseDuration:     eph.DefaultLeaseDuration,
 		env:               env,
 		serviceURL:        &svURL,
 		containerURL:      &containerURL,

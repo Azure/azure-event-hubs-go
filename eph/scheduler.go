@@ -39,8 +39,8 @@ const (
 	// DefaultLeaseRenewalInterval defines the default amount of time between lease renewal attempts
 	DefaultLeaseRenewalInterval = 10 * time.Second
 
-	// DefaultLeaseDurationInSeconds defines the default amount of time a lease is valid
-	DefaultLeaseDurationInSeconds = 30 * time.Second
+	// DefaultLeaseDuration defines the default amount of time a lease is valid
+	DefaultLeaseDuration = 30 * time.Second
 )
 
 type (
