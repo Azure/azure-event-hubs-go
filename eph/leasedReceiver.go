@@ -33,7 +33,7 @@ import (
 
 type (
 	leasedReceiver struct {
-		handle    eventhub.ListenerHandle
+		handle    *eventhub.ListenerHandle
 		processor *EventProcessorHost
 		lease     LeaseMarker
 		done      func()

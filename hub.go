@@ -104,7 +104,33 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 }
 
 // NewHubWithNamespaceNameAndEnvironment creates a new Event Hub client for sending and receiving messages from
-// environment variables with supplied namespace and name
+// environment variables with supplied namespace and name which will attempt to build a token provider from
+// environment variables. If unable to build a AAD Token Provider it will fall back to a SAS token provider. If neither
+// can be built, it will return error.
+//
+// SAS TokenProvider environment variables:
+// There are two sets of environment variables which can produce a SAS TokenProvider
+//
+// 1) Expected Environment Variables:
+//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
+//   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
+//   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+//
+// 2) Expected Environment Variable:
+//   - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
+//
+//
+// AAD TokenProvider environment variables:
+// 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+//    "AZURE_CLIENT_SECRET"
+//
+// 2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+//    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
+//
+// 3. Managed Service Identity (MSI): attempt to authenticate via MSI
+//
+//
+// The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
 func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (*Hub, error) {
 	var provider auth.TokenProvider
 	aadProvider, aadErr := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
@@ -133,6 +159,39 @@ func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOp
 }
 
 // NewHubFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
+//
+// Expected Environment Variables:
+// - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
+// - "EVENTHUB_NAME" the name of the Event Hub instance
+//
+//
+// This method depends on NewHubWithNamespaceNameAndEnvironment which will attempt to build a token provider from
+// environment variables. If unable to build a AAD Token Provider it will fall back to a SAS token provider. If neither
+// can be built, it will return error.
+//
+// SAS TokenProvider environment variables:
+// There are two sets of environment variables which can produce a SAS TokenProvider
+//
+// 1) Expected Environment Variables:
+//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
+//   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
+//   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+//
+// 2) Expected Environment Variable:
+//   - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
+//
+//
+// AAD TokenProvider environment variables:
+// 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+//    "AZURE_CLIENT_SECRET"
+//
+// 2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+//    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
+//
+// 3. Managed Service Identity (MSI): attempt to authenticate via MSI
+//
+//
+// The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
 func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 	const envErrMsg = "environment var %s must not be empty"
 	var namespace, name string
@@ -188,7 +247,7 @@ func (h *Hub) Close() error {
 }
 
 // Receive subscribes for messages sent to the provided entityPath.
-func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (ListenerHandle, error) {
+func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (*ListenerHandle, error) {
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
