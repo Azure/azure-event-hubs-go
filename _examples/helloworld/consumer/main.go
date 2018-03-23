@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/Azure/azure-event-hubs-go"
@@ -50,6 +51,11 @@ func main() {
 		case <-time.After(2 * time.Second):
 			return
 		}
+	}
+
+	hub, err := eventhub.NewHubFromEnvironment()
+	if err != nil {
+		// handle err
 	}
 }
 

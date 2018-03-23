@@ -63,14 +63,8 @@ type (
 	// ReceiveOption provides a structure for configuring receivers
 	ReceiveOption func(receiver *receiver) error
 
-	// ListenerHandle provides a way to manage the lifespan of a listener
-	ListenerHandle interface {
-		Done() <-chan struct{}
-		Err() error
-		Close() error
-	}
-
-	listenerHandle struct {
+	// ListenerHandle provides the ability to close or listen to the close of a Receiver
+	ListenerHandle struct {
 		r   *receiver
 		ctx context.Context
 	}
@@ -162,7 +156,7 @@ func (r *receiver) Recover(ctx context.Context) error {
 }
 
 // Listen start a listener for messages sent to the entity path
-func (r *receiver) Listen(handler Handler) ListenerHandle {
+func (r *receiver) Listen(handler Handler) *ListenerHandle {
 	ctx, done := context.WithCancel(context.Background())
 	r.done = done
 
@@ -170,7 +164,7 @@ func (r *receiver) Listen(handler Handler) ListenerHandle {
 	go r.listenForMessages(ctx, messages)
 	go r.handleMessages(ctx, messages, handler)
 
-	return &listenerHandle{
+	return &ListenerHandle{
 		r:   r,
 		ctx: ctx,
 	}
@@ -331,15 +325,18 @@ func (r *receiver) debugLogf(format string, args ...interface{}) {
 	log.Debugf(msg+" for entity identifier %q", r.getIdentifier())
 }
 
-func (lc *listenerHandle) Close() error {
+// Close will close the listener
+func (lc *ListenerHandle) Close() error {
 	return lc.r.Close()
 }
 
-func (lc *listenerHandle) Done() <-chan struct{} {
+// Done will close the channel when the listener has stopped
+func (lc *ListenerHandle) Done() <-chan struct{} {
 	return lc.ctx.Done()
 }
 
-func (lc *listenerHandle) Err() error {
+// Err will return the last error encountered
+func (lc *ListenerHandle) Err() error {
 	if lc.r.lastError != nil {
 		return lc.r.lastError
 	}
