@@ -12,9 +12,9 @@ This library is a pure Golang implementation of Azure Event Hubs over AMQP.
 
 
 ## Preview of Event Hubs for Golang
-This library is currently a preview. There may be breaking interface changes until it reaches `v1.0.0`. If you run into an
-issue, please don't hesitate to log a [new issue](https://github.com/Azure/azure-event-hubs-go/issues/new) or open a
-pull request.
+This library is currently a preview. There may be breaking interface changes until it reaches semantic version `v1.0.0`. 
+If you run into an issue, please don't hesitate to log a 
+[new issue](https://github.com/Azure/azure-event-hubs-go/issues/new) or open a pull request.
 
 ## Installing the library
 To more reliably manage dependencies in your application we recommend [golang/dep](https://github.com/golang/dep).
@@ -251,10 +251,22 @@ CheckpointPersister interface {
 }
 ```
 
-For example, you could create a simple files system persister and use it likes so.
+For example, you could use the persist.FilePersister to save your checkpoints to a directory.
 ```go
-hub, err := eventhub.NewHubFromEnvironment(eventhub.HubWithOffsetPersistence(fileSystemPersister))
+persister, err := persist.NewFilePersiter(directoryPath)
+if err != nil {
+	// handle err
+}
+hub, err := eventhub.NewHubFromEnvironment(eventhub.HubWithOffsetPersistence(persister))
 ```
+
+## Event Processor Host
+The Event Processor Host is a collection of features which load balances partition receivers and ensures only one 
+receiver is consuming a given partition at a time. [This article](https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-dotnet-standard-getstarted-receive-eph)
+talks about the .NET version of the Event Processor Host. The `eph` package, once stable, will provide the equivalent
+feature set.
+
+The `eph` package is experimental.
 
 ## Examples
 - [HelloWorld: Producer and Consumer](./_examples/helloworld): an example of sending and receiving messages from an
@@ -273,3 +285,11 @@ provided by the bot. You will only need to do this once across all repos using o
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+## License
+
+MIT, see [LICENSE](./LICENSE).
+
+## Contribute
+
+See [CONTRIBUTING.md](./contributing.md).
