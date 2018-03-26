@@ -288,10 +288,8 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
 contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
 
-## License
+See [contributing.md](./.github/contributing.md).
+
+# License
 
 MIT, see [LICENSE](./LICENSE).
-
-## Contribute
-
-See [CONTRIBUTING.md](./contributing.md).
