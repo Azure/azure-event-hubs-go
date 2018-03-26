@@ -25,6 +25,7 @@ package cmd
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/sas"
@@ -34,7 +35,7 @@ import (
 )
 
 func init() {
-	sendCmd.Flags().IntVar(&messageCount, "msg-count", 1, "number of messages to send")
+	sendCmd.Flags().IntVar(&messageCount, "msg-count", 10, "number of messages to send")
 	sendCmd.Flags().IntVar(&messageSize, "msg-size", 256, "size in bytes of each message")
 	rootCmd.AddCommand(sendCmd)
 }
@@ -65,18 +66,27 @@ var (
 			events := make([]*eventhub.Event, messageCount)
 			for i := 0; i < messageCount; i++ {
 				data := make([]byte, messageSize)
-				rand.Read(data)
+				_, err := rand.Read(data)
+				if err != nil {
+					log.Error(err)
+				}
 				events[i] = eventhub.NewEvent(data)
 			}
 
-			for _, event := range events {
+			log.Println(fmt.Sprintf("attempting to send %d messages", messageCount))
+			sentMsgs := 0
+			for idx, event := range events {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				err := hub.Send(ctx, event)
 				if err != nil {
-					log.Errorln(err)
+					log.Errorln(fmt.Sprintf("failed sending idx: %d", idx), err)
+				} else {
+					sentMsgs++
 				}
 				cancel()
 			}
+
+			log.Printf("sent %d messages\n", sentMsgs)
 		},
 	}
 )

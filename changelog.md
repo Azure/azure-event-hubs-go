@@ -1,5 +1,9 @@
 # Change Log
 
+## `master`
+- update common dependency to 0.2.3
+- provide more feedback when sending using testhub
+
 ## `v0.1.0`
 - initial release
 - basic send and receive
