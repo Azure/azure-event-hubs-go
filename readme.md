@@ -33,7 +33,7 @@ go get -u github.com/Azure/azure-event-hubs-go/...
 
 If you need to install Go, follow [the official instructions](https://golang.org/dl/)
 
-## Using the Event Hubs
+## Using Event Hubs
 In this section we'll cover some basics of the library to help you get started.
 
 This library has two main dependencies, [vcabbage/amqp](https://github.com/vcabbage/amqp) and 
