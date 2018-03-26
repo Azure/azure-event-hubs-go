@@ -14,8 +14,8 @@
     "sas",
     "uuid"
   ]
-  revision = "695f326450a91e3b1fcb76240267180103e30f08"
-  version = "v0.2.0"
+  revision = "662a92c5a939634cfbe2804b5b8a6058ca978ede"
+  version = "v0.2.3"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -147,7 +147,7 @@
     "unix",
     "windows"
   ]
-  revision = "91ee8cde435411ca3f1cd365e8f20131aed4d0a1"
+  revision = "13d03a9a82fba647c21a0ef8fba44a795d0f0835"
 
 [[projects]]
   branch = "master"
@@ -156,11 +156,11 @@
     ".",
     "internal/testconn"
   ]
-  revision = "fc71119dfd03ed44d0aba09806e4a7d1584b74b1"
+  revision = "65e9423ece846da5c2bbdc642f26d1933713ee70"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d460f085ea3b80e08a989361736f397b5b8b6b63c4a262dc391705a7528b4131"
+  inputs-digest = "3162b659fef71c9360c515366a2ca50ba6955ef9119597b82f8209887762a355"
   solver-name = "gps-cdcl"
   solver-version = 1
