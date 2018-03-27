@@ -210,7 +210,7 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
 func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
-	conn, err := h.namespace.connection()
+	conn, err := h.namespace.newConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInform
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
 func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
-	conn, err := h.namespace.connection()
+	conn, err := h.namespace.newConnection()
 	if err != nil {
 		return nil, err
 	}

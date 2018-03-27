@@ -50,6 +50,7 @@ const (
 type (
 	receiver struct {
 		hub           *Hub
+		connection    *amqp.Client
 		session       *session
 		receiver      *amqp.Receiver
 		consumerGroup string
@@ -139,19 +140,22 @@ func (r *receiver) Close() error {
 	err := r.receiver.Close()
 	if err != nil {
 		_ = r.session.Close()
+		_ = r.connection.Close()
 		return err
 	}
 
-	return r.session.Close()
+	err = r.session.Close()
+	if err != nil {
+		_ = r.connection.Close()
+		return err
+	}
+
+	return r.connection.Close()
 }
 
 // Recover will attempt to close the current session and link, then rebuild them
 func (r *receiver) Recover(ctx context.Context) error {
-	err := r.Close()
-	if err != nil {
-		return err
-	}
-
+	_ = r.Close() // we expect the receiver is in an error state
 	return r.newSessionAndLink(ctx)
 }
 
@@ -217,13 +221,14 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 
 // newSessionAndLink will replace the session and link on the receiver
 func (r *receiver) newSessionAndLink(ctx context.Context) error {
-	address := r.getAddress()
-	err := r.hub.namespace.negotiateClaim(ctx, address)
+	connection, err := r.hub.namespace.newConnection()
 	if err != nil {
 		return err
 	}
+	r.connection = connection
 
-	connection, err := r.hub.namespace.connection()
+	address := r.getAddress()
+	err = r.hub.namespace.negotiateClaim(ctx, connection, address)
 	if err != nil {
 		return err
 	}

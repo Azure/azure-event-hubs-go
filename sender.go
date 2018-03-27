@@ -25,7 +25,9 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/Azure/azure-amqp-common-go"
 	"github.com/satori/uuid"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
@@ -35,6 +37,7 @@ import (
 type (
 	sender struct {
 		hub         *Hub
+		connection  *amqp.Client
 		session     *session
 		sender      *amqp.Sender
 		partitionID *string
@@ -58,21 +61,24 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 
 // Recover will attempt to close the current session and link, then rebuild them
 func (s *sender) Recover(ctx context.Context) error {
-	err := s.Close()
-	if err != nil {
-		return err
-	}
+	_ = s.Close() // we expect the sender is in an error state
 	return s.newSessionAndLink(ctx)
 }
 
-// Close will close the AMQP session and link of the sender
+// Close will close the AMQP connection, session and link of the sender
 func (s *sender) Close() error {
 	err := s.sender.Close()
 	if err != nil {
 		_ = s.session.Close()
+		_ = s.connection.Close()
 		return err
 	}
-	return s.session.Close()
+	err = s.session.Close()
+	if err != nil {
+		_ = s.connection.Close()
+		return err
+	}
+	return s.connection.Close()
 }
 
 // Send will send a message to the entity path with options
@@ -96,7 +102,22 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 		msg.Properties.MessageID = uuid.NewV4().String()
 	}
 
-	return s.sender.Send(ctx, msg)
+	_, err := common.Retry(8, 10*time.Second, func() (interface{}, error) {
+		err := s.sender.Send(ctx, msg)
+		if amqpErr, ok := err.(*amqp.Error); ok {
+			fmt.Println(err)
+			if amqpErr.Condition == "com.microsoft:server-busy" {
+				log.Warnln("recovering from busy")
+				err := s.Recover(ctx)
+				if err != nil {
+					log.Errorln(err)
+				}
+				return nil, common.Retryable(amqpErr.Condition)
+			}
+		}
+		return nil, err
+	})
+	return err
 }
 
 func (s *sender) String() string {
@@ -122,12 +143,13 @@ func (s *sender) prepareMessage(msg *amqp.Message) {
 
 // newSessionAndLink will replace the existing session and link
 func (s *sender) newSessionAndLink(ctx context.Context) error {
-	err := s.hub.namespace.negotiateClaim(ctx, s.getAddress())
+	connection, err := s.hub.namespace.newConnection()
 	if err != nil {
 		return err
 	}
+	s.connection = connection
 
-	connection, err := s.hub.namespace.connection()
+	err = s.hub.namespace.negotiateClaim(ctx, connection, s.getAddress())
 	if err != nil {
 		return err
 	}

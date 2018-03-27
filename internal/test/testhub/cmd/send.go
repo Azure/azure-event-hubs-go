@@ -63,23 +63,22 @@ var (
 				log.Error(err)
 				return
 			}
-			events := make([]*eventhub.Event, messageCount)
+
+			log.Println(fmt.Sprintf("attempting to send %d messages", messageCount))
+			sentMsgs := 0
 			for i := 0; i < messageCount; i++ {
 				data := make([]byte, messageSize)
 				_, err := rand.Read(data)
 				if err != nil {
-					log.Error(err)
+					log.Errorln("unable to generate random bits for message")
+					continue
 				}
-				events[i] = eventhub.NewEvent(data)
-			}
+				event := eventhub.NewEvent(data)
 
-			log.Println(fmt.Sprintf("attempting to send %d messages", messageCount))
-			sentMsgs := 0
-			for idx, event := range events {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				err := hub.Send(ctx, event)
+				ctx, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+				err = hub.Send(ctx, event)
 				if err != nil {
-					log.Errorln(fmt.Sprintf("failed sending idx: %d", idx), err)
+					log.Errorln(fmt.Sprintf("failed sending idx: %d", i), err)
 				} else {
 					sentMsgs++
 				}

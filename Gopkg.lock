@@ -51,8 +51,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "7909b98056dd6f6a9fc9b7745af1810c93c15939"
-  version = "v10.3.0"
+  revision = "ed4b7f5bf1ec0c9ede1fda2681d96771282f2862"
+  version = "v10.4.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -156,7 +156,7 @@
     ".",
     "internal/testconn"
   ]
-  revision = "65e9423ece846da5c2bbdc642f26d1933713ee70"
+  revision = "7ff561750e9f8f09d73b1d99a27a6d999cba2bcc"
 
 [solve-meta]
   analyzer-name = "dep"
