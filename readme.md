@@ -1,4 +1,5 @@
 # Microsoft Azure Event Hubs Client for Golang
+[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/azure-event-hubs-go)](https://goreportcard.com/report/github.com/Azure/azure-event-hubs-go)
 [![godoc](https://godoc.org/github.com/Azure/azure-event-hubs-go?status.svg)](https://godoc.org/github.com/Azure/azure-event-hubs-go)
 [![Build Status](https://travis-ci.org/Azure/azure-event-hubs-go.svg?branch=master)](https://travis-ci.org/Azure/azure-event-hubs-go)
 
