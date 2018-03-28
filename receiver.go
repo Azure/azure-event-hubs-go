@@ -137,20 +137,20 @@ func (r *receiver) Close() error {
 		r.done()
 	}
 
-	err := r.connection.Close()
+	err := r.receiver.Close()
 	if err != nil {
 		_ = r.session.Close()
-		_ = r.receiver.Close()
+		_ = r.connection.Close()
 		return err
 	}
 
 	err = r.session.Close()
 	if err != nil {
-		_ = r.receiver.Close()
+		_ = r.connection.Close()
 		return err
 	}
 
-	return r.receiver.Close()
+	return r.connection.Close()
 }
 
 // Recover will attempt to close the current session and link, then rebuild them
