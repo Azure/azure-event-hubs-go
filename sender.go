@@ -67,23 +67,24 @@ func (s *sender) Recover(ctx context.Context) error {
 
 // Close will close the AMQP connection, session and link of the sender
 func (s *sender) Close() error {
-	err := s.sender.Close()
+	err := s.connection.Close()
 	if err != nil {
 		_ = s.session.Close()
-		_ = s.connection.Close()
+		_ = s.sender.Close()
 		return err
 	}
 	err = s.session.Close()
 	if err != nil {
-		_ = s.connection.Close()
+		_ = s.sender.Close()
 		return err
 	}
-	return s.connection.Close()
+	return s.sender.Close()
 }
 
 // Send will send a message to the entity path with options
+//
+// This will retry sending the message if the server responds with a busy error.
 func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption) error {
-	// TODO: Add in recovery logic in case the link / session has gone down
 	s.prepareMessage(msg)
 
 	for _, opt := range opts {
@@ -93,29 +94,43 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 		}
 	}
 
-	// TODO: add partition-key to the Event or EventBatch -- this is different than partitionID
-	if s.partitionID != nil {
-		msg.Annotations["x-opt-partition-key"] = s.partitionID
-	}
-
 	if msg.Properties.MessageID == nil {
 		msg.Properties.MessageID = uuid.NewV4().String()
 	}
 
-	_, err := common.Retry(8, 10*time.Second, func() (interface{}, error) {
-		err := s.sender.Send(ctx, msg)
-		if amqpErr, ok := err.(*amqp.Error); ok {
-			fmt.Println(err)
-			if amqpErr.Condition == "com.microsoft:server-busy" {
-				log.Warnln("recovering from busy")
-				err := s.Recover(ctx)
-				if err != nil {
-					log.Errorln(err)
+	times := 3
+	delay := 10 * time.Second
+	durationOfSend := 3 * time.Second
+	if deadline, ok := ctx.Deadline(); ok {
+		times = int(time.Until(deadline) / (delay + durationOfSend))
+		times = max(times, 1) // give at least one chance at sending
+	}
+	_, err := common.Retry(times, delay, func() (interface{}, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			innerCtx, cancel := context.WithTimeout(ctx, durationOfSend)
+			defer cancel()
+			err := s.sender.Send(innerCtx, msg)
+
+			if err != nil {
+				log.Warnln("recovering...", err)
+				recoverErr := s.Recover(ctx)
+				if recoverErr != nil {
+					log.Errorln(recoverErr)
 				}
-				return nil, common.Retryable(amqpErr.Condition)
 			}
+
+			if amqpErr, ok := err.(*amqp.Error); ok {
+				if amqpErr.Condition == "com.microsoft:server-busy" {
+					log.Warnln("retrying... ", amqpErr)
+					return nil, common.Retryable(amqpErr.Condition)
+				}
+			}
+
+			return nil, err
 		}
-		return nil, err
 	})
 	return err
 }
@@ -179,4 +194,11 @@ func SendWithMessageID(messageID string) SendOption {
 		msg.Properties.MessageID = messageID
 		return nil
 	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

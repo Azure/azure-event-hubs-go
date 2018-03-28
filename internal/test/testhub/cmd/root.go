@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/conn"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -39,6 +40,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&sasKey, "key", "", "SAS key for the key-name")
 	rootCmd.PersistentFlags().StringVar(&connStr, "conn-str", "", "Connection string for Event Hub")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "debug level logging")
+	log.SetFormatter(&log.TextFormatter{TimestampFormat: "2006-01-02 15:04:05", FullTimestamp: true})
 }
 
 var (
