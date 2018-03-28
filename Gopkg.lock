@@ -2,7 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -15,7 +14,8 @@
     "sas",
     "uuid"
   ]
-  revision = "f89a198d206b7a6d012803b4f7bb6f3efc566a3e"
+  revision = "0ee06365aa0b8ed18e749e41a4dfa431f66d52f9"
+  version = "v0.2.4"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -161,6 +161,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "492f1fa2fe01d5260cc55b8c770cad1f1d5377c184b20aa8c51ce9f0f25cd430"
+  inputs-digest = "9f1ad73f087b6d83ca99e2b7ae39e1bcd8ed653b93d5d3a286d77a59ae47a292"
   solver-name = "gps-cdcl"
   solver-version = 1
