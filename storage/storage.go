@@ -86,7 +86,6 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 
 	logOptions := pipeline.LogOptions{
 		Log: func(level pipeline.LogLevel, message string) {
-			log.Println("foo", level, message)
 			switch level {
 			case pipeline.LogError:
 				log.Errorln(message)
@@ -106,17 +105,14 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 		},
 		MinimumLevelToLog: func() pipeline.LogLevel {
 			if log.GetLevel() == log.DebugLevel {
-				return pipeline.LogError
+				return pipeline.LogInfo
 			}
-			return pipeline.LogFatal
+			return pipeline.LogError
 		},
 	}
 
 	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{
 		Log: logOptions,
-		RequestLog: azblob.RequestLogOptions{
-			LogWarningIfTryOverThreshold: 200 * time.Millisecond,
-		},
 	}))
 
 	containerURL := svURL.NewContainerURL(containerName)

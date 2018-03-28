@@ -75,7 +75,7 @@ var (
 				}
 				event := eventhub.NewEvent(data)
 
-				ctx, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 				err = hub.Send(ctx, event)
 				if err != nil {
 					log.Errorln(fmt.Sprintf("failed sending idx: %d", i), err)

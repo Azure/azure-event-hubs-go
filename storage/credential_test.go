@@ -99,14 +99,12 @@ func (ts *testSuite) ensureStorageAccount() error {
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
 	accounts, err := client.ListByResourceGroup(ctx, test.ResourceGroupName)
 	if err != nil && accounts.StatusCode != 404 {
-		fmt.Println(accounts)
 		return err
 	}
 
 	for _, account := range *accounts.Value {
 		if ts.AccountName == *account.Name {
 			// provisioned, so return
-			fmt.Println(*account.Name)
 			return nil
 		}
 	}

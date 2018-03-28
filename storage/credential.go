@@ -24,7 +24,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -124,16 +123,14 @@ func NewAADSASCredential(subscriptionID, resourceGroup, accountName, containerNa
 }
 
 // New creates a credential policy object.
-func (t *AADSASCredential) New(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.Policy {
+func (cred *AADSASCredential) New(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.Policy {
 	return pipeline.PolicyFunc(func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
 		// Add a x-ms-date header if it doesn't already exist
-		token, err := t.getToken(ctx)
+		token, err := cred.getToken(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		fmt.Println(request.URL)
-		fmt.Println(request.URL.RawQuery)
 		if request.URL.RawQuery != "" {
 			request.URL.RawQuery = request.URL.RawQuery + "&" + token.sas
 		} else {
@@ -146,27 +143,27 @@ func (t *AADSASCredential) New(next pipeline.Policy, po *pipeline.PolicyOptions)
 }
 
 // GetToken fetches a Azure Storage SAS token using an AAD token
-func (t *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
-	if t.token != nil {
-		if t.token.expiry.Before(time.Now().Add(-5 * time.Minute)) {
-			return *t.token, nil
+func (cred *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
+	if cred.token != nil {
+		if cred.token.expiry.Before(time.Now().Add(-5 * time.Minute)) {
+			return *cred.token, nil
 		}
 	}
-	token, err := t.refeshToken(ctx, "/blob/"+t.AccountName+"/"+t.ContainerName)
+	token, err := cred.refreshToken(ctx, "/blob/"+cred.AccountName+"/"+cred.ContainerName)
 	if err != nil {
 		return SASToken{}, err
 	}
 
-	t.token = &token
+	cred.token = &token
 	return token, nil
 }
 
-func (t *AADSASCredential) refeshToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
+func (cred *AADSASCredential) refreshToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
 	now := time.Now().Add(-1 * time.Second)
 	expiry := now.Add(1 * time.Hour)
-	client := storage.NewAccountsClientWithBaseURI(t.env.ResourceManagerEndpoint, t.SubscriptionID)
-	client.Authorizer = autorest.NewBearerAuthorizer(t.aadTokenProvider)
-	res, err := client.ListAccountSAS(ctx, t.ResourceGroup, t.AccountName, storage.AccountSasParameters{
+	client := storage.NewAccountsClientWithBaseURI(cred.env.ResourceManagerEndpoint, cred.SubscriptionID)
+	client.Authorizer = autorest.NewBearerAuthorizer(cred.aadTokenProvider)
+	res, err := client.ListAccountSAS(ctx, cred.ResourceGroup, cred.AccountName, storage.AccountSasParameters{
 		Protocols:              storage.HTTPS,
 		ResourceTypes:          storage.SignedResourceTypesS + storage.SignedResourceTypesC + storage.SignedResourceTypesO,
 		Services:               storage.B,
