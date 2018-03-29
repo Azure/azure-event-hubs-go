@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
-	"github.com/satori/uuid"
+	"github.com/Azure/azure-amqp-common-go/uuid"
 	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
@@ -95,7 +95,11 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 	}
 
 	if msg.Properties.MessageID == nil {
-		msg.Properties.MessageID = uuid.NewV4().String()
+		id, err := uuid.NewV4()
+		if err != nil {
+			return err
+		}
+		msg.Properties.MessageID = id.String()
 	}
 
 	times := 3
