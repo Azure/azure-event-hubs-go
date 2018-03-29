@@ -1,5 +1,8 @@
 # Change Log
 
+## `v0.1.2`
+- remove an extraneous dependency on satori/uuid
+
 ## `v0.1.1`
 - update common dependency to 0.2.4
 - provide more feedback when sending using testhub
