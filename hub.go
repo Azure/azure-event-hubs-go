@@ -31,17 +31,20 @@ import (
 
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
 	maxUserAgentLen = 128
 	rootUserAgent   = "/golang-event-hubs"
+
+	// Version is the semantic version number
+	Version = "0.1.2"
 )
 
 type (
@@ -138,15 +141,12 @@ func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOp
 
 	if aadErr != nil && sasErr != nil {
 		// both failed
-		log.Debug("both token providers failed")
 		return nil, errors.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
 	}
 
 	if aadProvider != nil {
-		log.Debug("using AAD provider")
 		provider = aadProvider
 	} else {
-		log.Debug("using SAS provider")
 		provider = sasProvider
 	}
 
@@ -209,6 +209,8 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
 func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.GetRuntimeInformation")
+	defer span.Finish()
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
@@ -223,6 +225,8 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInform
 
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
 func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.GetPartitionInformation")
+	defer span.Finish()
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
@@ -236,10 +240,10 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 }
 
 // Close drains and closes all of the existing senders, receivers and connections
-func (h *Hub) Close() error {
+func (h *Hub) Close(ctx context.Context) error {
 	var lastErr error
 	for _, r := range h.receivers {
-		if err := r.Close(); err != nil {
+		if err := r.Close(ctx); err != nil {
 			lastErr = err
 		}
 	}
@@ -248,6 +252,9 @@ func (h *Hub) Close() error {
 
 // Receive subscribes for messages sent to the provided entityPath.
 func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (*ListenerHandle, error) {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.Receive")
+	defer span.Finish()
+
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
@@ -257,8 +264,8 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 	}
 
 	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
-		if err := r.Close(); err != nil {
-			log.Error(err)
+		if err := r.Close(ctx); err != nil {
+			log.For(ctx).Error(err)
 		}
 	}
 
@@ -270,25 +277,33 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 
 // Send sends an event to the Event Hub
 func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.Send")
+	defer span.Finish()
+
 	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
 	}
 
-	return sender.Send(ctx, event.toMsg(), opts...)
+	return sender.Send(ctx, event, opts...)
 }
 
 // SendBatch sends an EventBatch to the Event Hub
 func (h *Hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.SendBatch")
+	defer span.Finish()
+
 	sender, err := h.getSender(ctx)
 	if err != nil {
 		return err
 	}
-	msg, err := batch.toMsg()
+
+	event, err := batch.toEvent()
 	if err != nil {
 		return err
 	}
-	return sender.Send(ctx, msg, opts...)
+
+	return sender.Send(ctx, event, opts...)
 }
 
 // HubWithPartitionedSender configures the Hub instance to send to a specific event Hub partition
@@ -342,13 +357,16 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	h.senderMu.Lock()
 	defer h.senderMu.Unlock()
 
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.getSender")
+	defer span.Finish()
+
 	if h.sender == nil {
 		s, err := h.newSender(ctx)
 		if err != nil {
+			log.For(ctx).Error(err)
 			return nil, err
 		}
 		h.sender = s
 	}
-	// add recover logic here
 	return h.sender, nil
 }

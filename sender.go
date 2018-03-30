@@ -28,8 +28,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
+	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/uuid"
-	log "github.com/sirupsen/logrus"
+	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
 )
 
@@ -45,62 +46,81 @@ type (
 	}
 
 	// SendOption provides a way to customize a message on sending
-	SendOption func(message *amqp.Message) error
+	SendOption func(event *Event) error
+
+	eventer interface {
+		Set(key, value string)
+		toMsg() *amqp.Message
+	}
 )
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
 func (h *Hub) newSender(ctx context.Context) (*sender, error) {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.sender.newSender")
+	defer span.Finish()
+
 	s := &sender{
 		hub:         h,
 		partitionID: h.senderPartitionID,
 	}
-	log.Debugf("creating a new sender for entity path %s", s.getAddress())
+	log.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
 	return s, err
 }
 
 // Recover will attempt to close the current session and link, then rebuild them
 func (s *sender) Recover(ctx context.Context) error {
-	_ = s.Close() // we expect the sender is in an error state
+	span, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.Recover")
+	defer span.Finish()
+
+	_ = s.Close(ctx) // we expect the sender is in an error state
 	return s.newSessionAndLink(ctx)
 }
 
 // Close will close the AMQP connection, session and link of the sender
-func (s *sender) Close() error {
+func (s *sender) Close(ctx context.Context) error {
 	err := s.connection.Close()
 	if err != nil {
-		_ = s.session.Close()
-		_ = s.sender.Close()
+		_ = s.session.Close(ctx)
+		_ = s.sender.Close(ctx)
 		return err
 	}
-	err = s.session.Close()
+	err = s.session.Close(ctx)
 	if err != nil {
-		_ = s.sender.Close()
+		_ = s.sender.Close(ctx)
 		return err
 	}
-	return s.sender.Close()
+	return s.sender.Close(ctx)
 }
 
 // Send will send a message to the entity path with options
 //
 // This will retry sending the message if the server responds with a busy error.
-func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption) error {
-	s.prepareMessage(msg)
+func (s *sender) Send(ctx context.Context, event *Event, opts ...SendOption) error {
+	span, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.Send")
+	defer span.Finish()
 
 	for _, opt := range opts {
-		err := opt(msg)
+		err := opt(event)
 		if err != nil {
 			return err
 		}
 	}
 
-	if msg.Properties.MessageID == nil {
+	if event.ID == "" {
 		id, err := uuid.NewV4()
 		if err != nil {
 			return err
 		}
-		msg.Properties.MessageID = id.String()
+		event.ID = id.String()
 	}
+
+	return s.trySend(ctx, event)
+}
+
+func (s *sender) trySend(ctx context.Context, evt eventer) error {
+	sp, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.trySend")
+	defer sp.Finish()
 
 	times := 3
 	delay := 10 * time.Second
@@ -110,25 +130,34 @@ func (s *sender) Send(ctx context.Context, msg *amqp.Message, opts ...SendOption
 		times = max(times, 1) // give at least one chance at sending
 	}
 	_, err := common.Retry(times, delay, func() (interface{}, error) {
+		sp, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.trySend.transmit")
+		defer sp.Finish()
+
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
 			innerCtx, cancel := context.WithTimeout(ctx, durationOfSend)
 			defer cancel()
-			err := s.sender.Send(innerCtx, msg)
 
+			err := opentracing.GlobalTracer().Inject(sp.Context(), opentracing.TextMap, evt)
 			if err != nil {
-				log.Warnln("recovering...", err)
+				log.For(ctx).Error(err)
+				return nil, err
+			}
+
+			msg := evt.toMsg()
+			sp.SetTag("eventhub.message-id", msg.Properties.MessageID)
+			err = s.sender.Send(innerCtx, msg)
+			if err != nil {
 				recoverErr := s.Recover(ctx)
 				if recoverErr != nil {
-					log.Errorln(recoverErr)
+					log.For(ctx).Error(recoverErr)
 				}
 			}
 
 			if amqpErr, ok := err.(*amqp.Error); ok {
 				if amqpErr.Condition == "com.microsoft:server-busy" {
-					log.Warnln("retrying... ", amqpErr)
 					return nil, common.Retryable(amqpErr.Condition)
 				}
 			}
@@ -150,41 +179,43 @@ func (s *sender) getAddress() string {
 	return s.hub.name
 }
 
-func (s *sender) prepareMessage(msg *amqp.Message) {
-	if msg.Properties == nil {
-		msg.Properties = &amqp.MessageProperties{}
-	}
-
-	if msg.Annotations == nil {
-		msg.Annotations = make(map[interface{}]interface{})
-	}
+func (s *sender) getFullIdentifier() string {
+	return s.hub.namespace.getEntityAudience(s.getAddress())
 }
 
 // newSessionAndLink will replace the existing session and link
 func (s *sender) newSessionAndLink(ctx context.Context) error {
+	span, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.newSessionAndLink")
+	defer span.Finish()
+
 	connection, err := s.hub.namespace.newConnection()
 	if err != nil {
+		log.For(ctx).Error(err)
 		return err
 	}
 	s.connection = connection
 
 	err = s.hub.namespace.negotiateClaim(ctx, connection, s.getAddress())
 	if err != nil {
+		log.For(ctx).Error(err)
 		return err
 	}
 
 	amqpSession, err := connection.NewSession()
 	if err != nil {
+		log.For(ctx).Error(err)
 		return err
 	}
 
 	amqpSender, err := amqpSession.NewSender(amqp.LinkTargetAddress(s.getAddress()))
 	if err != nil {
+		log.For(ctx).Error(err)
 		return err
 	}
 
 	s.session, err = newSession(amqpSession)
 	if err != nil {
+		log.For(ctx).Error(err)
 		return err
 	}
 
@@ -194,8 +225,8 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 
 // SendWithMessageID configures the message with a message ID
 func SendWithMessageID(messageID string) SendOption {
-	return func(msg *amqp.Message) error {
-		msg.Properties.MessageID = messageID
+	return func(event *Event) error {
+		event.ID = messageID
 		return nil
 	}
 }

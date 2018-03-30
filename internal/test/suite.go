@@ -29,6 +29,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
@@ -60,6 +61,7 @@ type (
 		SubscriptionID string
 		Namespace      string
 		Env            azure.Environment
+		TagID          string
 	}
 
 	// HubMgmtOption represents an option for configuring an Event Hub.
@@ -95,6 +97,7 @@ func (suite *BaseSuite) SetupSuite() {
 	suite.SubscriptionID = mustGetEnv("AZURE_SUBSCRIPTION_ID")
 	suite.Namespace = mustGetEnv("EVENTHUB_NAMESPACE")
 	envName := os.Getenv("AZURE_ENVIRONMENT")
+	suite.TagID = RandomString("tag", 10)
 
 	if envName == "" {
 		suite.Env = azure.PublicCloud
@@ -116,6 +119,9 @@ func (suite *BaseSuite) SetupSuite() {
 // TearDownSuite might one day destroy all of the resources in the suite, but I'm not sure we want to do that just yet...
 func (suite *BaseSuite) TearDownSuite() {
 	// maybe tear down all existing resource??
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	suite.deleteAllTaggedEventHubs(ctx)
 }
 
 // EnsureEventHub creates an Event Hub if it doesn't exist
@@ -151,6 +157,23 @@ func (suite *BaseSuite) DeleteEventHub(ctx context.Context, name string) error {
 	client := suite.getEventHubMgmtClient()
 	_, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, name)
 	return err
+}
+
+func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
+	client := suite.getEventHubMgmtClient()
+	res, err := client.ListByNamespace(ctx, ResourceGroupName, suite.Namespace)
+	if err != nil {
+		suite.FailNow(err.Error())
+	}
+
+	for res.NotDone() {
+		for _, val := range res.Values() {
+			if strings.Contains(suite.TagID, *val.Name) {
+				client.Delete(ctx, ResourceGroupName, suite.Namespace, *val.Name)
+			}
+		}
+		res.Next()
+	}
 }
 
 func (suite *BaseSuite) ensureProvisioned(tier mgmt.SkuTier) error {
@@ -277,8 +300,13 @@ func mustGetEnv(key string) string {
 	return v
 }
 
-// RandomName generates a random Event Hub name
-func RandomName(prefix string, length int) string {
+// RandomName generates a random Event Hub name tagged with the suite id
+func (suite *BaseSuite) RandomName(prefix string, length int) string {
+	return RandomString(prefix, length) + "-" + suite.TagID
+}
+
+// RandomString generates a random string with prefix
+func RandomString(prefix string, length int) string {
 	b := make([]rune, length)
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]

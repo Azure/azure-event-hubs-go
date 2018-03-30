@@ -41,20 +41,23 @@ type (
 	Event struct {
 		Data         []byte
 		PartitionKey *string
+		Properties   map[string]interface{}
+		ID           string
 		message      *amqp.Message
 	}
 
 	// EventBatch is a batch of Event Hubs messages to be sent
 	EventBatch struct {
-		Events []*Event
+		Events       []*Event
+		PartitionKey *string
+		Properties   map[string]interface{}
+		ID           string
 	}
 )
 
 // NewEventFromString builds an Event from a string message
 func NewEventFromString(message string) *Event {
-	return &Event{
-		Data: []byte(message),
-	}
+	return NewEvent([]byte(message))
 }
 
 // NewEvent builds an Event from a slice of data
@@ -68,13 +71,6 @@ func NewEvent(data []byte) *Event {
 func NewEventBatch(events []*Event) *EventBatch {
 	return &EventBatch{
 		Events: events,
-	}
-}
-
-func newEvent(data []byte, msg *amqp.Message) *Event {
-	return &Event{
-		Data:    data,
-		message: msg,
 	}
 }
 
@@ -98,30 +94,88 @@ func (e *Event) GetCheckpoint() persist.Checkpoint {
 	return persist.NewCheckpoint(offset, sequenceNumber, enqueueTime)
 }
 
+// Set implements opentracing.TextMapWriter and sets properties on the event to be propagated to the message broker
+func (e *Event) Set(key, value string) {
+	if e.Properties == nil {
+		e.Properties = make(map[string]interface{})
+	}
+	e.Properties[key] = value
+}
+
+// ForeachKey implements the opentracing.TextMapReader and gets properties on the event to be propagated from the message broker
+func (e *Event) ForeachKey(handler func(key string, val interface{}) error) error {
+	for key, value := range e.Properties {
+		err := handler(key, value)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (e *Event) toMsg() *amqp.Message {
-	msg := amqp.NewMessage(e.Data)
+	msg := e.message
+	if msg == nil {
+		msg = amqp.NewMessage(e.Data)
+	}
+
+	msg.Properties = &amqp.MessageProperties{
+		MessageID: e.ID,
+	}
+
+	if len(e.Properties) > 0 {
+		msg.ApplicationProperties = make(map[string]interface{})
+		for key, value := range e.Properties {
+			msg.ApplicationProperties[key] = value
+		}
+	}
+
 	if e.PartitionKey != nil {
+		msg.Annotations = make(amqp.Annotations)
 		msg.Annotations[partitionKeyAnnotationName] = e.PartitionKey
 	}
 	return msg
 }
 
-func (b *EventBatch) toMsg() (*amqp.Message, error) {
-	msg := new(amqp.Message)
-	data := make([][]byte, len(b.Events))
+func (b *EventBatch) toEvent() (*Event, error) {
+	msg := &amqp.Message{
+		Data: make([][]byte, len(b.Events)),
+		Properties: &amqp.MessageProperties{
+			MessageID: b.ID,
+		},
+		Format: batchMessageFormat,
+	}
+
 	for idx, event := range b.Events {
 		innerMsg := amqp.NewMessage(event.Data)
 		bin, err := innerMsg.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}
-		data[idx] = bin
+		msg.Data[idx] = bin
 	}
-	msg.Data = data
-	msg.Format = batchMessageFormat
-	return msg, nil
+
+	return eventFromMsg(msg), nil
 }
 
 func eventFromMsg(msg *amqp.Message) *Event {
 	return newEvent(msg.Data[0], msg)
+}
+
+func newEvent(data []byte, msg *amqp.Message) *Event {
+	event := &Event{
+		Data:    data,
+		message: msg,
+	}
+
+	if msg.Properties != nil {
+		if id, ok := msg.Properties.MessageID.(string); ok {
+			event.ID = id
+		}
+	}
+
+	if msg != nil {
+		event.Properties = msg.ApplicationProperties
+	}
+	return event
 }
