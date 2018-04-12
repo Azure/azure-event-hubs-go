@@ -52,7 +52,7 @@ func TestEventHub(t *testing.T) {
 
 func (suite *eventHubSuite) TestSasToken() {
 	tests := map[string]func(*testing.T, *Hub, []string, string){
-		//"TestMultiSendAndReceive":            testMultiSendAndReceive,
+		"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
