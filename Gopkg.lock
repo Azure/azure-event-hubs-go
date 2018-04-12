@@ -2,7 +2,6 @@
 
 
 [[projects]]
-  branch = "opentracing"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -18,8 +17,8 @@
     "sas",
     "uuid"
   ]
-  revision = "21443404cd39ff55a7255ac66696ad7c50e54ae9"
-  source = "github.com/devigned/azure-amqp-common-go"
+  revision = "1c6a1aad33e838352e517809d114093d7ae9367f"
+  version = "v0.3.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -157,6 +156,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5fe591074f5d52381d46066f01d3d76465237f993af722f935d4de3659a7a7c1"
+  inputs-digest = "703d06b41ca1edac6ca5c8c91e1ff7f0528cd80b32ef84007f43f347b4bb1ffe"
   solver-name = "gps-cdcl"
   solver-version = 1
