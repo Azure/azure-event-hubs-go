@@ -311,5 +311,5 @@ func RandomString(prefix string, length int) string {
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	return prefix + "-" + string(b)
+	return prefix + string(b)
 }

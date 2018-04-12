@@ -25,7 +25,6 @@ package eph
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"testing"
 	"time"
@@ -123,7 +122,7 @@ func (s *testSuite) TestMultiple() {
 				partitionMap[partitions[0]] = true
 			}
 		}
-		log.Println(partitionMap)
+		//printMap(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -152,7 +151,8 @@ func (s *testSuite) TestMultiple() {
 				partitionMap[partition] = true
 			}
 		}
-		log.Println(partitionMap)
+
+		//printMap(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -213,7 +213,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, che
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	processor, err := New(ctx, s.Namespace, hubName, provider, leaser, checkpointer)
+	processor, err := New(ctx, s.Namespace, hubName, provider, leaser, checkpointer, WithNoBanner())
 	if err != nil {
 		return nil, err
 	}
@@ -274,3 +274,15 @@ func newPartitionMap(partitionIDs []string) map[string]bool {
 	}
 	return partitionMap
 }
+
+//func printMap(idsByBool map[string]bool) {
+//	strs := make([]string, len(idsByBool))
+//	for i := 0; i < len(idsByBool); i++ {
+//		tf := "F"
+//		if idsByBool[strconv.Itoa(i)] {
+//			tf = "T"
+//		}
+//		strs[i] = fmt.Sprintf("%d:%s", i, tf)
+//	}
+//	fmt.Println(strings.Join(strs, ", "))
+//}

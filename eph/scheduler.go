@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/log"
+	"github.com/opentracing/opentracing-go"
 )
 
 var (
@@ -37,10 +38,13 @@ var (
 
 const (
 	// DefaultLeaseRenewalInterval defines the default amount of time between lease renewal attempts
-	DefaultLeaseRenewalInterval = 10 * time.Second
+	DefaultLeaseRenewalInterval = 15 * time.Second
 
 	// DefaultLeaseDuration defines the default amount of time a lease is valid
-	DefaultLeaseDuration = 30 * time.Second
+	DefaultLeaseDuration = 45 * time.Second
+
+	partitionIDTag = "eph.receiver.partitionID"
+	epochTag = "eph.receiver.epoch"
 )
 
 type (
@@ -65,10 +69,10 @@ func newScheduler(eventHostProcessor *EventProcessorHost) *scheduler {
 	}
 }
 
-func (s *scheduler) Run() {
-	ctx, done := context.WithCancel(context.Background())
+func (s *scheduler) Run(ctx context.Context) {
+	ctx, done := context.WithCancel(ctx)
 	s.done = done
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Run")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Run")
 	defer span.Finish()
 
 	for {
@@ -85,7 +89,7 @@ func (s *scheduler) Run() {
 }
 
 func (s *scheduler) scan(ctx context.Context) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.scan")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.scan")
 	defer span.Finish()
 
 	s.dlog(ctx, "running scan")
@@ -148,6 +152,9 @@ func (s *scheduler) scan(ctx context.Context) {
 }
 
 func (s *scheduler) Stop(ctx context.Context) error {
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Stop")
+	defer span.Finish()
+
 	if s.done != nil {
 		s.done()
 	}
@@ -164,7 +171,7 @@ func (s *scheduler) Stop(ctx context.Context) error {
 }
 
 func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.startReceiver")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.startReceiver")
 	defer span.Finish()
 
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
@@ -183,9 +190,11 @@ func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error 
 }
 
 func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.stopReceiver")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.stopReceiver")
 	defer span.Finish()
 
+	span.SetTag(partitionIDTag, lease.GetPartitionID())
+	span.SetTag(epochTag, lease.GetEpoch())
 	s.dlog(ctx, fmt.Sprintf("stopping receiver for partitionID %q", lease.GetPartitionID()))
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		err := receiver.Close(ctx)
@@ -198,7 +207,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 }
 
 func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMarker) (acquired []LeaseMarker, notAcquired []LeaseMarker, err error) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.acquireExpiredLeases")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.acquireExpiredLeases")
 	defer span.Finish()
 
 	for _, lease := range leases {
@@ -260,4 +269,10 @@ func leasesByOwner(candidates []LeaseMarker) map[string][]LeaseMarker {
 		}
 	}
 	return byOwner
+}
+
+func (s *scheduler) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	span, ctx := startConsumerSpanFromContext(ctx, operationName, opts...)
+	span.SetTag("eph.id", s.processor.name)
+	return span, ctx
 }

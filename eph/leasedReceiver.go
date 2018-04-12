@@ -30,6 +30,7 @@ import (
 
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-event-hubs-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )
 
@@ -50,15 +51,21 @@ func newLeasedReceiver(processor *EventProcessorHost, lease LeaseMarker) *leased
 }
 
 func (lr *leasedReceiver) Run(ctx context.Context) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.Run")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.Run")
 	defer span.Finish()
 
 	partitionID := lr.lease.GetPartitionID()
 	epoch := lr.lease.GetEpoch()
 	lr.dlog(ctx, "running...")
-	ctx, done := context.WithCancel(context.Background())
-	lr.done = done
-	go lr.periodicallyRenewLease(ctx)
+
+	go func() {
+		ctx, done := context.WithCancel(context.Background())
+		lr.done = done
+		span := opentracing.StartSpan("eventhub.eph.leasedReceiver.Run.startLeaseRenew", opentracing.FollowsFrom(span.Context()))
+		ctx = opentracing.ContextWithSpan(ctx, span)
+		lr.periodicallyRenewLease(ctx)
+	}()
+
 	handle, err := lr.processor.client.Receive(ctx, partitionID, lr.processor.compositeHandlers(), eventhub.ReceiveWithEpoch(epoch))
 	if err != nil {
 		return err
@@ -69,6 +76,9 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 }
 
 func (lr *leasedReceiver) Close(ctx context.Context) error {
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.Close")
+	defer span.Finish()
+
 	if lr.done != nil {
 		lr.done()
 	}
@@ -90,7 +100,7 @@ func (lr *leasedReceiver) listenForClose() {
 }
 
 func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.periodicallyRenewLease")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.periodicallyRenewLease")
 	defer span.Finish()
 
 	for {
@@ -109,7 +119,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 }
 
 func (lr *leasedReceiver) tryRenew(ctx context.Context) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.tryRenew")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.tryRenew")
 	defer span.Finish()
 
 	lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease.GetPartitionID())
@@ -129,4 +139,12 @@ func (lr *leasedReceiver) dlog(ctx context.Context, msg string) {
 	partitionID := lr.lease.GetPartitionID()
 	epoch := lr.lease.GetEpoch()
 	log.For(ctx).Debug(fmt.Sprintf("eph %q, partition %q, epoch %d: "+msg, name, partitionID, epoch))
+}
+
+func (lr *leasedReceiver) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	span, ctx := startConsumerSpanFromContext(ctx, operationName, opts...)
+	span.SetTag("eph.id", lr.processor.name)
+	span.SetTag(partitionIDTag, lr.lease.GetPartitionID())
+	span.SetTag(epochTag, lr.lease.GetEpoch())
+	return span, ctx
 }

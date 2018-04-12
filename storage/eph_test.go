@@ -25,7 +25,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -129,7 +128,7 @@ func (ts *testSuite) TestMultiple() {
 				partitionMap[partitions[0]] = true
 			}
 		}
-		log.Println(partitionMap)
+		//log.Println(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -158,7 +157,7 @@ func (ts *testSuite) TestMultiple() {
 				partitionMap[partition] = true
 			}
 		}
-		log.Println(partitionMap)
+		//log.Println(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -247,7 +246,7 @@ func (ts *testSuite) newStorageBackedEPHOptions(hubName string, leaser eph.Lease
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	processor, err := eph.New(ctx, ts.Namespace, hubName, provider, leaser, checkpointer)
+	processor, err := eph.New(ctx, ts.Namespace, hubName, provider, leaser, checkpointer, eph.WithNoBanner())
 	if err != nil {
 		return nil, err
 	}

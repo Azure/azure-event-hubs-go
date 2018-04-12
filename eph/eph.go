@@ -69,6 +69,7 @@ type (
 		hostMu        sync.Mutex
 		handlersMu    sync.Mutex
 		partitionIDs  []string
+		noBanner      bool
 	}
 
 	// EventProcessorHostOption provides configuration options for an EventProcessorHost
@@ -83,6 +84,14 @@ type (
 		checkpointer Checkpointer
 	}
 )
+
+// WithNoBanner will configure an EventProcessorHost to not output the banner upon start
+func WithNoBanner() EventProcessorHostOption {
+	return func(host *EventProcessorHost) error {
+		host.noBanner = true
+		return nil
+	}
+}
 
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
@@ -115,6 +124,7 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		leaser:        leaser,
 		checkpointer:  checkpointer,
 		partitionIDs:  runtimeInfo.PartitionIDs,
+		noBanner:      false,
 	}
 
 	for _, opt := range opts {
@@ -153,12 +163,20 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.Start")
 	defer span.Finish()
 
-	fmt.Print(banner)
-	fmt.Println(exitPrompt)
+	if !h.noBanner {
+		fmt.Print(banner)
+		fmt.Println(exitPrompt)
+	}
+
 	if err := h.setup(ctx); err != nil {
 		return err
 	}
-	go h.scheduler.Run()
+
+	go func() {
+		span := opentracing.SpanFromContext(ctx)
+		ctx := opentracing.ContextWithSpan(context.Background(), span)
+		h.scheduler.Run(ctx)
+	}()
 
 	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
@@ -172,11 +190,20 @@ func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.StartNonBlocking")
 	defer span.Finish()
 
-	fmt.Print(banner)
+	if !h.noBanner {
+		fmt.Print(banner)
+	}
+
 	if err := h.setup(ctx); err != nil {
 		return err
 	}
-	go h.scheduler.Run()
+
+	go func() {
+		span := opentracing.SpanFromContext(ctx)
+		ctx := opentracing.ContextWithSpan(context.Background(), span)
+		h.scheduler.Run(ctx)
+	}()
+
 	return nil
 }
 
@@ -203,7 +230,9 @@ func (h *EventProcessorHost) PartitionIDsBeingProcessed() []string {
 
 // Close stops the EventHostProcessor from processing messages
 func (h *EventProcessorHost) Close(ctx context.Context) error {
-	fmt.Println("shutting down...")
+	if !h.noBanner {
+		fmt.Println("shutting down...")
+	}
 	if h.scheduler != nil {
 		if err := h.scheduler.Stop(ctx); err != nil {
 			if h.client != nil {
@@ -285,6 +314,6 @@ func (c checkpointPersister) Read(namespace, name, consumerGroup, partitionID st
 func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, operationName, opts...)
 	eventhub.ApplyComponentInfo(span)
-	tag.SpanKindRPCClient.Set(span)
+	tag.SpanKindConsumer.Set(span)
 	return span, ctx
 }
