@@ -44,7 +44,7 @@ const (
 	DefaultLeaseDuration = 45 * time.Second
 
 	partitionIDTag = "eph.receiver.partitionID"
-	epochTag = "eph.receiver.epoch"
+	epochTag       = "eph.receiver.epoch"
 )
 
 type (

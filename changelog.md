@@ -1,5 +1,9 @@
 # Change Log
 
+## `v0.2.0`
+- add opentracing support
+- add context to close functions (breaking change)
+
 ## `v0.1.2`
 - remove an extraneous dependency on satori/uuid
 
