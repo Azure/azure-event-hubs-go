@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/cbs"
 	"github.com/Azure/go-autorest/autorest/azure"
-	log "github.com/sirupsen/logrus"
 	"pack.ag/amqp"
 )
 
@@ -38,7 +37,6 @@ type (
 		name          string
 		tokenProvider auth.TokenProvider
 		environment   azure.Environment
-		Logger        *log.Logger
 	}
 )
 
@@ -47,9 +45,7 @@ func newNamespace(name string, tokenProvider auth.TokenProvider, env azure.Envir
 		name:          name,
 		tokenProvider: tokenProvider,
 		environment:   env,
-		Logger:        log.New(),
 	}
-	ns.Logger.SetLevel(log.WarnLevel)
 
 	return ns
 }
@@ -60,7 +56,7 @@ func (ns *namespace) newConnection() (*amqp.Client, error) {
 		amqp.ConnSASLAnonymous(),
 		amqp.ConnMaxSessions(65535),
 		amqp.ConnProperty("product", "MSGolangClient"),
-		amqp.ConnProperty("version", "0.0.1"),
+		amqp.ConnProperty("version", Version),
 		amqp.ConnProperty("platform", runtime.GOOS),
 		amqp.ConnProperty("framework", runtime.Version()),
 		amqp.ConnProperty("user-agent", rootUserAgent),
@@ -68,6 +64,9 @@ func (ns *namespace) newConnection() (*amqp.Client, error) {
 }
 
 func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Client, entityPath string) error {
+	span, ctx := ns.startSpanFromContext(ctx, "eventhub.namespace.negotiateClaim")
+	defer span.Finish()
+
 	audience := ns.getEntityAudience(entityPath)
 	return cbs.NegotiateClaim(ctx, audience, conn, ns.tokenProvider)
 }

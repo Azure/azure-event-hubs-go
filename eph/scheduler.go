@@ -28,7 +28,8 @@ import (
 	"math/rand"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/Azure/azure-amqp-common-go/log"
+	"github.com/opentracing/opentracing-go"
 )
 
 var (
@@ -37,10 +38,13 @@ var (
 
 const (
 	// DefaultLeaseRenewalInterval defines the default amount of time between lease renewal attempts
-	DefaultLeaseRenewalInterval = 10 * time.Second
+	DefaultLeaseRenewalInterval = 15 * time.Second
 
 	// DefaultLeaseDuration defines the default amount of time a lease is valid
-	DefaultLeaseDuration = 30 * time.Second
+	DefaultLeaseDuration = 45 * time.Second
+
+	partitionIDTag = "eph.receiver.partitionID"
+	epochTag       = "eph.receiver.epoch"
 )
 
 type (
@@ -65,79 +69,92 @@ func newScheduler(eventHostProcessor *EventProcessorHost) *scheduler {
 	}
 }
 
-func (s *scheduler) Run() {
-	ctx, done := context.WithCancel(context.Background())
+func (s *scheduler) Run(ctx context.Context) {
+	ctx, done := context.WithCancel(ctx)
 	s.done = done
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Run")
+	defer span.Finish()
+
 	for {
 		select {
 		case <-ctx.Done():
-			s.dlog("shutting down scan")
+			s.dlog(ctx, "shutting down scan")
 			return
 		default:
-			s.dlog("running scan")
-			// fetch updated view of all leases
-			leaseCtx, cancel := context.WithTimeout(ctx, timeout)
-			allLeases, err := s.processor.leaser.GetLeases(leaseCtx)
-			cancel()
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-
-			// try to acquire any leases that have expired
-			acquired, notAcquired, err := s.acquireExpiredLeases(ctx, allLeases)
-			s.dlog(fmt.Sprintf("acquired: %v, not acquired: %v", acquired, notAcquired))
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-
-			// start receiving message from newly acquired partitions
-			for _, lease := range acquired {
-				s.startReceiver(ctx, lease)
-			}
-
-			// calculate the number of leases we own including the newly acquired partitions
-			byOwner := leasesByOwner(notAcquired)
-			var countOwnedByMe int
-			if val, ok := byOwner[s.processor.name]; ok {
-				countOwnedByMe = len(val)
-			}
-			countOwnedByMe += len(acquired)
-
-			// gather all of the leases owned by others
-			var leasesOwnedByOthers []LeaseMarker
-			for key, value := range byOwner {
-				if key != s.processor.name {
-					leasesOwnedByOthers = append(leasesOwnedByOthers, value...)
-				}
-			}
-
-			// try to steal work away from others if work has become imbalanced
-			if candidate, ok := leaseToSteal(leasesOwnedByOthers, countOwnedByMe); ok {
-				s.dlog(fmt.Sprintf("attempting to steal: %v", candidate))
-				acquireCtx, cancel := context.WithTimeout(ctx, timeout)
-				stolen, ok, err := s.processor.leaser.AcquireLease(acquireCtx, candidate.GetPartitionID())
-				cancel()
-				switch {
-				case err != nil:
-					log.Error(err)
-					break
-				case !ok:
-					s.dlog(fmt.Sprintf("failed to steal: %v", candidate))
-					break
-				default:
-					s.dlog(fmt.Sprintf("stole: %v", stolen))
-					s.startReceiver(ctx, stolen)
-				}
-			}
+			s.scan(ctx)
 			skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
 			time.Sleep(s.leaseRenewalInterval + skew)
 		}
 	}
 }
 
-func (s *scheduler) Stop() error {
+func (s *scheduler) scan(ctx context.Context) {
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.scan")
+	defer span.Finish()
+
+	s.dlog(ctx, "running scan")
+	// fetch updated view of all leases
+	leaseCtx, cancel := context.WithTimeout(ctx, timeout)
+	allLeases, err := s.processor.leaser.GetLeases(leaseCtx)
+	cancel()
+	if err != nil {
+		log.For(ctx).Error(err)
+		return
+	}
+
+	// try to acquire any leases that have expired
+	acquired, notAcquired, err := s.acquireExpiredLeases(ctx, allLeases)
+	s.dlog(ctx, fmt.Sprintf("acquired: %v, not acquired: %v", acquired, notAcquired))
+	if err != nil {
+		log.For(ctx).Error(err)
+		return
+	}
+
+	// start receiving message from newly acquired partitions
+	for _, lease := range acquired {
+		s.startReceiver(ctx, lease)
+	}
+
+	// calculate the number of leases we own including the newly acquired partitions
+	byOwner := leasesByOwner(notAcquired)
+	var countOwnedByMe int
+	if val, ok := byOwner[s.processor.name]; ok {
+		countOwnedByMe = len(val)
+	}
+	countOwnedByMe += len(acquired)
+
+	// gather all of the leases owned by others
+	var leasesOwnedByOthers []LeaseMarker
+	for key, value := range byOwner {
+		if key != s.processor.name {
+			leasesOwnedByOthers = append(leasesOwnedByOthers, value...)
+		}
+	}
+
+	// try to steal work away from others if work has become imbalanced
+	if candidate, ok := leaseToSteal(leasesOwnedByOthers, countOwnedByMe); ok {
+		s.dlog(ctx, fmt.Sprintf("attempting to steal: %v", candidate))
+		acquireCtx, cancel := context.WithTimeout(ctx, timeout)
+		stolen, ok, err := s.processor.leaser.AcquireLease(acquireCtx, candidate.GetPartitionID())
+		cancel()
+		switch {
+		case err != nil:
+			log.For(ctx).Error(err)
+			break
+		case !ok:
+			s.dlog(ctx, fmt.Sprintf("failed to steal: %v", candidate))
+			break
+		default:
+			s.dlog(ctx, fmt.Sprintf("stole: %v", stolen))
+			s.startReceiver(ctx, stolen)
+		}
+	}
+}
+
+func (s *scheduler) Stop(ctx context.Context) error {
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Stop")
+	defer span.Finish()
+
 	if s.done != nil {
 		s.done()
 	}
@@ -145,8 +162,7 @@ func (s *scheduler) Stop() error {
 	// close all receivers even if errors occur reporting only the last error, but logging all
 	var lastErr error
 	for _, lr := range s.receivers {
-		if err := lr.Close(); err != nil {
-			log.Error(err)
+		if err := lr.Close(ctx); err != nil {
 			lastErr = err
 		}
 	}
@@ -155,10 +171,13 @@ func (s *scheduler) Stop() error {
 }
 
 func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error {
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.startReceiver")
+	defer span.Finish()
+
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		// receiver thinks it's already running... this is probably a bug if it happens
-		if err := receiver.Close(); err != nil {
-			log.Error(err)
+		if err := receiver.Close(ctx); err != nil {
+			log.For(ctx).Error(err)
 		}
 		delete(s.receivers, lease.GetPartitionID())
 	}
@@ -171,9 +190,14 @@ func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error 
 }
 
 func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
-	s.dlog(fmt.Sprintf("stopping receiver for partitionID %q", lease.GetPartitionID()))
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.stopReceiver")
+	defer span.Finish()
+
+	span.SetTag(partitionIDTag, lease.GetPartitionID())
+	span.SetTag(epochTag, lease.GetEpoch())
+	s.dlog(ctx, fmt.Sprintf("stopping receiver for partitionID %q", lease.GetPartitionID()))
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
-		err := receiver.Close()
+		err := receiver.Close(ctx)
 		delete(s.receivers, lease.GetPartitionID())
 		if err != nil {
 			return err
@@ -183,6 +207,9 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 }
 
 func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMarker) (acquired []LeaseMarker, notAcquired []LeaseMarker, err error) {
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.acquireExpiredLeases")
+	defer span.Finish()
+
 	for _, lease := range leases {
 		if lease.IsExpired(ctx) {
 			acquireCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -204,9 +231,9 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMark
 	return acquired, notAcquired, nil
 }
 
-func (s *scheduler) dlog(msg string) {
+func (s *scheduler) dlog(ctx context.Context, msg string) {
 	name := s.processor.name
-	log.Debugf("eph %q: "+msg, name)
+	log.For(ctx).Debug(fmt.Sprintf("eph %q: "+msg, name))
 }
 
 func leaseToSteal(candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {
@@ -242,4 +269,10 @@ func leasesByOwner(candidates []LeaseMarker) map[string][]LeaseMarker {
 		}
 	}
 	return byOwner
+}
+
+func (s *scheduler) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	span, ctx := startConsumerSpanFromContext(ctx, operationName, opts...)
+	span.SetTag("eph.id", s.processor.name)
+	return span, ctx
 }

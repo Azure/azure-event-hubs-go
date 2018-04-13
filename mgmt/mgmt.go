@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/rpc"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/mitchellh/mapstructure"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"pack.ag/amqp"
 )
@@ -90,6 +91,9 @@ func NewClient(namespace, hubName string, provider auth.TokenProvider, env azure
 
 // GetHubRuntimeInformation requests runtime information for an Event Hub
 func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "eventhub.mgmt.Client.GetHubRuntimeInformation")
+	defer span.Finish()
+
 	rpcLink, err := rpc.NewLink(conn, address)
 	if err != nil {
 		return nil, err
@@ -121,6 +125,9 @@ func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 
 // GetHubPartitionRuntimeInformation fetches runtime information from the AMQP management node for a given partition
 func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "eventhub.mgmt.Client.GetHubPartitionRuntimeInformation")
+	defer span.Finish()
+
 	rpcLink, err := rpc.NewLink(conn, address)
 	if err != nil {
 		return nil, err
@@ -152,13 +159,11 @@ func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *am
 }
 
 func (c *Client) addSecurityToken(msg *amqp.Message) (*amqp.Message, error) {
-	// TODO (devigned): need to uncomment this functionality after getting some guidance from the Event Hubs team (only works for SAS tokens right now)
-
-	//token, err := c.tokenProvider.GetToken(c.getTokenAudience())
-	//if err != nil {
-	//	return nil, err
-	//}
-	//msg.ApplicationProperties[securityTokenKey] = token.Token
+	token, err := c.tokenProvider.GetToken(c.getTokenAudience())
+	if err != nil {
+		return nil, err
+	}
+	msg.ApplicationProperties[securityTokenKey] = token.Token
 
 	return msg, nil
 }

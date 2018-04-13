@@ -9,13 +9,16 @@
     "auth",
     "cbs",
     "conn",
+    "internal",
+    "internal/tracing",
+    "log",
     "persist",
     "rpc",
     "sas",
     "uuid"
   ]
-  revision = "0ee06365aa0b8ed18e749e41a4dfa431f66d52f9"
-  version = "v0.2.4"
+  revision = "1c6a1aad33e838352e517809d114093d7ae9367f"
+  version = "v0.3.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -31,8 +34,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "56a0b1d2af3b65d5f1f7a330e02faaf48b473c5a"
-  version = "v14.6.0"
+  revision = "51228ee60b238eaa5a9d53adc82ebd8b321bca4f"
+  version = "v15.1.1"
 
 [[projects]]
   branch = "master"
@@ -51,8 +54,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "ed4b7f5bf1ec0c9ede1fda2681d96771282f2862"
-  version = "v10.4.0"
+  revision = "9ad9326b278af8fa5cc67c30c0ce9a58cc0862b2"
+  version = "v10.6.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -73,16 +76,20 @@
   revision = "6c6132ff69f0f6c088739067407b5d32c52e1d0f"
 
 [[projects]]
-  name = "github.com/inconshreveable/mousetrap"
-  packages = ["."]
-  revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
-  version = "v1.0"
-
-[[projects]]
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
+
+[[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "ext",
+    "log"
+  ]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -103,18 +110,6 @@
   version = "v1.0.5"
 
 [[projects]]
-  name = "github.com/spf13/cobra"
-  packages = ["."]
-  revision = "a1f051bc3eba734da4772d60e2d677f47cf93ef4"
-  version = "v0.0.2"
-
-[[projects]]
-  name = "github.com/spf13/pflag"
-  packages = ["."]
-  revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
-  version = "v1.0.0"
-
-[[projects]]
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
@@ -132,7 +127,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
+  revision = "d6449816ce06963d9d136eee5a56fca5b0616e7e"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "61147c48b25b599e5b561d2e9c4f3e1ef489ca41"
 
 [[projects]]
   branch = "master"
@@ -141,7 +142,7 @@
     "unix",
     "windows"
   ]
-  revision = "378d26f46672a356c46195c28f61bdb4c0a781dd"
+  revision = "3b87a42e500a6dc65dae1a55d0b641295971163e"
 
 [[projects]]
   branch = "master"
@@ -150,11 +151,11 @@
     ".",
     "internal/testconn"
   ]
-  revision = "7ff561750e9f8f09d73b1d99a27a6d999cba2bcc"
+  revision = "ee6eb7ef6e2355b46a573b0b1799f76259f2ea47"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e02cac290cab7eab430ef251451dc04d47dc57255438dc5ee421864b1b227100"
+  inputs-digest = "703d06b41ca1edac6ca5c8c91e1ff7f0528cd80b32ef84007f43f347b4bb1ffe"
   solver-name = "gps-cdcl"
   solver-version = 1

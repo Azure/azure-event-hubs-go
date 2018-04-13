@@ -25,7 +25,6 @@ package eph
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"testing"
 	"time"
@@ -72,7 +71,11 @@ func (s *testSuite) TestSingle() {
 	})
 
 	processor.StartNonBlocking(context.Background())
-	defer processor.Close()
+	defer func() {
+		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		processor.Close(closeContext)
+		cancel()
+	}()
 
 	waitUntil(s.T(), &wg, 30*time.Second)
 }
@@ -96,7 +99,9 @@ func (s *testSuite) TestMultiple() {
 
 	defer func() {
 		for i := 0; i < numPartitions; i++ {
-			processors[i].Close()
+			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			processors[i].Close(closeContext)
+			cancel()
 		}
 		del()
 	}()
@@ -117,7 +122,7 @@ func (s *testSuite) TestMultiple() {
 				partitionMap[partitions[0]] = true
 			}
 		}
-		log.Println(partitionMap)
+		//printMap(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -127,7 +132,10 @@ func (s *testSuite) TestMultiple() {
 		return
 	}
 
-	processors[numPartitions-1].Close() // close the last partition
+	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	processors[numPartitions-1].Close(closeContext) // close the last partition
+	cancel()
+
 	count = 0
 	for {
 		<-time.After(2 * time.Second)
@@ -143,7 +151,8 @@ func (s *testSuite) TestMultiple() {
 				partitionMap[partition] = true
 			}
 		}
-		log.Println(partitionMap)
+
+		//printMap(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -155,11 +164,15 @@ func (s *testSuite) TestMultiple() {
 
 func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	client := s.newClient(s.T(), hubName)
-	defer client.Close()
+	defer func() {
+		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		client.Close(closeContext)
+		cancel()
+	}()
 
 	messages := make([]string, length)
 	for i := 0; i < length; i++ {
-		messages[i] = test.RandomName("message", 5)
+		messages[i] = s.RandomName("message", 5)
 	}
 
 	events := make([]*eventhub.Event, length)
@@ -175,7 +188,7 @@ func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 }
 
 func (s *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
-	hubName := test.RandomName(prefix, length)
+	hubName := s.RandomName(prefix, length)
 	hub, err := s.EnsureEventHub(context.Background(), hubName)
 	if err != nil {
 		s.T().Fatal(err)
@@ -200,7 +213,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, che
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	processor, err := New(ctx, s.Namespace, hubName, provider, leaser, checkpointer)
+	processor, err := New(ctx, s.Namespace, hubName, provider, leaser, checkpointer, WithNoBanner())
 	if err != nil {
 		return nil, err
 	}
@@ -261,3 +274,15 @@ func newPartitionMap(partitionIDs []string) map[string]bool {
 	}
 	return partitionMap
 }
+
+//func printMap(idsByBool map[string]bool) {
+//	strs := make([]string, len(idsByBool))
+//	for i := 0; i < len(idsByBool); i++ {
+//		tf := "F"
+//		if idsByBool[strconv.Itoa(i)] {
+//			tf = "T"
+//		}
+//		strs[i] = fmt.Sprintf("%d:%s", i, tf)
+//	}
+//	fmt.Println(strings.Join(strs, ", "))
+//}

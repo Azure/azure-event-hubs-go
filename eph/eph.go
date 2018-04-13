@@ -33,10 +33,12 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go"
-	log "github.com/sirupsen/logrus"
+	"github.com/opentracing/opentracing-go"
+	tag "github.com/opentracing/opentracing-go/ext"
 )
 
 const (
@@ -67,6 +69,7 @@ type (
 		hostMu        sync.Mutex
 		handlersMu    sync.Mutex
 		partitionIDs  []string
+		noBanner      bool
 	}
 
 	// EventProcessorHostOption provides configuration options for an EventProcessorHost
@@ -82,8 +85,19 @@ type (
 	}
 )
 
+// WithNoBanner will configure an EventProcessorHost to not output the banner upon start
+func WithNoBanner() EventProcessorHostOption {
+	return func(host *EventProcessorHost) error {
+		host.noBanner = true
+		return nil
+	}
+}
+
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.New")
+	defer span.Finish()
+
 	persister := checkpointPersister{checkpointer: checkpointer}
 	client, err := eventhub.NewHub(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
 	if err != nil {
@@ -110,6 +124,7 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		leaser:        leaser,
 		checkpointer:  checkpointer,
 		partitionIDs:  runtimeInfo.PartitionIDs,
+		noBanner:      false,
 	}
 
 	for _, opt := range opts {
@@ -145,27 +160,50 @@ func (h *EventProcessorHost) Receive(handler eventhub.Handler) (close func() err
 
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
 func (h *EventProcessorHost) Start(ctx context.Context) error {
-	fmt.Println(banner)
-	fmt.Println(exitPrompt)
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.Start")
+	defer span.Finish()
+
+	if !h.noBanner {
+		fmt.Print(banner)
+		fmt.Println(exitPrompt)
+	}
+
 	if err := h.setup(ctx); err != nil {
 		return err
 	}
-	go h.scheduler.Run()
+
+	go func() {
+		span := opentracing.SpanFromContext(ctx)
+		ctx := opentracing.ContextWithSpan(context.Background(), span)
+		h.scheduler.Run(ctx)
+	}()
 
 	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
-	return h.Close()
+	return h.Close(ctx)
 }
 
 // StartNonBlocking begins processing of messages for registered handlers
 func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
-	fmt.Println(banner)
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.StartNonBlocking")
+	defer span.Finish()
+
+	if !h.noBanner {
+		fmt.Print(banner)
+	}
+
 	if err := h.setup(ctx); err != nil {
 		return err
 	}
-	go h.scheduler.Run()
+
+	go func() {
+		span := opentracing.SpanFromContext(ctx)
+		ctx := opentracing.ContextWithSpan(context.Background(), span)
+		h.scheduler.Run(ctx)
+	}()
+
 	return nil
 }
 
@@ -191,39 +229,36 @@ func (h *EventProcessorHost) PartitionIDsBeingProcessed() []string {
 }
 
 // Close stops the EventHostProcessor from processing messages
-func (h *EventProcessorHost) Close() error {
-	fmt.Println("shutting down...")
+func (h *EventProcessorHost) Close(ctx context.Context) error {
+	if !h.noBanner {
+		fmt.Println("shutting down...")
+	}
 	if h.scheduler != nil {
-		if err := h.scheduler.Stop(); err != nil {
-			log.Error(err)
+		if err := h.scheduler.Stop(ctx); err != nil {
 			if h.client != nil {
-				_ = h.client.Close()
+				_ = h.client.Close(ctx)
 			}
 			return err
 		}
 	}
 
 	if h.leaser != nil {
-		if err := h.leaser.Close(); err != nil {
-			log.Errorln(err)
-		}
+		_ = h.leaser.Close()
 	}
 
 	if h.checkpointer != nil {
-		if err := h.checkpointer.Close(); err != nil {
-			log.Errorln(err)
-		}
+		_ = h.checkpointer.Close()
 	}
 
-	if h.client != nil {
-		return h.client.Close()
-	}
-	return nil
+	return h.client.Close(ctx)
 }
 
 func (h *EventProcessorHost) setup(ctx context.Context) error {
 	h.hostMu.Lock()
 	defer h.hostMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.setup")
+	defer span.Finish()
+
 	if h.scheduler == nil {
 		h.leaser.SetEventHostProcessor(h)
 		h.checkpointer.SetEventHostProcessor(h)
@@ -254,7 +289,7 @@ func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 			wg.Add(1)
 			go func(boundHandle eventhub.Handler) {
 				if err := boundHandle(ctx, event); err != nil {
-					log.Error(err)
+					log.For(ctx).Error(err)
 				}
 				wg.Done()
 			}(handle)
@@ -269,8 +304,16 @@ func (c checkpointPersister) Write(namespace, name, consumerGroup, partitionID s
 	defer cancel()
 	return c.checkpointer.UpdateCheckpoint(ctx, partitionID, checkpoint)
 }
+
 func (c checkpointPersister) Read(namespace, name, consumerGroup, partitionID string) (persist.Checkpoint, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	return c.checkpointer.EnsureCheckpoint(ctx, partitionID)
+}
+
+func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, operationName, opts...)
+	eventhub.ApplyComponentInfo(span)
+	tag.SpanKindConsumer.Set(span)
+	return span, ctx
 }

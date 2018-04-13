@@ -25,7 +25,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -41,7 +40,7 @@ import (
 )
 
 func (ts *testSuite) TestSingle() {
-	randomName := strings.ToLower(test.RandomName("gostoreph", 4))
+	randomName := strings.ToLower(ts.RandomName("gostoreph", 4))
 	hub, delHub := ts.ensureRandomHubByName(randomName)
 	delContainer := ts.newTestContainerByName(randomName)
 	defer delContainer()
@@ -51,7 +50,9 @@ func (ts *testSuite) TestSingle() {
 		ts.T().Fatal(err)
 	}
 	defer func() {
-		processor.Close()
+		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		processor.Close(closeContext)
+		cancel()
 		delHub()
 	}()
 
@@ -73,7 +74,7 @@ func (ts *testSuite) TestSingle() {
 }
 
 func (ts *testSuite) TestMultiple() {
-	randomName := strings.ToLower(test.RandomName("gostoreph", 4))
+	randomName := strings.ToLower(ts.RandomName("gostoreph", 4))
 	hub, delHub := ts.ensureRandomHubByName(randomName)
 	delContainer := ts.newTestContainerByName(randomName)
 	defer delContainer()
@@ -104,7 +105,9 @@ func (ts *testSuite) TestMultiple() {
 
 	defer func() {
 		for i := 0; i < numPartitions; i++ {
-			processors[i].Close()
+			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			processors[i].Close(closeContext)
+			cancel()
 		}
 		delHub()
 	}()
@@ -125,7 +128,7 @@ func (ts *testSuite) TestMultiple() {
 				partitionMap[partitions[0]] = true
 			}
 		}
-		log.Println(partitionMap)
+		//log.Println(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -135,7 +138,10 @@ func (ts *testSuite) TestMultiple() {
 		return
 	}
 
-	processors[numPartitions-1].Close() // close the last partition
+	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	processors[numPartitions-1].Close(closeContext) // close the last partition
+	cancel()
+
 	count = 0
 	for {
 		<-time.After(2 * time.Second)
@@ -151,7 +157,7 @@ func (ts *testSuite) TestMultiple() {
 				partitionMap[partition] = true
 			}
 		}
-		log.Println(partitionMap)
+		//log.Println(partitionMap)
 		if allTrue(partitionMap) {
 			break
 		}
@@ -190,17 +196,21 @@ func (ts *testSuite) newTestContainerByName(containerName string) func() {
 }
 
 func (ts *testSuite) newTestContainer(prefix string, length int) (string, func()) {
-	name := strings.ToLower(test.RandomName(prefix, length))
+	name := strings.ToLower(ts.RandomName(prefix, length))
 	return name, ts.newTestContainerByName(name)
 }
 
 func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	client := ts.newClient(ts.T(), hubName)
-	defer client.Close()
+	defer func() {
+		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		client.Close(closeContext)
+		cancel()
+	}()
 
 	messages := make([]string, length)
 	for i := 0; i < length; i++ {
-		messages[i] = test.RandomName("message", 5)
+		messages[i] = ts.RandomName("message", 5)
 	}
 
 	events := make([]*eventhub.Event, length)
@@ -236,7 +246,7 @@ func (ts *testSuite) newStorageBackedEPHOptions(hubName string, leaser eph.Lease
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	processor, err := eph.New(ctx, ts.Namespace, hubName, provider, leaser, checkpointer)
+	processor, err := eph.New(ctx, ts.Namespace, hubName, provider, leaser, checkpointer, eph.WithNoBanner())
 	if err != nil {
 		return nil, err
 	}

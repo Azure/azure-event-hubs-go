@@ -24,7 +24,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/url"
 	"strings"
@@ -55,9 +54,17 @@ func TestStorage(t *testing.T) {
 
 func (ts *testSuite) SetupSuite() {
 	ts.BaseSuite.SetupSuite()
-	ts.AccountName = strings.ToLower("ehtest" + ts.SubscriptionID[len(ts.SubscriptionID)-5:])
+	ts.AccountName = strings.ToLower(test.RandomString("ehtest", 6))
 	if err := ts.ensureStorageAccount(); err != nil {
 		ts.T().Fatal(err)
+	}
+}
+
+func (ts *testSuite) TearDownSuite() {
+	ts.BaseSuite.TearDownSuite()
+	err := ts.deleteStorageAccount()
+	if err != nil {
+		ts.T().Error(err)
 	}
 }
 
@@ -70,7 +77,7 @@ func (ts *testSuite) TestCredential() {
 		ts.T().Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pipeline := azblob.NewPipeline(tokenProvider, azblob.PipelineOptions{})
 	fooURL, err := url.Parse("https://" + ts.AccountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
@@ -92,6 +99,15 @@ func (ts *testSuite) TestCredential() {
 	}
 }
 
+func (ts *testSuite) deleteStorageAccount() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
+	_, err := client.Delete(ctx, test.ResourceGroupName, ts.AccountName)
+	return err
+}
+
 func (ts *testSuite) ensureStorageAccount() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -109,7 +125,7 @@ func (ts *testSuite) ensureStorageAccount() error {
 		}
 	}
 
-	res, err := client.Create(ctx, test.ResourceGroupName, ts.AccountName, storage.AccountCreateParameters{
+	_, err = client.Create(ctx, test.ResourceGroupName, ts.AccountName, storage.AccountCreateParameters{
 		Sku: &storage.Sku{
 			Name: storage.StandardLRS,
 			Tier: storage.Standard,
@@ -120,9 +136,6 @@ func (ts *testSuite) ensureStorageAccount() error {
 			AccessTier: storage.Hot,
 		},
 	})
-
-	fmt.Println(res)
-	fmt.Println(err)
 
 	return err
 }

@@ -35,7 +35,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -53,14 +52,14 @@ func TestEventHub(t *testing.T) {
 
 func (suite *eventHubSuite) TestSasToken() {
 	tests := map[string]func(*testing.T, *Hub, []string, string){
-		//"TestMultiSendAndReceive":            testMultiSendAndReceive,
+		"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := test.RandomName("goehtest", 10)
+			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
 				t.Fatal(err)
@@ -72,7 +71,10 @@ func (suite *eventHubSuite) TestSasToken() {
 			}
 			client := suite.newClientWithProvider(t, hubName, provider)
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			if err := client.Close(); err != nil {
+
+			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -90,7 +92,7 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := test.RandomName("goehtest", 10)
+			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
 				t.Fatal(err)
@@ -100,7 +102,9 @@ func (suite *eventHubSuite) TestPartitioned() {
 			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
 
 			testFunc(t, client, partitionID)
-			if err := client.Close(); err != nil {
+			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -155,7 +159,7 @@ func testBasicSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 
 	messages := make([]string, numMessages)
 	for i := 0; i < numMessages; i++ {
-		messages[i] = test.RandomName("hello", 10)
+		messages[i] = test.RandomString("hello", 10)
 	}
 
 	for idx, message := range messages {
@@ -190,7 +194,7 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := test.RandomName("goehtest", 10)
+			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
 				t.Fatal(err)
@@ -199,7 +203,9 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 			partitionID := (*mgmtHub.PartitionIds)[0]
 			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			_ = client.Close() // there will be an error here since the link will be forcefully detached
+			closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_ = client.Close(closeCtx) // there will be an error here since the link will be forcefully detached
+			defer cancel()
 		}
 
 		suite.T().Run(name, setupTestTeardown)
@@ -274,7 +280,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := test.RandomName("goehtest", 10)
+			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
 				t.Fatal(err)
@@ -282,7 +288,9 @@ func (suite *eventHubSuite) TestMultiPartition() {
 			defer suite.DeleteEventHub(context.Background(), hubName)
 			client := suite.newClient(t, hubName)
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			if err := client.Close(); err != nil {
+			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -298,7 +306,7 @@ func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _
 
 	messages := make([]string, numMessages)
 	for i := 0; i < numMessages; i++ {
-		messages[i] = test.RandomName("hello", 10)
+		messages[i] = test.RandomString("hello", 10)
 	}
 
 	for idx, message := range messages {
@@ -332,7 +340,7 @@ func (suite *eventHubSuite) TestHubManagement() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := test.RandomName("goehtest", 10)
+			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
 				t.Fatal(err)
@@ -340,7 +348,9 @@ func (suite *eventHubSuite) TestHubManagement() {
 			defer suite.DeleteEventHub(context.Background(), hubName)
 			client := suite.newClient(t, hubName)
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			if err := client.Close(); err != nil {
+			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -354,7 +364,6 @@ func testHubRuntimeInformation(t *testing.T, client *Hub, partitionIDs []string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Debug(info.PartitionIDs)
 	assert.Equal(t, len(partitionIDs), info.PartitionCount)
 	assert.Equal(t, hubName, info.Path)
 }
@@ -379,7 +388,7 @@ func TestEnvironmentalCreation(t *testing.T) {
 func BenchmarkReceive(b *testing.B) {
 	suite := new(eventHubSuite)
 	suite.SetupSuite()
-	hubName := test.RandomName("goehtest", 10)
+	hubName := suite.RandomName("goehtest", 10)
 	mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName, test.HubWithPartitions(8))
 	if err != nil {
 		b.Fatal(err)
@@ -390,12 +399,12 @@ func BenchmarkReceive(b *testing.B) {
 
 	messages := make([]string, b.N)
 	for i := 0; i < b.N; i++ {
-		messages[i] = test.RandomName("hello", 10)
+		messages[i] = suite.RandomName("hello", 10)
 	}
 
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	if err != nil {
-		log.Fatal(err)
+		b.Fatal(err)
 	}
 	hub, err := NewHub(suite.Namespace, *mgmtHub.Name, provider)
 	if err != nil {
@@ -403,7 +412,9 @@ func BenchmarkReceive(b *testing.B) {
 	}
 
 	defer func() {
-		hub.Close()
+		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		hub.Close(closeContext)
+		cancel()
 		suite.DeleteEventHub(context.Background(), hubName)
 	}()
 

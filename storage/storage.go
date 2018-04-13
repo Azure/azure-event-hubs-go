@@ -28,19 +28,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/uuid"
+	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/eph"
-	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/opentracing/opentracing-go"
+	tag "github.com/opentracing/opentracing-go/ext"
 
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -84,37 +87,7 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 		return nil, err
 	}
 
-	logOptions := pipeline.LogOptions{
-		Log: func(level pipeline.LogLevel, message string) {
-			switch level {
-			case pipeline.LogError:
-				log.Errorln(message)
-			case pipeline.LogFatal:
-				log.Fatalln(message)
-			case pipeline.LogInfo:
-				log.Infoln(message)
-			case pipeline.LogPanic:
-				log.Panicln(message)
-			case pipeline.LogWarning:
-				log.Warnln(message)
-			case pipeline.LogNone:
-				log.Debugln(message)
-			default:
-				log.Debugln(message)
-			}
-		},
-		MinimumLevelToLog: func() pipeline.LogLevel {
-			if log.GetLevel() == log.DebugLevel {
-				return pipeline.LogInfo
-			}
-			return pipeline.LogError
-		},
-	}
-
-	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{
-		Log: logOptions,
-	}))
-
+	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{}))
 	containerURL := svURL.NewContainerURL(containerName)
 
 	return &LeaserCheckpointer{
@@ -145,6 +118,9 @@ func (sl *LeaserCheckpointer) SetEventHostProcessor(eph *eph.EventProcessorHost)
 
 // StoreExists returns true if the storage container exists
 func (sl *LeaserCheckpointer) StoreExists(ctx context.Context) (bool, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.StoreExists")
+	defer span.Finish()
+
 	opts := azblob.ListContainersOptions{
 		Prefix: sl.containerName,
 	}
@@ -165,6 +141,8 @@ func (sl *LeaserCheckpointer) StoreExists(ctx context.Context) (bool, error) {
 func (sl *LeaserCheckpointer) EnsureStore(ctx context.Context) error {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.EnsureStore")
+	defer span.Finish()
 
 	ok, err := sl.StoreExists(ctx)
 	if err != nil {
@@ -184,6 +162,8 @@ func (sl *LeaserCheckpointer) EnsureStore(ctx context.Context) error {
 
 // DeleteStore deletes the Azure Storage container
 func (sl *LeaserCheckpointer) DeleteStore(ctx context.Context) error {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.DeleteStore")
+	defer span.Finish()
 	_, err := sl.containerURL.Delete(ctx, azblob.ContainerAccessConditions{})
 	return err
 }
@@ -192,6 +172,8 @@ func (sl *LeaserCheckpointer) DeleteStore(ctx context.Context) error {
 func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.GetLeases")
+	defer span.Finish()
 
 	partitionIDs := sl.processor.GetPartitionIDs()
 	leases := make([]eph.LeaseMarker, len(partitionIDs))
@@ -209,6 +191,8 @@ func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker,
 func (sl *LeaserCheckpointer) EnsureLease(ctx context.Context, partitionID string) (eph.LeaseMarker, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.EnsureLease")
+	defer span.Finish()
 
 	return sl.createOrGetLease(ctx, partitionID)
 }
@@ -217,6 +201,8 @@ func (sl *LeaserCheckpointer) EnsureLease(ctx context.Context, partitionID strin
 func (sl *LeaserCheckpointer) DeleteLease(ctx context.Context, partitionID string) error {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.DeleteLease")
+	defer span.Finish()
 
 	_, err := sl.containerURL.NewBlobURL(partitionID).Delete(ctx, azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
 	delete(sl.leases, partitionID)
@@ -227,22 +213,25 @@ func (sl *LeaserCheckpointer) DeleteLease(ctx context.Context, partitionID strin
 func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID string) (eph.LeaseMarker, bool, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.AcquireLease")
+	defer span.Finish()
 
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	lease, err := sl.getLease(ctx, partitionID)
 	if err != nil {
-		sl.dlog("acquirelease: failed to get lease for partition id: " + partitionID)
+		log.For(ctx).Error(err)
 		return nil, false, nil
 	}
 
 	res, err := blobURL.GetPropertiesAndMetadata(ctx, azblob.BlobAccessConditions{})
 	if err != nil {
-		sl.dlog("acquirelease: failed to get properties and metadata for partition id: " + partitionID)
+		log.For(ctx).Error(err)
 		return nil, false, err
 	}
 
 	uuidToken, err := uuid.NewV4()
 	if err != nil {
+		log.For(ctx).Error(err)
 		return nil, false, err
 	}
 
@@ -251,12 +240,13 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 		// is leased by someone else due to a race to acquire
 		_, err := blobURL.ChangeLease(ctx, lease.Token, newToken, azblob.HTTPAccessConditions{})
 		if err != nil {
-			sl.dlog("acquirelease: failed to change lease for partition id: " + partitionID)
+			log.For(ctx).Error(err)
 			return nil, false, err
 		}
 	} else {
 		_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.HTTPAccessConditions{})
 		if err != nil {
+			log.For(ctx).Error(err)
 			return nil, false, err
 		}
 	}
@@ -276,6 +266,8 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string) (eph.LeaseMarker, bool, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.RenewLease")
+	defer span.Finish()
 
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	lease, ok := sl.leases[partitionID]
@@ -285,7 +277,7 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 
 	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
-		sl.dlog("renew lease failed for partitionID: " + partitionID)
+		log.For(ctx).Error(err)
 		return nil, false, err
 	}
 	return lease, true, nil
@@ -295,6 +287,8 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID string) (bool, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.ReleaseLease")
+	defer span.Finish()
 
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	lease, ok := sl.leases[partitionID]
@@ -304,7 +298,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 
 	_, err := blobURL.ReleaseLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
-		sl.dlog("release lease failed for partitionID: " + partitionID)
+		log.For(ctx).Error(err)
 		return false, err
 	}
 	delete(sl.leases, partitionID)
@@ -316,10 +310,16 @@ func (sl *LeaserCheckpointer) UpdateLease(ctx context.Context, partitionID strin
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.UpdateLease")
+	defer span.Finish()
+
 	return sl.updateLease(ctx, partitionID)
 }
 
 func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID string) (eph.LeaseMarker, bool, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.updateLease")
+	defer span.Finish()
+
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	lease, ok := sl.leases[partitionID]
 	if !ok {
@@ -328,7 +328,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 
 	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
 	if err != nil {
-		sl.dlog("renew lease failed when updating lease for partitionID: " + partitionID)
+		log.For(ctx).Error(err)
 		return nil, false, err
 	}
 
@@ -338,7 +338,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 
 	err = sl.uploadLease(ctx, lease)
 	if err != nil {
-		sl.dlog("update lease failed for partitionID: " + partitionID)
+		log.For(ctx).Error(err)
 		return nil, false, err
 	}
 
@@ -349,6 +349,9 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 func (sl *LeaserCheckpointer) GetCheckpoint(ctx context.Context, partitionID string) (persist.Checkpoint, bool) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.GetCheckpoint")
+	defer span.Finish()
 
 	lease, ok := sl.leases[partitionID]
 	if ok {
@@ -361,6 +364,9 @@ func (sl *LeaserCheckpointer) GetCheckpoint(ctx context.Context, partitionID str
 func (sl *LeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID string) (persist.Checkpoint, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.EnsureCheckpoint")
+	defer span.Finish()
 
 	lease, ok := sl.leases[partitionID]
 	if ok {
@@ -377,6 +383,9 @@ func (sl *LeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 func (sl *LeaserCheckpointer) UpdateCheckpoint(ctx context.Context, partitionID string, checkpoint persist.Checkpoint) error {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.UpdateCheckpoint")
+	defer span.Finish()
 
 	lease, ok := sl.leases[partitionID]
 	if !ok {
@@ -396,6 +405,9 @@ func (sl *LeaserCheckpointer) UpdateCheckpoint(ctx context.Context, partitionID 
 func (sl *LeaserCheckpointer) DeleteCheckpoint(ctx context.Context, partitionID string) error {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.DeleteCheckpoint")
+	defer span.Finish()
 
 	lease, ok := sl.leases[partitionID]
 	if !ok {
@@ -426,6 +438,9 @@ func (sl *LeaserCheckpointer) Close() error {
 }
 
 func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.persistLeases")
+	defer span.Finish()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -433,16 +448,8 @@ func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 		default:
 			for partitionID, val := range sl.dirtyPartitions {
 				if val != sl.updatedPartitions[partitionID] {
-					ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-					_, ok, err := sl.UpdateLease(ctx, partitionID)
-					cancel()
+					err := sl.persistLease(ctx, partitionID)
 					if err != nil {
-						log.Errorln("unable to update dirty lease due to err: ", err)
-						continue
-					}
-
-					if !ok {
-						log.Warnln("unable to update dirty lease -- this may mean there will be reprocessing")
 						continue
 					}
 					sl.updatedPartitions[partitionID] = val
@@ -453,7 +460,27 @@ func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 	}
 }
 
+func (sl *LeaserCheckpointer) persistLease(ctx context.Context, partitionID string) error {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.persistLease")
+	defer span.Finish()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	_, ok, err := sl.UpdateLease(ctx, partitionID)
+	cancel()
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return errors.New("unable to update dirty lease -- this may mean there will be reprocessing")
+	}
+	return nil
+}
+
 func (sl *LeaserCheckpointer) uploadLease(ctx context.Context, lease *storageLease) error {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.uploadLease")
+	defer span.Finish()
+
 	blobURL := sl.containerURL.NewBlobURL(lease.PartitionID)
 	jsonLease, err := json.Marshal(lease)
 	if err != nil {
@@ -470,6 +497,9 @@ func (sl *LeaserCheckpointer) uploadLease(ctx context.Context, lease *storageLea
 }
 
 func (sl *LeaserCheckpointer) createOrGetLease(ctx context.Context, partitionID string) (*storageLease, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.createOrGetLease")
+	defer span.Finish()
+
 	lease := &storageLease{
 		Lease: &eph.Lease{
 			PartitionID: partitionID,
@@ -498,6 +528,9 @@ func (sl *LeaserCheckpointer) createOrGetLease(ctx context.Context, partitionID 
 }
 
 func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) (*storageLease, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.LeaserCheckpointer.getLease")
+	defer span.Finish()
+
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	res, err := blobURL.GetBlob(ctx, azblob.BlobRange{}, azblob.BlobAccessConditions{}, false)
 	if err != nil {
@@ -518,13 +551,16 @@ func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.GetResponse) (*stora
 	return &lease, nil
 }
 
-func (sl *LeaserCheckpointer) dlog(msg string) {
+func (sl *LeaserCheckpointer) dlog(ctx context.Context, msg string) {
 	name := sl.processor.GetName()
-	log.Debugf("storage leaser eph %q: "+msg, name)
+	log.For(ctx).Debug(fmt.Sprintf("storage leaser eph %q: "+msg, name))
 }
 
 // IsExpired checks to see if the blob is not still leased
 func (s *storageLease) IsExpired(ctx context.Context) bool {
+	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.storageLease.IsExpired")
+	defer span.Finish()
+
 	lease, err := s.leaser.getLease(ctx, s.PartitionID)
 	if err != nil {
 		return false
@@ -535,8 +571,15 @@ func (s *storageLease) IsExpired(ctx context.Context) bool {
 func (s *storageLease) String() string {
 	bits, err := json.Marshal(s)
 	if err != nil {
-		log.Errorln(err)
 		return ""
 	}
 	return string(bits)
+}
+
+func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, operationName, opts...)
+	eventhub.ApplyComponentInfo(span)
+	tag.SpanKindRPCClient.Set(span)
+	span.SetTag("eventhub.eventprocessorhost.kind", "azure.storage")
+	return span, ctx
 }
