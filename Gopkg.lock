@@ -34,8 +34,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "51228ee60b238eaa5a9d53adc82ebd8b321bca4f"
-  version = "v15.1.1"
+  revision = "060bf9b93ad98bc41813ca23f5328843f6c0e90b"
+  version = "v15.2.0"
 
 [[projects]]
   branch = "master"
@@ -133,7 +133,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "61147c48b25b599e5b561d2e9c4f3e1ef489ca41"
+  revision = "a35a21de978d84ffc92f010a153705b170b2f9d1"
 
 [[projects]]
   branch = "master"
@@ -142,7 +142,7 @@
     "unix",
     "windows"
   ]
-  revision = "3b87a42e500a6dc65dae1a55d0b641295971163e"
+  revision = "2f57af4873d00d535c5c9028850aa2152e6a5566"
 
 [[projects]]
   branch = "master"
@@ -151,7 +151,7 @@
     ".",
     "internal/testconn"
   ]
-  revision = "ee6eb7ef6e2355b46a573b0b1799f76259f2ea47"
+  revision = "707d8813ac8c38786ea13e078c86f1b6b58509a3"
 
 [solve-meta]
   analyzer-name = "dep"
