@@ -217,11 +217,11 @@ func testEpochGreaterThenLess(t *testing.T, client *Hub, partitionIDs []string, 
 	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -247,12 +247,12 @@ func testEpochLessThenGreater(t *testing.T, client *Hub, partitionIDs []string, 
 	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

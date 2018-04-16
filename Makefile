@@ -43,14 +43,13 @@ $(BIN)/golint: | $(BASE) ; $(info $(M) building golint…)
 
 # Tests
 
-TEST_TARGETS := test-default test-bench test-short test-verbose test-race test-debug
+TEST_TARGETS := test-default test-bench test-verbose test-race test-debug test-cover
 .PHONY: $(TEST_TARGETS) test-xml check test tests
-test-bench:   ARGS=-run=__absolutelynothing__ -bench=. ## Run benchmarks
-test-short:   ARGS=-short        ## Run only short tests
-test-verbose: ARGS=-v            ## Run tests in verbose mode
-test-debug:   ARGS=-v -debug     ## Run tests in verbose mode with debug output
-test-race:    ARGS=-race         ## Run tests with race detector
-test-cover:   ARGS=-cover     ## Run tests in verbose mode with coverage
+test-bench:   ARGS=-run=__absolutelynothing__ -bench=. 		## Run benchmarks
+test-verbose: ARGS=-v            							## Run tests in verbose mode
+test-debug:   ARGS=-v -debug     							## Run tests in verbose mode with debug output
+test-race:    ARGS=-race         							## Run tests with race detector
+test-cover:   ARGS=-cover -coverprofile=cover.out -v     	## Run tests in verbose mode with coverage
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
 check test tests: cyclo lint vet vendor megacheck | $(BASE) ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
@@ -79,6 +78,7 @@ fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files
 .PHONY: cyclo
 cyclo: ; $(info $(M) running gocyclo...) @ ## Run gocyclo on all source files
 	$Q cd $(BASE) && $(GOCYCLO) -over 19 $$($(GO_FILES))
+
 # Dependency management
 
 Gopkg.lock: Gopkg.toml | $(BASE) ; $(info $(M) updating dependencies…)

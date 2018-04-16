@@ -17,8 +17,8 @@
     "sas",
     "uuid"
   ]
-  revision = "1c6a1aad33e838352e517809d114093d7ae9367f"
-  version = "v0.3.0"
+  revision = "609551be1d31bdc8c3f7c9385c0aaf31bf6ea006"
+  version = "v0.3.2"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -34,8 +34,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "51228ee60b238eaa5a9d53adc82ebd8b321bca4f"
-  version = "v15.1.1"
+  revision = "060bf9b93ad98bc41813ca23f5328843f6c0e90b"
+  version = "v15.2.0"
 
 [[projects]]
   branch = "master"
@@ -54,8 +54,20 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "9ad9326b278af8fa5cc67c30c0ce9a58cc0862b2"
-  version = "v10.6.0"
+  revision = "b20db434057f607da48e1fbdc458a9e873ec54cc"
+  version = "v10.6.1"
+
+[[projects]]
+  name = "github.com/apache/thrift"
+  packages = ["lib/go/thrift"]
+  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
+  version = "0.10.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/codahale/hdrhistogram"
+  packages = ["."]
+  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -120,6 +132,33 @@
   version = "v1.2.1"
 
 [[projects]]
+  name = "github.com/uber/jaeger-client-go"
+  packages = [
+    ".",
+    "config",
+    "internal/baggage",
+    "internal/baggage/remote",
+    "internal/spanlog",
+    "internal/throttler",
+    "log",
+    "rpcmetrics",
+    "thrift-gen/agent",
+    "thrift-gen/baggage",
+    "thrift-gen/jaeger",
+    "thrift-gen/sampling",
+    "thrift-gen/zipkincore",
+    "utils"
+  ]
+  revision = "3205d4aabc55c1a13b1e48d3db793bc8cd37bd16"
+  version = "v2.13.0"
+
+[[projects]]
+  name = "github.com/uber/jaeger-lib"
+  packages = ["metrics"]
+  revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
+  version = "v1.4.0"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = [
@@ -133,7 +172,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "61147c48b25b599e5b561d2e9c4f3e1ef489ca41"
+  revision = "d41e8174641f662c5a2d1c7a5f9e828788eb8706"
 
 [[projects]]
   branch = "master"
@@ -142,7 +181,7 @@
     "unix",
     "windows"
   ]
-  revision = "3b87a42e500a6dc65dae1a55d0b641295971163e"
+  revision = "9b006099084093fa764af5878f937ff7dafc6051"
 
 [[projects]]
   branch = "master"
@@ -151,11 +190,11 @@
     ".",
     "internal/testconn"
   ]
-  revision = "ee6eb7ef6e2355b46a573b0b1799f76259f2ea47"
+  revision = "3ccfa5a7e41010b16d901897bc55a1c89c128c77"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "703d06b41ca1edac6ca5c8c91e1ff7f0528cd80b32ef84007f43f347b4bb1ffe"
+  inputs-digest = "d605a42ca7f6e9f8d67ff4397aba4c41b091d87359fae4548da66e86d3c9b65c"
   solver-name = "gps-cdcl"
   solver-version = 1
