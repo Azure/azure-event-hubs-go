@@ -2,7 +2,7 @@
   go-tests = true
   unused-packages = true
 
-[[override]]
+[[constraint]]
     name = "pack.ag/amqp"
     branch = "master"
 
