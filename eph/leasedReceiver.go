@@ -93,9 +93,14 @@ func (lr *leasedReceiver) Close(ctx context.Context) error {
 func (lr *leasedReceiver) listenForClose() {
 	go func() {
 		<-lr.handle.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_ = lr.processor.scheduler.stopReceiver(ctx, lr.lease)
+		span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.listenForClose")
+		defer span.Finish()
+		err := lr.processor.scheduler.stopReceiver(ctx, lr.lease)
+		if err != nil {
+			log.For(ctx).Error(err)
+		}
 	}()
 }
 
@@ -124,10 +129,13 @@ func (lr *leasedReceiver) tryRenew(ctx context.Context) error {
 
 	lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease.GetPartitionID())
 	if err != nil {
+		log.For(ctx).Error(err)
 		return err
 	}
 	if !ok {
-		return errors.New("can't renew lease")
+		err = errors.New("can't renew lease")
+		log.For(ctx).Error(err)
+		return err
 	}
 	lr.dlog(ctx, "lease renewed")
 	lr.lease = lease

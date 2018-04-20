@@ -263,6 +263,7 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 		return nil, err
 	}
 
+	// Todo: change this to use name rather than identifier
 	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
 		if err := r.Close(ctx); err != nil {
 			log.For(ctx).Error(err)

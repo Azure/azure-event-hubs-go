@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/uuid"
+	"github.com/Azure/azure-event-hubs-go/internal"
 	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
 )
@@ -127,7 +128,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	durationOfSend := 3 * time.Second
 	if deadline, ok := ctx.Deadline(); ok {
 		times = int(time.Until(deadline) / (delay + durationOfSend))
-		times = max(times, 1) // give at least one chance at sending
+		times = ehmath.Max(times, 1) // give at least one chance at sending
 	}
 	_, err := common.Retry(times, delay, func() (interface{}, error) {
 		sp, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.trySend.transmit")
@@ -229,11 +230,4 @@ func SendWithMessageID(messageID string) SendOption {
 		event.ID = messageID
 		return nil
 	}
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

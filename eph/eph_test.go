@@ -25,6 +25,7 @@ package eph
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -83,81 +84,90 @@ func (s *testSuite) TestSingle() {
 func (s *testSuite) TestMultiple() {
 	hub, del := s.ensureRandomHub("goEPH", 10)
 	numPartitions := len(*hub.PartitionIds)
-	leaser := newMemoryLeaser(11 * time.Second)
-	checkpointer := new(memoryCheckpointer)
-	processors := make([]*EventProcessorHost, numPartitions)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	sharedStore := new(sharedStore)
+	processors := make(map[string]*EventProcessorHost, numPartitions)
+	processorNames := make([]string, numPartitions)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	for i := 0; i < numPartitions; i++ {
-		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, leaser, checkpointer)
+		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
 		if err != nil {
 			s.T().Fatal(err)
 		}
-		processors[i] = processor
+		processors[processor.GetName()] = processor
 		processor.StartNonBlocking(ctx)
+		processorNames[i] = processor.GetName()
 	}
 
 	defer func() {
-		for i := 0; i < numPartitions; i++ {
+		for _, processor := range processors {
 			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			processors[i].Close(closeContext)
+			processor.Close(closeContext)
 			cancel()
 		}
 		del()
 	}()
 
 	count := 0
-	var partitionMap map[string]bool
+	var partitionsByProcessor map[string][]int
+	balanced := false
 	for {
-		<-time.After(2 * time.Second)
+		<-time.After(3 * time.Second)
 		count++
-		if count > 60 {
+		if count > 50 {
 			break
 		}
 
-		partitionMap = newPartitionMap(*hub.PartitionIds)
-		for i := 0; i < numPartitions; i++ {
-			partitions := processors[i].PartitionIDsBeingProcessed()
-			if len(partitions) == 1 {
-				partitionMap[partitions[0]] = true
+		partitionsByProcessor = make(map[string][]int, len(*hub.PartitionIds))
+		for _, processor := range processors {
+			partitions := processor.PartitionIDsBeingProcessed()
+			partitionInts, err := stringsToInts(partitions)
+			if err != nil {
+				s.T().Fatal(err)
 			}
+			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
-		//printMap(partitionMap)
-		if allTrue(partitionMap) {
+
+		if allHaveOnePartition(partitionsByProcessor, numPartitions) {
+			balanced = true
 			break
 		}
 	}
-	if !allTrue(partitionMap) {
+	if !balanced {
 		s.T().Error("never balanced work within allotted time")
 		return
 	}
 
 	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	processors[numPartitions-1].Close(closeContext) // close the last partition
+	processors[processorNames[numPartitions-1]].Close(closeContext) // close the last partition
+	delete(processors, processorNames[numPartitions-1])
 	cancel()
 
 	count = 0
+	balanced = false
 	for {
-		<-time.After(2 * time.Second)
+		<-time.After(3 * time.Second)
 		count++
-		if count > 60 {
+		if count > 50 {
 			break
 		}
 
-		partitionMap = newPartitionMap(*hub.PartitionIds)
-		for i := 0; i < numPartitions-1; i++ {
-			partitions := processors[i].PartitionIDsBeingProcessed()
-			for _, partition := range partitions {
-				partitionMap[partition] = true
+		partitionsByProcessor = make(map[string][]int, len(*hub.PartitionIds))
+		for _, processor := range processors {
+			partitions := processor.PartitionIDsBeingProcessed()
+			partitionInts, err := stringsToInts(partitions)
+			if err != nil {
+				s.T().Fatal(err)
 			}
+			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
-		//printMap(partitionMap)
-		if allTrue(partitionMap) {
+		if allHandled(partitionsByProcessor, len(*hub.PartitionIds)) {
+			balanced = true
 			break
 		}
 	}
-	if !allTrue(partitionMap) {
+	if !balanced {
 		s.T().Error("didn't balance after closing a processor")
 	}
 }
@@ -200,12 +210,10 @@ func (s *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, fun
 }
 
 func (s *testSuite) newInMemoryEPH(hubName string) (*EventProcessorHost, error) {
-	leaser := newMemoryLeaser(2 * time.Second)
-	checkpointer := new(memoryCheckpointer)
-	return s.newInMemoryEPHWithOptions(hubName, leaser, checkpointer)
+	return s.newInMemoryEPHWithOptions(hubName, new(sharedStore))
 }
 
-func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, checkpointer Checkpointer) (*EventProcessorHost, error) {
+func (s *testSuite) newInMemoryEPHWithOptions(hubName string, store *sharedStore) (*EventProcessorHost, error) {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	if err != nil {
 		return nil, err
@@ -213,7 +221,8 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, leaser Leaser, che
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	processor, err := New(ctx, s.Namespace, hubName, provider, leaser, checkpointer, WithNoBanner())
+	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, store)
+	processor, err := New(ctx, s.Namespace, hubName, provider, leaserCheckpointer, leaserCheckpointer, WithNoBanner())
 	if err != nil {
 		return nil, err
 	}
@@ -258,31 +267,61 @@ func fmtDuration(d time.Duration) string {
 	return fmt.Sprintf("%d seconds", d)
 }
 
-func allTrue(partitionMap map[string]bool) bool {
-	for key := range partitionMap {
-		if !partitionMap[key] {
+func allHaveOnePartition(partitionsByProcessor map[string][]int, numberOfPartitions int) bool {
+	for _, partitions := range partitionsByProcessor {
+		if len(partitions) != 1 {
+			return false
+		}
+	}
+
+	countByPartition := make(map[int]int, numberOfPartitions)
+	for i := 0; i < numberOfPartitions; i++ {
+		countByPartition[i] = 0
+	}
+	for _, partitions := range partitionsByProcessor {
+		for _, partition := range partitions {
+			if count, ok := countByPartition[partition]; ok {
+				countByPartition[partition] = count + 1
+			}
+		}
+	}
+	for i := 0; i < numberOfPartitions; i++ {
+		if countByPartition[i] != 1 {
 			return false
 		}
 	}
 	return true
 }
 
-func newPartitionMap(partitionIDs []string) map[string]bool {
-	partitionMap := make(map[string]bool)
-	for _, partition := range partitionIDs {
-		partitionMap[partition] = false
+func allHandled(partitionsByProcessor map[string][]int, numberOfPartitions int) bool {
+	countByPartition := make(map[int]int, numberOfPartitions)
+	for i := 0; i < numberOfPartitions; i++ {
+		countByPartition[i] = 0
 	}
-	return partitionMap
+	for _, partitions := range partitionsByProcessor {
+		for _, partition := range partitions {
+			if count, ok := countByPartition[partition]; ok {
+				countByPartition[partition] = count + 1
+			}
+		}
+	}
+
+	for _, count := range countByPartition {
+		if count != 1 {
+			return false
+		}
+	}
+	return true
 }
 
-//func printMap(idsByBool map[string]bool) {
-//	strs := make([]string, len(idsByBool))
-//	for i := 0; i < len(idsByBool); i++ {
-//		tf := "F"
-//		if idsByBool[strconv.Itoa(i)] {
-//			tf = "T"
-//		}
-//		strs[i] = fmt.Sprintf("%d:%s", i, tf)
-//	}
-//	fmt.Println(strings.Join(strs, ", "))
-//}
+func stringsToInts(strs []string) ([]int, error) {
+	ints := make([]int, len(strs))
+	for idx, str := range strs {
+		strInt, err := strconv.Atoi(str)
+		if err != nil {
+			return nil, err
+		}
+		ints[idx] = strInt
+	}
+	return ints, nil
+}

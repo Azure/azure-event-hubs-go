@@ -24,6 +24,7 @@ package eph
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"sync/atomic"
 )
@@ -69,6 +70,7 @@ type (
 		GetOwner() string
 		IncrementEpoch() int64
 		GetEpoch() int64
+		String() string
 	}
 )
 
@@ -90,4 +92,9 @@ func (l *Lease) IncrementEpoch() int64 {
 // GetEpoch returns the value of the epoch
 func (l *Lease) GetEpoch() int64 {
 	return l.Epoch
+}
+
+func (l *Lease) String() string {
+	bytes, _ := json.Marshal(l)
+	return string(bytes)
 }
