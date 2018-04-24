@@ -34,14 +34,14 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "060bf9b93ad98bc41813ca23f5328843f6c0e90b"
-  version = "v15.2.0"
+  revision = "fad8443a79b0e755c18c3bec29a8d2bedab0b421"
+  version = "v15.3.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/Azure/azure-storage-blob-go"
   packages = ["2016-05-31/azblob"]
-  revision = "70edea0000eaac722aa45821797ffdedba6b53b8"
+  revision = "d9b2979663489192f3aff3314a2b7bdf07a50edd"
 
 [[projects]]
   name = "github.com/Azure/go-autorest"
@@ -54,8 +54,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "b20db434057f607da48e1fbdc458a9e873ec54cc"
-  version = "v10.6.1"
+  revision = "1ff28809256a84bb6966640ff3d0371af82ccba4"
+  version = "v10.6.2"
 
 [[projects]]
   name = "github.com/apache/thrift"
@@ -166,13 +166,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "d6449816ce06963d9d136eee5a56fca5b0616e7e"
+  revision = "2b6c08872f4b66da917bb4ce98df4f0307330f78"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "d41e8174641f662c5a2d1c7a5f9e828788eb8706"
+  revision = "5f9ae10d9af5b1c89ae6904293b14b064d4ada23"
 
 [[projects]]
   branch = "master"
@@ -181,7 +181,7 @@
     "unix",
     "windows"
   ]
-  revision = "3ccc7e5779793fd54564baf60c51bf017955e0ba"
+  revision = "79b0c6888797020a994db17c8510466c72fe75d9"
 
 [[projects]]
   branch = "master"
@@ -190,7 +190,7 @@
     ".",
     "internal/testconn"
   ]
-  revision = "3ccfa5a7e41010b16d901897bc55a1c89c128c77"
+  revision = "1961b4812356984db063a6cb3419b70d4375383b"
 
 [solve-meta]
   analyzer-name = "dep"
