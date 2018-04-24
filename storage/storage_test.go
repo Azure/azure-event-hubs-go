@@ -187,8 +187,10 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	processor, err := eph.New(ctx, ts.Namespace, *hub.Name, provider, nil, nil)
+	if err != nil {
+		ts.FailNow(err.Error())
+	}
 	leaser.SetEventHostProcessor(processor)
-
 	err = leaser.EnsureStore(ctx)
 	if err != nil {
 		ts.T().Fatal(err)
