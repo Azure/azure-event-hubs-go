@@ -9,7 +9,7 @@ before_install:
 - go get github.com/fzipp/gocyclo
 - go get github.com/golang/dep/cmd/dep
 - go get honnef.co/go/tools/cmd/megacheck
-- mkdir -p $GOPATH/src/golang.org/x && git clone https://github.com/golang/lint.git $GOPATH/src/golang.org/x/lint && go get -u golang.org/x/lint/golint
+- go get -u golang.org/x/lint/golint
 jobs:
   include:
   - stage: integration tests
