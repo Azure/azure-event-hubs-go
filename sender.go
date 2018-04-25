@@ -80,18 +80,10 @@ func (s *sender) Recover(ctx context.Context) error {
 
 // Close will close the AMQP connection, session and link of the sender
 func (s *sender) Close(ctx context.Context) error {
-	err := s.connection.Close()
-	if err != nil {
-		_ = s.session.Close(ctx)
-		_ = s.sender.Close(ctx)
-		return err
-	}
-	err = s.session.Close(ctx)
-	if err != nil {
-		_ = s.sender.Close(ctx)
-		return err
-	}
-	return s.sender.Close(ctx)
+	span, _ := s.startProducerSpanFromContext(ctx, "eventhub.sender.Close")
+	defer span.Finish()
+
+	return s.connection.Close()
 }
 
 // Send will send a message to the entity path with options

@@ -46,16 +46,6 @@ func (r *receiver) startConsumerSpanFromWire(ctx context.Context, operationName 
 	return span, ctx
 }
 
-func (r *receiver) startConsumerSpanFromContextFollowing(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
-	opts = append(opts, opentracing.FollowsFrom(opentracing.SpanFromContext(ctx).Context()))
-	span := opentracing.StartSpan(operationName, opts...)
-	ctx = opentracing.ContextWithSpan(ctx, span)
-	ApplyComponentInfo(span)
-	tag.SpanKindConsumer.Set(span)
-	tag.MessageBusDestination.Set(span, r.getFullIdentifier())
-	return span, ctx
-}
-
 // ApplyComponentInfo applies eventhub library and network info to the span
 func ApplyComponentInfo(span opentracing.Span) {
 	tag.Component.Set(span, "github.com/Azure/azure-event-hubs-go")
