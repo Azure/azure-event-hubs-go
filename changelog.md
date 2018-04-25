@@ -1,5 +1,8 @@
 # Change Log
 
+## 'v0.2.1'
+- update dependency on common to 0.3.2 to fix retry returning nil error
+
 ## `v0.2.0`
 - add opentracing support
 - add context to close functions (breaking change)

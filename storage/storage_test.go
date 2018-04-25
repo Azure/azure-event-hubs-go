@@ -34,11 +34,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var (
+	timeout = 60 * time.Second
+)
+
 func (ts *testSuite) TestLeaserStoreCreation() {
 	leaser, del := ts.newLeaser()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	exists, err := leaser.StoreExists(ctx)
 	if err != nil {
@@ -62,7 +66,7 @@ func (ts *testSuite) TestLeaserLeaseEnsure() {
 	leaser, del := ts.leaserWithEPH()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	for _, partitionID := range leaser.processor.GetPartitionIDs() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
@@ -77,7 +81,7 @@ func (ts *testSuite) TestLeaserAcquire() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	if err != nil {
@@ -107,7 +111,7 @@ func (ts *testSuite) TestLeaserRenewLease() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	if err != nil {
@@ -135,7 +139,7 @@ func (ts *testSuite) TestLeaserRelease() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	if err != nil {
@@ -157,7 +161,7 @@ func (ts *testSuite) TestLeaserRelease() {
 func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.leaserWithEPH()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	for _, partitionID := range leaser.processor.GetPartitionIDs() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
@@ -184,11 +188,13 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 		ts.T().Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	processor, err := eph.New(ctx, ts.Namespace, *hub.Name, provider, nil, nil)
+	if err != nil {
+		ts.FailNow(err.Error())
+	}
 	leaser.SetEventHostProcessor(processor)
-
 	err = leaser.EnsureStore(ctx)
 	if err != nil {
 		ts.T().Fatal(err)
@@ -210,7 +216,7 @@ func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	}
 
 	return leaser, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		if err := leaser.DeleteStore(ctx); err != nil {
 			ts.T().Fatal(err)
@@ -225,7 +231,7 @@ func (ts *testSuite) ensureRandomHubByName(hubName string) (*mgmt.Model, func())
 	}
 
 	return hub, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		err := ts.DeleteEventHub(ctx, hubName)
 		if err != nil {

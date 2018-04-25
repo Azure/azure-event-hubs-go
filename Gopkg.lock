@@ -17,8 +17,8 @@
     "sas",
     "uuid"
   ]
-  revision = "1c6a1aad33e838352e517809d114093d7ae9367f"
-  version = "v0.3.0"
+  revision = "609551be1d31bdc8c3f7c9385c0aaf31bf6ea006"
+  version = "v0.3.2"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -34,14 +34,14 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "51228ee60b238eaa5a9d53adc82ebd8b321bca4f"
-  version = "v15.1.1"
+  revision = "fad8443a79b0e755c18c3bec29a8d2bedab0b421"
+  version = "v15.3.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/Azure/azure-storage-blob-go"
   packages = ["2016-05-31/azblob"]
-  revision = "70edea0000eaac722aa45821797ffdedba6b53b8"
+  revision = "d9b2979663489192f3aff3314a2b7bdf07a50edd"
 
 [[projects]]
   name = "github.com/Azure/go-autorest"
@@ -54,8 +54,20 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "9ad9326b278af8fa5cc67c30c0ce9a58cc0862b2"
-  version = "v10.6.0"
+  revision = "1ff28809256a84bb6966640ff3d0371af82ccba4"
+  version = "v10.6.2"
+
+[[projects]]
+  name = "github.com/apache/thrift"
+  packages = ["lib/go/thrift"]
+  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
+  version = "0.10.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/codahale/hdrhistogram"
+  packages = ["."]
+  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -120,6 +132,33 @@
   version = "v1.2.1"
 
 [[projects]]
+  name = "github.com/uber/jaeger-client-go"
+  packages = [
+    ".",
+    "config",
+    "internal/baggage",
+    "internal/baggage/remote",
+    "internal/spanlog",
+    "internal/throttler",
+    "log",
+    "rpcmetrics",
+    "thrift-gen/agent",
+    "thrift-gen/baggage",
+    "thrift-gen/jaeger",
+    "thrift-gen/sampling",
+    "thrift-gen/zipkincore",
+    "utils"
+  ]
+  revision = "3205d4aabc55c1a13b1e48d3db793bc8cd37bd16"
+  version = "v2.13.0"
+
+[[projects]]
+  name = "github.com/uber/jaeger-lib"
+  packages = ["metrics"]
+  revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
+  version = "v1.4.0"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = [
@@ -127,13 +166,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "d6449816ce06963d9d136eee5a56fca5b0616e7e"
+  revision = "2b6c08872f4b66da917bb4ce98df4f0307330f78"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "61147c48b25b599e5b561d2e9c4f3e1ef489ca41"
+  revision = "5f9ae10d9af5b1c89ae6904293b14b064d4ada23"
 
 [[projects]]
   branch = "master"
@@ -142,7 +181,7 @@
     "unix",
     "windows"
   ]
-  revision = "3b87a42e500a6dc65dae1a55d0b641295971163e"
+  revision = "79b0c6888797020a994db17c8510466c72fe75d9"
 
 [[projects]]
   branch = "master"
@@ -151,11 +190,11 @@
     ".",
     "internal/testconn"
   ]
-  revision = "ee6eb7ef6e2355b46a573b0b1799f76259f2ea47"
+  revision = "1961b4812356984db063a6cb3419b70d4375383b"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "703d06b41ca1edac6ca5c8c91e1ff7f0528cd80b32ef84007f43f347b4bb1ffe"
+  inputs-digest = "90a839dc13aea6b682a6de17c1673730d55d9339d4dcc116f407f4d0eab2e783"
   solver-name = "gps-cdcl"
   solver-version = 1

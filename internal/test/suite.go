@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -39,6 +40,9 @@ import (
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
+	"github.com/uber/jaeger-client-go"
+	"github.com/uber/jaeger-client-go/config"
+	jaegerlog "github.com/uber/jaeger-client-go/log"
 )
 
 var (
@@ -62,6 +66,7 @@ type (
 		Namespace      string
 		Env            azure.Environment
 		TagID          string
+		closer         io.Closer
 	}
 
 	// HubMgmtOption represents an option for configuring an Event Hub.
@@ -114,6 +119,11 @@ func (suite *BaseSuite) SetupSuite() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	err = suite.setupTracing()
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
 
 // TearDownSuite might one day destroy all of the resources in the suite, but I'm not sure we want to do that just yet...
@@ -122,6 +132,9 @@ func (suite *BaseSuite) TearDownSuite() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	suite.deleteAllTaggedEventHubs(ctx)
+	if suite.closer != nil {
+		suite.closer.Close()
+	}
 }
 
 // EnsureEventHub creates an Event Hub if it doesn't exist
@@ -270,6 +283,36 @@ func (suite *BaseSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
 		return nil, err
 	}
 	return ns, err
+}
+
+func (suite *BaseSuite) setupTracing() error {
+	if os.Getenv("CI") != "true" {
+		// Sample configuration for testing. Use constant sampling to sample every trace
+		// and enable LogSpan to log every span via configured Logger.
+		cfg := config.Configuration{
+			Sampler: &config.SamplerConfig{
+				Type:  jaeger.SamplerTypeConst,
+				Param: 1,
+			},
+			Reporter: &config.ReporterConfig{
+				LocalAgentHostPort: "0.0.0.0:6831",
+			},
+		}
+
+		// Example logger and metrics factory. Use github.com/uber/jaeger-client-go/log
+		// and github.com/uber/jaeger-lib/metrics respectively to bind to real logging and metrics
+		// frameworks.
+		jLogger := jaegerlog.StdLogger
+
+		closer, err := cfg.InitGlobalTracer(
+			"ehtests",
+			config.Logger(jLogger),
+		)
+
+		suite.closer = closer
+		return err
+	}
+	return nil
 }
 
 func getNamespaceMgmtClientWithToken(subscriptionID string, env azure.Environment) *mgmt.NamespacesClient {

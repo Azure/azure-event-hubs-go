@@ -28,7 +28,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
@@ -77,7 +76,7 @@ func (ts *testSuite) TestCredential() {
 		ts.T().Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	pipeline := azblob.NewPipeline(tokenProvider, azblob.PipelineOptions{})
 	fooURL, err := url.Parse("https://" + ts.AccountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
@@ -100,7 +99,7 @@ func (ts *testSuite) TestCredential() {
 }
 
 func (ts *testSuite) deleteStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
@@ -109,7 +108,7 @@ func (ts *testSuite) deleteStorageAccount() error {
 }
 
 func (ts *testSuite) ensureStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)

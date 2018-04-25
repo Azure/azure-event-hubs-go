@@ -46,6 +46,10 @@ type (
 	}
 )
 
+var (
+	defaultTimeout = 20 * time.Second
+)
+
 func TestEventHub(t *testing.T) {
 	suite.Run(t, new(eventHubSuite))
 }
@@ -72,7 +76,7 @@ func (suite *eventHubSuite) TestSasToken() {
 			client := suite.newClientWithProvider(t, hubName, provider)
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
 
-			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
 			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
@@ -102,7 +106,7 @@ func (suite *eventHubSuite) TestPartitioned() {
 			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
 
 			testFunc(t, client, partitionID)
-			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
 			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
@@ -131,7 +135,7 @@ func testBatchSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 		Events: events,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	err := client.SendBatch(ctx, batch)
 	if err != nil {
@@ -163,7 +167,7 @@ func testBasicSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 	}
 
 	for idx, message := range messages {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		err := client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
@@ -172,7 +176,7 @@ func testBasicSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 	}
 
 	count := 0
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 		assert.Equal(t, messages[count], string(event.Data))
@@ -203,7 +207,7 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 			partitionID := (*mgmtHub.PartitionIds)[0]
 			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			closeCtx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			_ = client.Close(closeCtx) // there will be an error here since the link will be forcefully detached
 			defer cancel()
 		}
@@ -217,14 +221,14 @@ func testEpochGreaterThenLess(t *testing.T, client *Hub, partitionIDs []string, 
 	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	doneCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	select {
 	case <-r2.Done():
@@ -247,15 +251,15 @@ func testEpochLessThenGreater(t *testing.T, client *Hub, partitionIDs []string, 
 	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	doneCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	doneCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	select {
 	case <-r1.Done():
@@ -288,7 +292,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 			defer suite.DeleteEventHub(context.Background(), hubName)
 			client := suite.newClient(t, hubName)
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
 			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
@@ -310,7 +314,7 @@ func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _
 	}
 
 	for idx, message := range messages {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		err := client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
@@ -318,7 +322,7 @@ func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	for _, partitionID := range partitionIDs {
 		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
@@ -348,7 +352,7 @@ func (suite *eventHubSuite) TestHubManagement() {
 			defer suite.DeleteEventHub(context.Background(), hubName)
 			client := suite.newClient(t, hubName)
 			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
 			if err := client.Close(closeContext); err != nil {
 				t.Fatal(err)
@@ -412,14 +416,14 @@ func BenchmarkReceive(b *testing.B) {
 	}
 
 	defer func() {
-		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		hub.Close(closeContext)
 		cancel()
 		suite.DeleteEventHub(context.Background(), hubName)
 	}()
 
 	for idx, message := range messages {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		err := hub.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
 		cancel()
 		if err != nil {
@@ -429,7 +433,7 @@ func BenchmarkReceive(b *testing.B) {
 
 	b.ResetTimer()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	// receive from all partition IDs
 	for _, partitionID := range *mgmtHub.PartitionIds {

@@ -138,21 +138,11 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 
 // Close will close the AMQP session and link of the receiver
 func (r *receiver) Close(ctx context.Context) error {
+	span, _ := r.startConsumerSpanFromContext(ctx, "eventhub.receiver.Close")
+	defer span.Finish()
+
 	if r.done != nil {
 		r.done()
-	}
-
-	err := r.receiver.Close(ctx)
-	if err != nil {
-		_ = r.session.Close(ctx)
-		_ = r.connection.Close()
-		return err
-	}
-
-	err = r.session.Close(ctx)
-	if err != nil {
-		_ = r.connection.Close()
-		return err
 	}
 
 	return r.connection.Close()
@@ -223,17 +213,30 @@ func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler
 }
 
 func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Message) {
-	span, ctx := r.startConsumerSpanFromContextFollowing(ctx, "eventhub.receiver.listenForMessages")
+	span, ctx := r.startConsumerSpanFromContext(ctx, "eventhub.receiver.listenForMessages")
 	defer span.Finish()
 
 	for {
 		msg, err := r.listenForMessage(ctx)
-		if err != nil && ctx.Err() == nil {
+		if ctx.Err() != nil && ctx.Err() == context.DeadlineExceeded {
+			return
+		}
+
+		if amqpErr, ok := err.(*amqp.Error); ok && amqpErr.Condition == "amqp:link:stolen" {
+			// exit since the link has been stolen by a higher epoch
+			return
+		}
+
+		if err != nil {
 			_, retryErr := common.Retry(5, 10*time.Second, func() (interface{}, error) {
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eventhub.receiver.listenForMessages.tryRecover")
 				defer sp.Finish()
 
 				err := r.Recover(ctx)
+				if ctx.Err() != nil && ctx.Err() == context.DeadlineExceeded {
+					return nil, ctx.Err()
+				}
+
 				if err != nil {
 					log.For(ctx).Error(err)
 					return nil, common.Retryable(err.Error())
@@ -262,13 +265,7 @@ func (r *receiver) listenForMessage(ctx context.Context) (*amqp.Message, error) 
 
 	msg, err := r.receiver.Receive(ctx)
 	if err != nil {
-		if ctx.Err() != nil {
-			log.For(ctx).Error(ctx.Err())
-			return nil, ctx.Err()
-		}
-		r.done()
-		r.lastError = err
-		log.For(ctx).Error(err)
+		log.For(ctx).Debug(err.Error())
 		return nil, err
 	}
 

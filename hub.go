@@ -44,7 +44,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "0.2.0"
+	Version = "0.2.1"
 )
 
 type (
@@ -214,10 +214,12 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInform
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
+		log.For(ctx).Error(err)
 		return nil, err
 	}
 	info, err := client.GetHubRuntimeInformation(ctx, conn)
 	if err != nil {
+		log.For(ctx).Error(err)
 		return nil, err
 	}
 	return info, nil
@@ -241,9 +243,13 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *Hub) Close(ctx context.Context) error {
+	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.Close")
+	defer span.Finish()
+
 	var lastErr error
 	for _, r := range h.receivers {
 		if err := r.Close(ctx); err != nil {
+			log.For(ctx).Error(err)
 			lastErr = err
 		}
 	}
@@ -263,6 +269,7 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 		return nil, err
 	}
 
+	// Todo: change this to use name rather than identifier
 	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
 		if err := r.Close(ctx); err != nil {
 			log.For(ctx).Error(err)

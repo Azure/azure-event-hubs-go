@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -85,7 +86,8 @@ func (ts *testSuite) TestMultiple() {
 	}
 
 	numPartitions := len(*hub.PartitionIds)
-	processors := make([]*eph.EventProcessorHost, numPartitions)
+	processors := make(map[string]*eph.EventProcessorHost, numPartitions)
+	processorNames := make([]string, numPartitions)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	for i := 0; i < numPartitions; i++ {
@@ -99,76 +101,86 @@ func (ts *testSuite) TestMultiple() {
 			ts.T().Fatal(err)
 		}
 
-		processors[i] = processor
+		processors[processor.GetName()] = processor
 		processor.StartNonBlocking(ctx)
+		processorNames[i] = processor.GetName()
 	}
 
 	defer func() {
-		for i := 0; i < numPartitions; i++ {
+		for _, processor := range processors {
 			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			processors[i].Close(closeContext)
+			processor.Close(closeContext)
 			cancel()
 		}
 		delHub()
 	}()
 
 	count := 0
-	var partitionMap map[string]bool
+	var partitionsByProcessor map[string][]int
+	balanced := false
 	for {
-		<-time.After(2 * time.Second)
+		<-time.After(3 * time.Second)
 		count++
-		if count > 60 {
+		if count > 50 {
 			break
 		}
 
-		partitionMap = newPartitionMap(*hub.PartitionIds)
-		for i := 0; i < numPartitions; i++ {
-			partitions := processors[i].PartitionIDsBeingProcessed()
-			if len(partitions) == 1 {
-				partitionMap[partitions[0]] = true
+		partitionsByProcessor = make(map[string][]int, len(*hub.PartitionIds))
+		for _, processor := range processors {
+			partitions := processor.PartitionIDsBeingProcessed()
+			partitionInts, err := stringsToInts(partitions)
+			if err != nil {
+				ts.T().Fatal(err)
 			}
+			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
-		//log.Println(partitionMap)
-		if allTrue(partitionMap) {
+
+		if allHaveOnePartition(partitionsByProcessor, numPartitions) {
+			balanced = true
 			break
 		}
 	}
-	if !allTrue(partitionMap) {
+	if !balanced {
 		ts.T().Error("never balanced work within allotted time")
 		return
 	}
 
 	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	processors[numPartitions-1].Close(closeContext) // close the last partition
+	processors[processorNames[numPartitions-1]].Close(closeContext) // close the last partition
+	delete(processors, processorNames[numPartitions-1])
 	cancel()
 
 	count = 0
+	balanced = false
 	for {
-		<-time.After(2 * time.Second)
+		<-time.After(3 * time.Second)
 		count++
-		if count > 60 {
+		if count > 50 {
 			break
 		}
 
-		partitionMap = newPartitionMap(*hub.PartitionIds)
-		for i := 0; i < numPartitions-1; i++ {
-			partitions := processors[i].PartitionIDsBeingProcessed()
-			for _, partition := range partitions {
-				partitionMap[partition] = true
+		partitionsByProcessor = make(map[string][]int, len(*hub.PartitionIds))
+		for _, processor := range processors {
+			partitions := processor.PartitionIDsBeingProcessed()
+			partitionInts, err := stringsToInts(partitions)
+			if err != nil {
+				ts.T().Fatal(err)
 			}
+			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
-		//log.Println(partitionMap)
-		if allTrue(partitionMap) {
+
+		if allHandled(partitionsByProcessor, len(*hub.PartitionIds)) {
+			balanced = true
 			break
 		}
 	}
-	if !allTrue(partitionMap) {
+	if !balanced {
 		ts.T().Error("didn't balance after closing a processor")
 	}
 }
 
 func (ts *testSuite) newTestContainerByName(containerName string) func() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
@@ -203,7 +215,7 @@ func (ts *testSuite) newTestContainer(prefix string, length int) (string, func()
 func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	client := ts.newClient(ts.T(), hubName)
 	defer func() {
-		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		closeContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		client.Close(closeContext)
 		cancel()
 	}()
@@ -291,19 +303,62 @@ func fmtDuration(d time.Duration) string {
 	return fmt.Sprintf("%d seconds", d)
 }
 
-func allTrue(partitionMap map[string]bool) bool {
-	for key := range partitionMap {
-		if !partitionMap[key] {
+func allHaveOnePartition(partitionsByProcessor map[string][]int, numberOfPartitions int) bool {
+	for _, partitions := range partitionsByProcessor {
+		if len(partitions) != 1 {
+			return false
+		}
+	}
+
+	countByPartition := make(map[int]int, numberOfPartitions)
+	for i := 0; i < numberOfPartitions; i++ {
+		countByPartition[i] = 0
+	}
+	for _, partitions := range partitionsByProcessor {
+		for _, partition := range partitions {
+			if count, ok := countByPartition[partition]; ok {
+				countByPartition[partition] = count + 1
+			}
+		}
+	}
+	for i := 0; i < numberOfPartitions; i++ {
+		if countByPartition[i] != 1 {
 			return false
 		}
 	}
 	return true
 }
 
-func newPartitionMap(partitionIDs []string) map[string]bool {
-	partitionMap := make(map[string]bool)
-	for _, partition := range partitionIDs {
-		partitionMap[partition] = false
+func allHandled(partitionsByProcessor map[string][]int, numberOfPartitions int) bool {
+	countByPartition := make(map[int]int, numberOfPartitions)
+	for i := 0; i < numberOfPartitions; i++ {
+		countByPartition[i] = 0
 	}
-	return partitionMap
+	for _, partitions := range partitionsByProcessor {
+		for _, partition := range partitions {
+			if count, ok := countByPartition[partition]; ok {
+				countByPartition[partition] = count + 1
+			}
+		}
+	}
+
+	for _, count := range countByPartition {
+		if count != 1 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func stringsToInts(strs []string) ([]int, error) {
+	ints := make([]int, len(strs))
+	for idx, str := range strs {
+		strInt, err := strconv.Atoi(str)
+		if err != nil {
+			return nil, err
+		}
+		ints[idx] = strInt
+	}
+	return ints, nil
 }
