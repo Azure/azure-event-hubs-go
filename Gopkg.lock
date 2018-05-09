@@ -17,14 +17,14 @@
     "sas",
     "uuid"
   ]
-  revision = "609551be1d31bdc8c3f7c9385c0aaf31bf6ea006"
-  version = "v0.3.2"
+  revision = "7c6d990e663e3d68d2e7db38a2ede690bb9ad002"
+  version = "v0.4.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
-  revision = "0f0dbf237bd47d5688310dbd3fac369353f280d0"
-  version = "0.1.5"
+  revision = "098e490af5dc2a905cdc5b64cafda6887b29164b"
+  version = "0.1.6"
 
 [[projects]]
   name = "github.com/Azure/azure-sdk-for-go"
@@ -38,10 +38,10 @@
   version = "v15.3.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/Azure/azure-storage-blob-go"
   packages = ["2016-05-31/azblob"]
-  revision = "d9b2979663489192f3aff3314a2b7bdf07a50edd"
+  revision = "66ba96e49ebbdc3cd26970c6c675c906d304b5e2"
+  version = "0.1.4"
 
 [[projects]]
   name = "github.com/Azure/go-autorest"
@@ -54,14 +54,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "1ff28809256a84bb6966640ff3d0371af82ccba4"
-  version = "v10.6.2"
-
-[[projects]]
-  name = "github.com/apache/thrift"
-  packages = ["lib/go/thrift"]
-  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
-  version = "0.10.0"
+  revision = "eaa7994b2278094c904d31993d26f56324db3052"
+  version = "v10.8.1"
 
 [[projects]]
   branch = "master"
@@ -140,8 +134,10 @@
     "internal/baggage/remote",
     "internal/spanlog",
     "internal/throttler",
+    "internal/throttler/remote",
     "log",
     "rpcmetrics",
+    "thrift",
     "thrift-gen/agent",
     "thrift-gen/baggage",
     "thrift-gen/jaeger",
@@ -149,8 +145,8 @@
     "thrift-gen/zipkincore",
     "utils"
   ]
-  revision = "3205d4aabc55c1a13b1e48d3db793bc8cd37bd16"
-  version = "v2.13.0"
+  revision = "b043381d944715b469fd6b37addfd30145ca1758"
+  version = "v2.14.0"
 
 [[projects]]
   name = "github.com/uber/jaeger-lib"
@@ -166,13 +162,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "2b6c08872f4b66da917bb4ce98df4f0307330f78"
+  revision = "21052ae46654ecf18dfdba0f7c12701a1e2b3164"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "5f9ae10d9af5b1c89ae6904293b14b064d4ada23"
+  revision = "f73e4c9ed3b7ebdd5f699a16a880c2b1994e50dd"
 
 [[projects]]
   branch = "master"
@@ -181,7 +177,7 @@
     "unix",
     "windows"
   ]
-  revision = "79b0c6888797020a994db17c8510466c72fe75d9"
+  revision = "7db1c3b1a98089d0071c84f646ff5c96aad43682"
 
 [[projects]]
   branch = "master"
@@ -195,6 +191,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "90a839dc13aea6b682a6de17c1673730d55d9339d4dcc116f407f4d0eab2e783"
+  inputs-digest = "2fd0ad280eb8154144d94d6c7d7d21bdfd73fb2df44a13835149336ca6b5e286"
   solver-name = "gps-cdcl"
   solver-version = 1
