@@ -1,6 +1,9 @@
 # Change Log
 
-## 'v0.2.1'
+## `v0.3.0`
+- pin version of amqp
+
+## `v0.2.1`
 - update dependency on common to 0.3.2 to fix retry returning nil error
 
 ## `v0.2.0`
