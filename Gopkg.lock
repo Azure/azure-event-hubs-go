@@ -17,8 +17,8 @@
     "sas",
     "uuid"
   ]
-  revision = "7c6d990e663e3d68d2e7db38a2ede690bb9ad002"
-  version = "v0.4.0"
+  revision = "8d02d4e77aba80165452199bb9bb24a82eb3b219"
+  version = "v0.5.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -85,7 +85,7 @@
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
-  revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
+  revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
   name = "github.com/opentracing/opentracing-go"
@@ -151,8 +151,8 @@
 [[projects]]
   name = "github.com/uber/jaeger-lib"
   packages = ["metrics"]
-  revision = "4267858c0679cd4e47cefed8d7f70fd386cfb567"
-  version = "v1.4.0"
+  revision = "ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5"
+  version = "v1.5.0"
 
 [[projects]]
   branch = "master"
@@ -162,13 +162,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "21052ae46654ecf18dfdba0f7c12701a1e2b3164"
+  revision = "1a580b3eff7814fc9b40602fd35256c63b50f491"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "f73e4c9ed3b7ebdd5f699a16a880c2b1994e50dd"
+  revision = "2491c5de3490fced2f6cff376127c667efeed857"
 
 [[projects]]
   branch = "master"
@@ -177,20 +177,20 @@
     "unix",
     "windows"
   ]
-  revision = "7db1c3b1a98089d0071c84f646ff5c96aad43682"
+  revision = "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b"
 
 [[projects]]
-  branch = "master"
   name = "pack.ag/amqp"
   packages = [
     ".",
     "internal/testconn"
   ]
-  revision = "1961b4812356984db063a6cb3419b70d4375383b"
+  revision = "390d7eaeac0368026b93a13f4f7bc30d903c61cd"
+  version = "v0.5.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2fd0ad280eb8154144d94d6c7d7d21bdfd73fb2df44a13835149336ca6b5e286"
+  inputs-digest = "24f9aedfb2f0a6e602f946d39cff1cb8900a337bedbc7ce18a3ca5b9334d2876"
   solver-name = "gps-cdcl"
   solver-version = 1

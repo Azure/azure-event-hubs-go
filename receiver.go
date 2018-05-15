@@ -204,8 +204,8 @@ func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler
 
 	err = handler(ctx, event)
 	if err != nil {
-		msg.Reject()
-		log.For(ctx).Error(fmt.Errorf("message rejected: id: %v", id))
+		msg.Modify(true, false, nil)
+		log.For(ctx).Error(fmt.Errorf("message modified(true, false, nil): id: %v", id))
 		return
 	}
 	msg.Accept()
