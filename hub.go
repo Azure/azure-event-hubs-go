@@ -115,7 +115,6 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 // There are two sets of environment variables which can produce a SAS TokenProvider
 //
 // 1) Expected Environment Variables:
-//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
 //   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
 //   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
 //
@@ -130,32 +129,24 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 // 2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
 //    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
 //
-// 3. Managed Service Identity (MSI): attempt to authenticate via MSI
+// 3. Managed Service Identity (MSI): attempt to authenticate via MSI on the default local MSI internally addressable IP
+//    and port. See: adal.GetMSIVMEndpoint()
 //
 //
 // The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
 func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (*Hub, error) {
 	var provider auth.TokenProvider
-	aadProvider, aadErr := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
-	sasProvider, sasErr := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
-
-	if aadErr != nil && sasErr != nil {
-		// both failed
-		return nil, errors.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
+	provider, sasErr := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
+	if sasErr == nil {
+		return NewHub(namespace, name, provider, opts...)
 	}
 
-	if aadProvider != nil {
-		provider = aadProvider
-	} else {
-		provider = sasProvider
+	provider, aadErr := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
+	if aadErr == nil {
+		return NewHub(namespace, name, provider, opts...)
 	}
 
-	h, err := NewHub(namespace, name, provider, opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return h, nil
+	return nil, errors.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
 }
 
 // NewHubFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables

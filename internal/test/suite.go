@@ -174,10 +174,7 @@ func (suite *BaseSuite) DeleteEventHub(ctx context.Context, name string) error {
 
 func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
 	client := suite.getEventHubMgmtClient()
-	res, err := client.ListByNamespace(ctx, ResourceGroupName, suite.Namespace)
-	if err != nil {
-		suite.FailNow(err.Error())
-	}
+	res, _ := client.ListByNamespace(ctx, ResourceGroupName, suite.Namespace)
 
 	for res.NotDone() {
 		for _, val := range res.Values() {
@@ -286,7 +283,7 @@ func (suite *BaseSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
 }
 
 func (suite *BaseSuite) setupTracing() error {
-	if os.Getenv("CI") != "true" {
+	if os.Getenv("TRACING") == "true" {
 		// Sample configuration for testing. Use constant sampling to sample every trace
 		// and enable LogSpan to log every span via configured Logger.
 		cfg := config.Configuration{
