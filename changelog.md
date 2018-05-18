@@ -1,5 +1,8 @@
 # Change Log
 
+## `v0.3.1`
+- simplify environmental construction by prefering SAS
+
 ## `v0.3.0`
 - pin version of amqp
 

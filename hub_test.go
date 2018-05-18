@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -50,8 +51,21 @@ var (
 	defaultTimeout = 20 * time.Second
 )
 
+const (
+	connStr  = "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=keyName;SharedAccessKey=secret;EntityPath=hubName"
+)
+
 func TestEventHub(t *testing.T) {
 	suite.Run(t, new(eventHubSuite))
+}
+
+func (suite *eventHubSuite) TestNewHubWithNameAndEnvironment() {
+	revert := suite.captureEnv()
+	defer revert()
+	os.Clearenv()
+	suite.NoError(os.Setenv("EVENTHUB_CONNECTION_STRING", connStr))
+	_, err := NewHubWithNamespaceNameAndEnvironment("hello", "world")
+	suite.NoError(err)
 }
 
 func (suite *eventHubSuite) TestSasToken() {
@@ -96,6 +110,10 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
+			//for _, e := range os.Environ() {
+			//	pair := strings.Split(e, "=")
+			//	fmt.Println(pair[0])
+			//}
 			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
@@ -460,9 +478,7 @@ func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubO
 func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) *Hub {
 	opts = append(opts, HubWithEnvironment(suite.Env))
 	client, err := NewHub(suite.Namespace, hubName, provider, opts...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	suite.NoError(err)
 	return client
 }
 
@@ -484,4 +500,26 @@ func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 func fmtDuration(d time.Duration) string {
 	d = d.Round(time.Second) / time.Second
 	return fmt.Sprintf("%d seconds", d)
+}
+
+func restoreEnv(capture map[string]string) error {
+	os.Clearenv()
+	for key, value := range capture {
+		err := os.Setenv(key, value)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (suite *eventHubSuite) captureEnv() func() {
+	capture := make(map[string]string)
+	for _, pair := range os.Environ() {
+		keyValue := strings.Split(pair, "=")
+		capture[keyValue[0]] = strings.Join(keyValue[1:], "=")
+	}
+	return func() {
+		suite.NoError(restoreEnv(capture))
+	}
 }
