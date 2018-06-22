@@ -1,5 +1,8 @@
 # Change Log
 
+## `head`
+- add partition key to received event
+
 ## `v0.3.1`
 - simplify environmental construction by prefering SAS
 
