@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/sas"
+	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -48,14 +49,14 @@ type (
 )
 
 var (
-	defaultTimeout = 20 * time.Second
+	defaultTimeout = 30 * time.Second
 )
 
 const (
-	connStr  = "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=keyName;SharedAccessKey=secret;EntityPath=hubName"
+	connStr = "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=keyName;SharedAccessKey=secret;EntityPath=hubName"
 )
 
-func TestEventHub(t *testing.T) {
+func TestEH(t *testing.T) {
 	suite.Run(t, new(eventHubSuite))
 }
 
@@ -110,10 +111,6 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			//for _, e := range os.Environ() {
-			//	pair := strings.Split(e, "=")
-			//	fmt.Println(pair[0])
-			//}
 			hubName := suite.RandomName("goehtest", 10)
 			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
 			if err != nil {
@@ -297,7 +294,8 @@ func testEpochLessThenGreater(t *testing.T, client *Hub, partitionIDs []string, 
 
 func (suite *eventHubSuite) TestMultiPartition() {
 	tests := map[string]func(*testing.T, *Hub, []string, string){
-		"TestMultiSendAndReceive": testMultiSendAndReceive,
+		"TestMultiSendAndReceive":            testMultiSendAndReceive,
+		"TestSendWithPartitionKeyAndReceive": testSendWithPartitionKeyAndReceive,
 	}
 
 	for name, testFunc := range tests {
@@ -354,6 +352,66 @@ func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _
 	waitUntil(t, &wg, 15*time.Second)
 }
 
+func testSendWithPartitionKeyAndReceive(t *testing.T, client *Hub, partitionIDs []string, _ string) {
+	numMessages := rand.Intn(100) + 20
+	var wg sync.WaitGroup
+	wg.Add(numMessages)
+
+	sentEvents := make(map[string]*Event)
+	for i := 0; i < numMessages; i++ {
+		content := test.RandomString("hello", 10)
+		event := NewEventFromString(content)
+		event.PartitionKey = &content
+		id, err := uuid.NewV4()
+		if !assert.NoError(t, err) {
+			assert.FailNow(t, "error generating uuid")
+		}
+		event.ID = id.String()
+		sentEvents[event.ID] = event
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	for _, event := range sentEvents {
+		if !assert.NoError(t, client.Send(ctx, event)) {
+			assert.FailNow(t, "failed to send message to hub")
+		}
+	}
+
+	received := make(map[string][]*Event)
+	for _, pID := range partitionIDs {
+		received[pID] = []*Event{}
+	}
+	for _, partitionID := range partitionIDs {
+		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
+			defer wg.Done()
+			received[partitionID] = append(received[partitionID], event)
+			return nil
+		}, ReceiveWithPrefetchCount(100))
+		if !assert.NoError(t, err) {
+			assert.FailNow(t, "failed to receive from partition")
+		}
+	}
+
+	// wait for events to arrive
+	end, _ := ctx.Deadline()
+	if waitUntil(t, &wg, time.Until(end)) {
+		// collect all of the partitioned events
+		receivedEventsByID := make(map[string]*Event)
+		for _, pID := range partitionIDs {
+			for _, event := range received[pID] {
+				receivedEventsByID[event.ID] = event
+			}
+		}
+
+		// verify the sent events have the same partition keys as the received events
+		for key, event := range sentEvents {
+			assert.Equal(t, event.PartitionKey, receivedEventsByID[key].PartitionKey)
+		}
+	}
+}
+
 func (suite *eventHubSuite) TestHubManagement() {
 	tests := map[string]func(*testing.T, *Hub, []string, string){
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
@@ -408,10 +466,10 @@ func TestEnvironmentalCreation(t *testing.T) {
 }
 
 func BenchmarkReceive(b *testing.B) {
-	suite := new(eventHubSuite)
-	suite.SetupSuite()
-	hubName := suite.RandomName("goehtest", 10)
-	mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName, test.HubWithPartitions(8))
+	testSuite := new(eventHubSuite)
+	testSuite.SetupSuite()
+	hubName := testSuite.RandomName("goehtest", 10)
+	mgmtHub, err := testSuite.EnsureEventHub(context.Background(), hubName, test.HubWithPartitions(8))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -421,14 +479,14 @@ func BenchmarkReceive(b *testing.B) {
 
 	messages := make([]string, b.N)
 	for i := 0; i < b.N; i++ {
-		messages[i] = suite.RandomName("hello", 10)
+		messages[i] = testSuite.RandomName("hello", 10)
 	}
 
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
 	if err != nil {
 		b.Fatal(err)
 	}
-	hub, err := NewHub(suite.Namespace, *mgmtHub.Name, provider)
+	hub, err := NewHub(testSuite.Namespace, *mgmtHub.Name, provider)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -437,7 +495,7 @@ func BenchmarkReceive(b *testing.B) {
 		closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		hub.Close(closeContext)
 		cancel()
-		suite.DeleteEventHub(context.Background(), hubName)
+		testSuite.DeleteEventHub(context.Background(), hubName)
 	}()
 
 	for idx, message := range messages {
@@ -482,7 +540,7 @@ func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, 
 	return client
 }
 
-func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
+func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) bool {
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -491,9 +549,10 @@ func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 
 	select {
 	case <-done:
-		return
+		return true
 	case <-time.After(d):
-		t.Error("took longer than " + fmtDuration(d))
+		assert.Fail(t, "took longer than "+fmtDuration(d))
+		return false
 	}
 }
 
