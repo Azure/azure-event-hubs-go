@@ -174,6 +174,14 @@ func newEvent(data []byte, msg *amqp.Message) *Event {
 		}
 	}
 
+	if msg.Annotations != nil {
+		if val, ok := msg.Annotations[partitionKeyAnnotationName]; ok {
+			if valStr, ok := val.(string); ok {
+				event.PartitionKey = &valStr
+			}
+		}
+	}
+
 	if msg != nil {
 		event.Properties = msg.ApplicationProperties
 	}
