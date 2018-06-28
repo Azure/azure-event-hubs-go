@@ -34,8 +34,11 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
-	"github.com/stretchr/testify/suite"
+		"github.com/stretchr/testify/suite"
+)
+
+const (
+	defaultTimeout = 1 * time.Minute
 )
 
 type (
@@ -50,7 +53,10 @@ func TestEventProcessorHost(t *testing.T) {
 }
 
 func (s *testSuite) TestSingle() {
-	hub, del := s.ensureRandomHub("goEPH", 10)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	hub, del := s.RandomHub()
 	defer del()
 
 	processor, err := s.newInMemoryEPH(*hub.Name)
@@ -71,24 +77,26 @@ func (s *testSuite) TestSingle() {
 		return nil
 	})
 
-	processor.StartNonBlocking(context.Background())
+	s.NoError(processor.StartNonBlocking(context.Background()))
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		processor.Close(closeContext)
 		cancel()
 	}()
 
-	waitUntil(s.T(), &wg, 30*time.Second)
+	end, _ := ctx.Deadline()
+	waitUntil(s.T(), &wg, time.Until(end))
 }
 
 func (s *testSuite) TestMultiple() {
-	hub, del := s.ensureRandomHub("goEPH", 10)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	hub, del := s.RandomHub()
 	numPartitions := len(*hub.PartitionIds)
 	sharedStore := new(sharedStore)
 	processors := make(map[string]*EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	for i := 0; i < numPartitions; i++ {
 		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
 		if err != nil {
@@ -195,18 +203,6 @@ func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	client.SendBatch(ctx, eventhub.NewEventBatch(events))
 
 	return messages, ctx.Err()
-}
-
-func (s *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
-	hubName := s.RandomName(prefix, length)
-	hub, err := s.EnsureEventHub(context.Background(), hubName)
-	if err != nil {
-		s.T().Fatal(err)
-	}
-
-	return hub, func() {
-		s.DeleteEventHub(context.Background(), hubName)
-	}
 }
 
 func (s *testSuite) newInMemoryEPH(hubName string) (*EventProcessorHost, error) {

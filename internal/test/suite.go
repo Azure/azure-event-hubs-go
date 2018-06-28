@@ -109,20 +109,18 @@ func (suite *BaseSuite) SetupSuite() {
 	} else {
 		var err error
 		env, err := azure.EnvironmentFromName(envName)
-		if err != nil {
-			log.Fatal(err)
+		if !suite.NoError(err) {
+			suite.FailNow("could not find env name")
 		}
 		suite.Env = env
 	}
 
-	err := suite.ensureProvisioned(mgmt.SkuTierStandard)
-	if err != nil {
-		log.Fatalln(err)
+	if !suite.NoError(suite.ensureProvisioned(mgmt.SkuTierStandard)) {
+		suite.FailNow("failed provisioning")
 	}
 
-	err = suite.setupTracing()
-	if err != nil {
-		log.Fatalln(err)
+	if !suite.NoError(suite.setupTracing()) {
+		suite.FailNow("failed to setup tracing")
 	}
 }
 
@@ -137,8 +135,24 @@ func (suite *BaseSuite) TearDownSuite() {
 	}
 }
 
+// RandomHub creates a hub with a random'ish name
+func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	name := suite.RandomName("goehtest", 6)
+	model, err := suite.ensureEventHub(ctx, name, opts...)
+	if !suite.NoError(err) {
+		suite.FailNow("couldn't build a random hub")
+	}
+
+	return model, func() {
+		suite.DeleteEventHub(*model.Name)
+	}
+}
+
 // EnsureEventHub creates an Event Hub if it doesn't exist
-func (suite *BaseSuite) EnsureEventHub(ctx context.Context, name string, opts ...HubMgmtOption) (*mgmt.Model, error) {
+func (suite *BaseSuite) ensureEventHub(ctx context.Context, name string, opts ...HubMgmtOption) (*mgmt.Model, error) {
 	client := suite.getEventHubMgmtClient()
 	hub, err := client.Get(ctx, ResourceGroupName, suite.Namespace, name)
 
@@ -166,7 +180,9 @@ func (suite *BaseSuite) EnsureEventHub(ctx context.Context, name string, opts ..
 }
 
 // DeleteEventHub deletes an Event Hub within the given Namespace
-func (suite *BaseSuite) DeleteEventHub(ctx context.Context, name string) error {
+func (suite *BaseSuite) DeleteEventHub(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	client := suite.getEventHubMgmtClient()
 	_, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, name)
 	return err
@@ -305,6 +321,9 @@ func (suite *BaseSuite) setupTracing() error {
 			"ehtests",
 			config.Logger(jLogger),
 		)
+		if !suite.NoError(err) {
+			suite.FailNow("failed to initialize the global trace logger")
+		}
 
 		suite.closer = closer
 		return err

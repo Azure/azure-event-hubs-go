@@ -2,6 +2,7 @@
 
 
 [[projects]]
+  branch = "parsing"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -17,14 +18,13 @@
     "sas",
     "uuid"
   ]
-  revision = "8d02d4e77aba80165452199bb9bb24a82eb3b219"
-  version = "v0.5.0"
+  revision = "6a949e464b118d941f47dfa3265c81155489dc0b"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
-  revision = "098e490af5dc2a905cdc5b64cafda6887b29164b"
-  version = "0.1.6"
+  revision = "7571e8eb0876932ab505918ff7ed5107773e5ee2"
+  version = "0.1.7"
 
 [[projects]]
   name = "github.com/Azure/azure-sdk-for-go"
@@ -54,8 +54,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "eaa7994b2278094c904d31993d26f56324db3052"
-  version = "v10.8.1"
+  revision = "e6d2a85bbb5cd2a3162e4942594e1e520e442b0b"
+  version = "v10.11.4"
 
 [[projects]]
   branch = "master"
@@ -122,8 +122,8 @@
     "require",
     "suite"
   ]
-  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
-  version = "v1.2.1"
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   name = "github.com/uber/jaeger-client-go"
@@ -162,13 +162,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "1a580b3eff7814fc9b40602fd35256c63b50f491"
+  revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "2491c5de3490fced2f6cff376127c667efeed857"
+  revision = "e514e69ffb8bc3c76a71ae40de0118d794855992"
 
 [[projects]]
   branch = "master"
@@ -177,7 +177,7 @@
     "unix",
     "windows"
   ]
-  revision = "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b"
+  revision = "7138fd3d9dc8335c567ca206f4333fb75eb05d56"
 
 [[projects]]
   name = "pack.ag/amqp"
@@ -185,12 +185,12 @@
     ".",
     "internal/testconn"
   ]
-  revision = "390d7eaeac0368026b93a13f4f7bc30d903c61cd"
-  version = "v0.5.0"
+  revision = "751cf0d4eb77d69534dabeff0f3afb2a0eb8588c"
+  version = "v0.6.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9e8d39c2948233a4f9dc40bdfcbee21ae301de912713e0f0c8c6644668aece5b"
+  inputs-digest = "9946a15e47d50cfc15978d30e152922d92f85aac8a5b238fa25479129f4a1851"
   solver-name = "gps-cdcl"
   solver-version = 1

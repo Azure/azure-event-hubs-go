@@ -43,7 +43,7 @@ const (
 
 	amqpAnnotationFormat = "amqp.annotation.%s >%s '%s'"
 
-	defaultPrefetchCount = 100
+	defaultPrefetchCount = 1000
 
 	epochKey = mgmt.MsftVendor + ":epoch"
 )
@@ -313,9 +313,7 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	opts := []amqp.LinkOption{
 		amqp.LinkSourceAddress(address),
 		amqp.LinkCredit(r.prefetchCount),
-		amqp.LinkSenderSettle(amqp.ModeUnsettled),
-		amqp.LinkReceiverSettle(amqp.ModeSecond),
-		amqp.LinkBatching(true),
+		amqp.LinkReceiverSettle(amqp.ModeFirst),
 		amqp.LinkSelectorFilter(offsetExpression),
 	}
 

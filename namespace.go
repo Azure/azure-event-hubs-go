@@ -54,7 +54,6 @@ func (ns *namespace) newConnection() (*amqp.Client, error) {
 	host := ns.getAmqpHostURI()
 	return amqp.Dial(host,
 		amqp.ConnSASLAnonymous(),
-		amqp.ConnMaxSessions(65535),
 		amqp.ConnProperty("product", "MSGolangClient"),
 		amqp.ConnProperty("version", Version),
 		amqp.ConnProperty("platform", runtime.GOOS),
