@@ -57,7 +57,7 @@ type (
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
 func (h *Hub) newSender(ctx context.Context) (*sender, error) {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.sender.newSender")
+	span, ctx := h.startSpanFromContext(ctx, "eh.sender.newSender")
 	defer span.Finish()
 
 	s := &sender{
@@ -71,7 +71,7 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 
 // Recover will attempt to close the current session and link, then rebuild them
 func (s *sender) Recover(ctx context.Context) error {
-	span, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.Recover")
+	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.Finish()
 
 	_ = s.Close(ctx) // we expect the sender is in an error state
@@ -80,7 +80,7 @@ func (s *sender) Recover(ctx context.Context) error {
 
 // Close will close the AMQP connection, session and link of the sender
 func (s *sender) Close(ctx context.Context) error {
-	span, _ := s.startProducerSpanFromContext(ctx, "eventhub.sender.Close")
+	span, _ := s.startProducerSpanFromContext(ctx, "eh.sender.Close")
 	defer span.Finish()
 
 	return s.connection.Close()
@@ -90,7 +90,7 @@ func (s *sender) Close(ctx context.Context) error {
 //
 // This will retry sending the message if the server responds with a busy error.
 func (s *sender) Send(ctx context.Context, event *Event, opts ...SendOption) error {
-	span, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.Send")
+	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Send")
 	defer span.Finish()
 
 	for _, opt := range opts {
@@ -112,7 +112,7 @@ func (s *sender) Send(ctx context.Context, event *Event, opts ...SendOption) err
 }
 
 func (s *sender) trySend(ctx context.Context, evt eventer) error {
-	sp, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.trySend")
+	sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend")
 	defer sp.Finish()
 
 	times := 3
@@ -123,7 +123,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 		times = ehmath.Max(times, 1) // give at least one chance at sending
 	}
 	_, err := common.Retry(times, delay, func() (interface{}, error) {
-		sp, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.trySend.transmit")
+		sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.transmit")
 		defer sp.Finish()
 
 		select {
@@ -140,7 +140,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			}
 
 			msg := evt.toMsg()
-			sp.SetTag("eventhub.message-id", msg.Properties.MessageID)
+			sp.SetTag("eh.message-id", msg.Properties.MessageID)
 			err = s.sender.Send(innerCtx, msg)
 			if err != nil {
 				recoverErr := s.Recover(ctx)
@@ -178,7 +178,7 @@ func (s *sender) getFullIdentifier() string {
 
 // newSessionAndLink will replace the existing session and link
 func (s *sender) newSessionAndLink(ctx context.Context) error {
-	span, ctx := s.startProducerSpanFromContext(ctx, "eventhub.sender.newSessionAndLink")
+	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.newSessionAndLink")
 	defer span.Finish()
 
 	connection, err := s.hub.namespace.newConnection()

@@ -74,7 +74,7 @@ func newScheduler(eventHostProcessor *EventProcessorHost) *scheduler {
 func (s *scheduler) Run(ctx context.Context) {
 	ctx, done := context.WithCancel(ctx)
 	s.done = done
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Run")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.Run")
 	defer span.Finish()
 
 	for {
@@ -91,7 +91,7 @@ func (s *scheduler) Run(ctx context.Context) {
 }
 
 func (s *scheduler) scan(ctx context.Context) {
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.scan")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.scan")
 	defer span.Finish()
 
 	s.dlog(ctx, "running scan")
@@ -166,7 +166,7 @@ func (s *scheduler) scan(ctx context.Context) {
 }
 
 func (s *scheduler) Stop(ctx context.Context) error {
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.Stop")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.Stop")
 	defer span.Finish()
 
 	if s.done != nil {
@@ -187,7 +187,7 @@ func (s *scheduler) Stop(ctx context.Context) error {
 func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error {
 	s.receiverMu.Lock()
 	defer s.receiverMu.Unlock()
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.startReceiver")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.startReceiver")
 	defer span.Finish()
 
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
@@ -212,7 +212,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 	s.receiverMu.Lock()
 	defer s.receiverMu.Unlock()
 
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.stopReceiver")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.stopReceiver")
 	defer span.Finish()
 
 	span.SetTag(partitionIDTag, lease.GetPartitionID())
@@ -232,7 +232,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 }
 
 func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMarker) (acquired []LeaseMarker, notAcquired []LeaseMarker, err error) {
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.acquireExpiredLeases")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.acquireExpiredLeases")
 	defer span.Finish()
 
 	for _, lease := range leases {
@@ -262,7 +262,7 @@ func (s *scheduler) dlog(ctx context.Context, msg string) {
 }
 
 func (s *scheduler) leaseToSteal(ctx context.Context, candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {
-	span, ctx := s.startConsumerSpanFromContext(ctx, "eventhub.eph.scheduler.leaseToSteal")
+	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.leaseToSteal")
 	defer span.Finish()
 
 	biggestOwner := ownerWithMostLeases(candidates)

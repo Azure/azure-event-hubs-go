@@ -34,7 +34,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-		"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/suite"
 )
 
 const (
@@ -72,7 +72,7 @@ func (s *testSuite) TestSingle() {
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
 
-	processor.Receive(func(c context.Context, event *eventhub.Event) error {
+	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
 	})

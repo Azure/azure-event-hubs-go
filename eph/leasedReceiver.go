@@ -24,6 +24,7 @@ package eph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -31,7 +32,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 )
 
 type (
@@ -51,7 +51,7 @@ func newLeasedReceiver(processor *EventProcessorHost, lease LeaseMarker) *leased
 }
 
 func (lr *leasedReceiver) Run(ctx context.Context) error {
-	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.Run")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.Run")
 	defer span.Finish()
 
 	partitionID := lr.lease.GetPartitionID()
@@ -61,7 +61,7 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 	go func() {
 		ctx, done := context.WithCancel(context.Background())
 		lr.done = done
-		span := opentracing.StartSpan("eventhub.eph.leasedReceiver.Run.startLeaseRenew", opentracing.FollowsFrom(span.Context()))
+		span := opentracing.StartSpan("eph.leasedReceiver.Run.startLeaseRenew", opentracing.FollowsFrom(span.Context()))
 		ctx = opentracing.ContextWithSpan(ctx, span)
 		lr.periodicallyRenewLease(ctx)
 	}()
@@ -76,7 +76,7 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 }
 
 func (lr *leasedReceiver) Close(ctx context.Context) error {
-	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.Close")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.Close")
 	defer span.Finish()
 
 	if lr.done != nil {
@@ -95,7 +95,7 @@ func (lr *leasedReceiver) listenForClose() {
 		<-lr.handle.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.listenForClose")
+		span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.listenForClose")
 		defer span.Finish()
 		err := lr.processor.scheduler.stopReceiver(ctx, lr.lease)
 		if err != nil {
@@ -105,7 +105,7 @@ func (lr *leasedReceiver) listenForClose() {
 }
 
 func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
-	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.periodicallyRenewLease")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.periodicallyRenewLease")
 	defer span.Finish()
 
 	for {
@@ -124,7 +124,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 }
 
 func (lr *leasedReceiver) tryRenew(ctx context.Context) error {
-	span, ctx := lr.startConsumerSpanFromContext(ctx, "eventhub.eph.leasedReceiver.tryRenew")
+	span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.tryRenew")
 	defer span.Finish()
 
 	lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease.GetPartitionID())

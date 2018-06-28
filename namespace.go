@@ -63,7 +63,7 @@ func (ns *namespace) newConnection() (*amqp.Client, error) {
 }
 
 func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Client, entityPath string) error {
-	span, ctx := ns.startSpanFromContext(ctx, "eventhub.namespace.negotiateClaim")
+	span, ctx := ns.startSpanFromContext(ctx, "eh.namespace.negotiateClaim")
 	defer span.Finish()
 
 	audience := ns.getEntityAudience(entityPath)

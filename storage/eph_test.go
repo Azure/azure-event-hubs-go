@@ -71,7 +71,7 @@ func (ts *testSuite) TestSingle() {
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
 
-	processor.Receive(func(c context.Context, event *eventhub.Event) error {
+	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
 	})

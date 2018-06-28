@@ -26,7 +26,7 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"io"
+		"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -48,6 +48,10 @@ import (
 var (
 	letterRunes = []rune("abcdefghijklmnopqrstuvwxyz123456789")
 	debug       = flag.Bool("debug", false, "output debug level logging")
+)
+
+const (
+	defaultTimeout = 1 * time.Minute
 )
 
 const (
@@ -127,7 +131,7 @@ func (suite *BaseSuite) SetupSuite() {
 // TearDownSuite might one day destroy all of the resources in the suite, but I'm not sure we want to do that just yet...
 func (suite *BaseSuite) TearDownSuite() {
 	// maybe tear down all existing resource??
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	suite.deleteAllTaggedEventHubs(ctx)
 	if suite.closer != nil {
@@ -137,7 +141,7 @@ func (suite *BaseSuite) TearDownSuite() {
 
 // RandomHub creates a hub with a random'ish name
 func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	name := suite.RandomName("goehtest", 6)

@@ -54,8 +54,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "e6d2a85bbb5cd2a3162e4942594e1e520e442b0b"
-  version = "v10.11.4"
+  revision = "1f7cd6cfe0adea687ad44a512dfe76140f804318"
+  version = "v10.12.0"
 
 [[projects]]
   branch = "master"
@@ -168,7 +168,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "e514e69ffb8bc3c76a71ae40de0118d794855992"
+  revision = "d1d521f6884855bc0e59c3d011574bd0678f18bc"
 
 [[projects]]
   branch = "master"
@@ -191,6 +191,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9946a15e47d50cfc15978d30e152922d92f85aac8a5b238fa25479129f4a1851"
+  inputs-digest = "4c9f24ae0ab33d7421d8e0f90ab245dfc0ba58989c0c9900395784d4c98c4a12"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -26,6 +26,7 @@ package eph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -83,6 +84,9 @@ type (
 	checkpointPersister struct {
 		checkpointer Checkpointer
 	}
+
+	// HandlerID is a UUID in string format that identifies a registered handler
+	HandlerID string
 )
 
 // WithNoBanner will configure an EventProcessorHost to not output the banner upon start
@@ -95,7 +99,7 @@ func WithNoBanner() EventProcessorHostOption {
 
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.New")
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.New")
 	defer span.Finish()
 
 	persister := checkpointPersister{checkpointer: checkpointer}
@@ -137,35 +141,65 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 	return host, nil
 }
 
-// Receive provides the ability to register a handler for processing Event Hub messages
-func (h *EventProcessorHost) Receive(handler eventhub.Handler) (close func() error, err error) {
+// RegisteredHandlerIDs will return the registered event handler IDs
+func (h *EventProcessorHost) RegisteredHandlerIDs() []HandlerID {
 	h.handlersMu.Lock()
 	defer h.handlersMu.Unlock()
 
-	receiverID, err := uuid.NewV4()
+	ids := make([]HandlerID, len(h.handlers))
+	count := 0
+	for key := range h.handlers {
+		ids[count] = HandlerID(key)
+		count++
+	}
+	return ids
+}
+
+// RegisterHandler will register an event handler which will receive events after Start or StartNonBlocking is called
+func (h *EventProcessorHost) RegisterHandler(ctx context.Context, handler eventhub.Handler) (HandlerID, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.RegisterHandler")
+	defer span.Finish()
+
+	h.handlersMu.Lock()
+	defer h.handlersMu.Unlock()
+
+	id, err := uuid.NewV4()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	h.handlers[receiverID.String()] = handler
-	close = func() error {
-		h.handlersMu.Lock()
-		defer h.handlersMu.Unlock()
+	h.handlers[id.String()] = handler
+	return HandlerID(id.String()), nil
+}
 
-		delete(h.handlers, receiverID.String())
-		return nil
+// UnregisterHandler will remove an event handler from receiving events, and will close the EventProcessorHost if it is
+// the last handler registered.
+func (h *EventProcessorHost) UnregisterHandler(ctx context.Context, id HandlerID) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.UnregisterHandler")
+	defer span.Finish()
+
+	h.handlersMu.Lock()
+	defer h.handlersMu.Unlock()
+
+	delete(h.handlers, string(id))
+
+	if len(h.handlers) == 0 {
+		h.Close(ctx)
 	}
-	return close, nil
 }
 
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
 func (h *EventProcessorHost) Start(ctx context.Context) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.Start")
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.Start")
 	defer span.Finish()
 
 	if !h.noBanner {
 		fmt.Print(banner)
 		fmt.Println(exitPrompt)
+	}
+
+	if len(h.handlers) == 0 {
+		return errors.New("no handlers have been registered; call RegisterHandler to setup an event handler")
 	}
 
 	if err := h.setup(ctx); err != nil {
@@ -187,7 +221,7 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 
 // StartNonBlocking begins processing of messages for registered handlers
 func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.StartNonBlocking")
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.StartNonBlocking")
 	defer span.Finish()
 
 	if !h.noBanner {
@@ -256,7 +290,7 @@ func (h *EventProcessorHost) Close(ctx context.Context) error {
 func (h *EventProcessorHost) setup(ctx context.Context) error {
 	h.hostMu.Lock()
 	defer h.hostMu.Unlock()
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.eph.EventProcessorHost.setup")
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.setup")
 	defer span.Finish()
 
 	if h.scheduler == nil {
@@ -284,6 +318,12 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 
 func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 	return func(ctx context.Context, event *eventhub.Event) error {
+		span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.compositeHandlers")
+		defer span.Finish()
+
+		h.handlersMu.Lock()
+		defer h.handlersMu.Unlock()
+
 		var wg sync.WaitGroup
 		for _, handle := range h.handlers {
 			wg.Add(1)

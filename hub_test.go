@@ -286,7 +286,7 @@ func testMultiSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	}
 
 	for idx, message := range messages {
-		if !assert.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))){
+		if !assert.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))) {
 			assert.FailNow(t, "unable to send message")
 		}
 	}
