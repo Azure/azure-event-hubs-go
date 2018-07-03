@@ -38,6 +38,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -48,7 +49,10 @@ func (ts *testSuite) TestSingle() {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	hub, delHub := ts.RandomHub()
+	hub, delHub, err := ts.RandomHub()
+	if !ts.NoError(err) {
+		ts.FailNow("could not build a hub")
+	}
 	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()
 
@@ -85,7 +89,8 @@ func (ts *testSuite) TestMultiple() {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	hub, delHub := ts.RandomHub()
+	hub, delHub, err := ts.RandomHub()
+	require.NoError(ts.T(), err)
 	defer delHub()
 	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()

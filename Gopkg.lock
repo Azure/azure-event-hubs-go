@@ -34,8 +34,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "4650843026a7fdec254a8d9cf893693a254edd0b"
-  version = "v16.2.1"
+  revision = "7971189ecf5a584b9211f2527737f94bb979644e"
+  version = "v17.4.0"
 
 [[projects]]
   name = "github.com/Azure/azure-storage-blob-go"
@@ -168,7 +168,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "d1d521f6884855bc0e59c3d011574bd0678f18bc"
+  revision = "87b3feba568e144938625fc5d80ec92566c1a8fe"
 
 [[projects]]
   branch = "master"
@@ -191,6 +191,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4c9f24ae0ab33d7421d8e0f90ab245dfc0ba58989c0c9900395784d4c98c4a12"
+  inputs-digest = "c6c460be8f334b53e45118ef4da364f6c2f5b3c204662c466766d885074842a6"
   solver-name = "gps-cdcl"
   solver-version = 1

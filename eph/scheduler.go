@@ -184,6 +184,20 @@ func (s *scheduler) Stop(ctx context.Context) error {
 	return lastErr
 }
 
+func (s *scheduler) getPartitionIDsBeingProcessed() []string {
+	s.receiverMu.Lock()
+	defer s.receiverMu.Unlock()
+
+	ids := make([]string, len(s.receivers))
+	count := 0
+	for id := range s.receivers {
+		ids[count] = id
+		count++
+	}
+
+	return ids
+}
+
 func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error {
 	s.receiverMu.Lock()
 	defer s.receiverMu.Unlock()

@@ -253,13 +253,7 @@ func (h *EventProcessorHost) GetPartitionIDs() []string {
 
 // PartitionIDsBeingProcessed returns the partition IDs currently receiving messages
 func (h *EventProcessorHost) PartitionIDsBeingProcessed() []string {
-	ids := make([]string, len(h.scheduler.receivers))
-	count := 0
-	for key := range h.scheduler.receivers {
-		ids[count] = key
-		count++
-	}
-	return ids
+	return h.scheduler.getPartitionIDsBeingProcessed()
 }
 
 // Close stops the EventHostProcessor from processing messages

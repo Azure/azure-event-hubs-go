@@ -42,6 +42,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -68,9 +69,9 @@ func (suite *eventHubSuite) TestNewHubWithNameAndEnvironment() {
 	revert := suite.captureEnv()
 	defer revert()
 	os.Clearenv()
-	suite.NoError(os.Setenv("EVENTHUB_CONNECTION_STRING", connStr))
+	require.NoError(suite.T(), os.Setenv("EVENTHUB_CONNECTION_STRING", connStr))
 	_, err := NewHubWithNamespaceNameAndEnvironment("hello", "world")
-	suite.NoError(err)
+	require.NoError(suite.T(), err)
 }
 
 func (suite *eventHubSuite) TestSasToken() {
@@ -83,11 +84,9 @@ func (suite *eventHubSuite) TestSasToken() {
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
 			provider, err := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
-			if !suite.NoError(err) {
-				suite.FailNow("unable to build SAS token from environment vars")
-			}
-
-			hub, cleanup := suite.RandomHub()
+			suite.Require().NoError(err)
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
 			defer cleanup()
 			client, closer := suite.newClientWithProvider(t, *hub.Name, provider)
 			defer closer()
@@ -109,7 +108,8 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup := suite.RandomHub()
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
 			defer cleanup()
 			partitionID := (*hub.PartitionIds)[0]
 			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
@@ -193,7 +193,8 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup := suite.RandomHub()
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
 			defer cleanup()
 			partitionID := (*hub.PartitionIds)[0]
 			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
@@ -263,7 +264,8 @@ func (suite *eventHubSuite) TestMultiPartition() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup := suite.RandomHub()
+			hub, cleanup, err := suite.RandomHub()
+			suite.Require().NoError(err)
 			defer cleanup()
 			client, closer := suite.newClient(t, *hub.Name)
 			defer closer()
@@ -369,7 +371,8 @@ func (suite *eventHubSuite) TestHubManagement() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup := suite.RandomHub()
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
 			defer cleanup()
 			client, closer := suite.newClient(t, *hub.Name)
 			defer closer()

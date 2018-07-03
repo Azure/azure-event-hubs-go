@@ -53,25 +53,20 @@ func TestEventProcessorHost(t *testing.T) {
 }
 
 func (s *testSuite) TestSingle() {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
-	hub, del := s.RandomHub()
-	defer del()
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
 
 	processor, err := s.newInMemoryEPH(*hub.Name)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 
 	messages, err := s.sendMessages(*hub.Name, 10)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
 
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
 	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
@@ -82,6 +77,7 @@ func (s *testSuite) TestSingle() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		processor.Close(closeContext)
 		cancel()
+		del()
 	}()
 
 	end, _ := ctx.Deadline()
@@ -89,14 +85,17 @@ func (s *testSuite) TestSingle() {
 }
 
 func (s *testSuite) TestMultiple() {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
+	defer del()
 
-	hub, del := s.RandomHub()
 	numPartitions := len(*hub.PartitionIds)
 	sharedStore := new(sharedStore)
 	processors := make(map[string]*EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
 	for i := 0; i < numPartitions; i++ {
 		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
 		if err != nil {

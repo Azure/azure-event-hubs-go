@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func (ts *testSuite) TestLeaserStoreCreation() {
@@ -170,7 +171,8 @@ func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 
 func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.newLeaser()
-	hub, delHub := ts.RandomHub()
+	hub, delHub, err := ts.RandomHub()
+	require.NoError(ts.T(), err)
 	delAll := func() {
 		delHub()
 		del()

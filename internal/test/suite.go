@@ -24,7 +24,6 @@ package test
 
 import (
 	"context"
-	"errors"
 	"flag"
 		"io"
 	"math/rand"
@@ -38,6 +37,7 @@ import (
 	rm "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2017-05-10/resources"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/go-autorest/autorest/to"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber/jaeger-client-go"
@@ -83,19 +83,6 @@ func init() {
 	rand.Seed(time.Now().Unix())
 }
 
-// HubWithPartitions configures an Event Hub to have a specific number of partitions.
-//
-// Must be between 1 and 32
-func HubWithPartitions(count int) HubMgmtOption {
-	return func(model *mgmt.Model) error {
-		if count < 1 || count > 32 {
-			return errors.New("count must be between 1 and 32")
-		}
-		model.PartitionCount = common.PtrInt64(int64(count))
-		return nil
-	}
-}
-
 // SetupSuite constructs the test suite from the environment and
 func (suite *BaseSuite) SetupSuite() {
 	flag.Parse()
@@ -106,7 +93,7 @@ func (suite *BaseSuite) SetupSuite() {
 	suite.SubscriptionID = mustGetEnv("AZURE_SUBSCRIPTION_ID")
 	suite.Namespace = mustGetEnv("EVENTHUB_NAMESPACE")
 	envName := os.Getenv("AZURE_ENVIRONMENT")
-	suite.TagID = RandomString("tag", 10)
+	suite.TagID = RandomString("tag", 5)
 
 	if envName == "" {
 		suite.Env = azure.PublicCloud
@@ -140,19 +127,17 @@ func (suite *BaseSuite) TearDownSuite() {
 }
 
 // RandomHub creates a hub with a random'ish name
-func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func(), error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
 	defer cancel()
 
 	name := suite.RandomName("goehtest", 6)
 	model, err := suite.ensureEventHub(ctx, name, opts...)
-	if !suite.NoError(err) {
-		suite.FailNow("couldn't build a random hub")
-	}
-
 	return model, func() {
-		suite.DeleteEventHub(*model.Name)
-	}
+		if err := suite.DeleteEventHub(*model.Name); err != nil {
+			suite.T().Log(err)
+		}
+	}, err
 }
 
 // EnsureEventHub creates an Event Hub if it doesn't exist
@@ -175,17 +160,41 @@ func (suite *BaseSuite) ensureEventHub(ctx context.Context, name string, opts ..
 			}
 		}
 
-		hub, err = client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *newHub)
-		if err != nil {
-			return nil, err
+		var lastErr error
+		deadline, _ := ctx.Deadline()
+		for time.Now().Before(deadline) {
+			hub, err = suite.tryHubCreate(ctx, client, name, newHub)
+			if err == nil {
+				lastErr = nil
+				break
+			}
+			lastErr = err
+		}
+
+		if lastErr != nil {
+			return nil, lastErr
 		}
 	}
 	return &hub, nil
 }
 
+func (suite *BaseSuite) tryHubCreate(ctx context.Context, client *mgmt.EventHubsClient, name string, hub *mgmt.Model) (mgmt.Model, error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	//suite.T().Logf("trying to create hub named %q", name)
+	createdHub, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
+	if err != nil {
+		//suite.T().Logf("failed to create hub named %q", name)
+		return mgmt.Model{}, err
+	}
+
+	return createdHub, err
+}
+
 // DeleteEventHub deletes an Event Hub within the given Namespace
 func (suite *BaseSuite) DeleteEventHub(name string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	client := suite.getEventHubMgmtClient()
 	_, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, name)
@@ -194,12 +203,26 @@ func (suite *BaseSuite) DeleteEventHub(name string) error {
 
 func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
 	client := suite.getEventHubMgmtClient()
-	res, _ := client.ListByNamespace(ctx, ResourceGroupName, suite.Namespace)
+	res, err := client.ListByNamespace(ctx, ResourceGroupName, suite.Namespace, to.Int32Ptr(0), to.Int32Ptr(20))
+	if err != nil {
+		suite.T().Log("error listing namespaces")
+		suite.T().Error(err)
+	}
 
 	for res.NotDone() {
 		for _, val := range res.Values() {
-			if strings.Contains(suite.TagID, *val.Name) {
-				client.Delete(ctx, ResourceGroupName, suite.Namespace, *val.Name)
+			if strings.Contains(*val.Name, suite.TagID) {
+				for i := 0; i < 5; i++ {
+					if _, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, *val.Name); err != nil {
+						suite.T().Logf("error deleting %q", *val.Name)
+						suite.T().Error(err)
+						time.Sleep(3 * time.Second)
+					} else {
+						break
+					}
+				}
+			} else {
+				suite.T().Logf("%q does not contain %q", *val.Name, suite.TagID)
 			}
 		}
 		res.Next()
@@ -220,6 +243,10 @@ func (suite *BaseSuite) ensureProvisioned(tier mgmt.SkuTier) error {
 func ensureResourceGroup(ctx context.Context, subscriptionID, name, location string, env azure.Environment) (*rm.Group, error) {
 	groupClient := getRmGroupClientWithToken(subscriptionID, env)
 	group, err := groupClient.Get(ctx, name)
+	if group.Response.Response == nil {
+		// tcp dial error or something else where the response was not populated
+		return nil, err
+	}
 
 	if group.StatusCode == http.StatusNotFound {
 		group, err = groupClient.CreateOrUpdate(ctx, name, rm.Group{Location: common.PtrString(location)})
