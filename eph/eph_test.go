@@ -113,7 +113,7 @@ func (s *testSuite) TestSingle() {
 func (s *testSuite) TestMultiple() {
 	hub, del, err := s.RandomHub()
 	s.Require().NoError(err)
-	defer del()
+	defer del() 
 
 	numPartitions := len(*hub.PartitionIds)
 	sharedStore := new(sharedStore)
@@ -124,9 +124,8 @@ func (s *testSuite) TestMultiple() {
 	defer cancel()
 	for i := 0; i < numPartitions; i++ {
 		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
-		if err != nil {
-			s.T().Fatal(err)
-		}
+		s.Require().NoError(err)
+
 		processors[processor.GetName()] = processor
 		processor.StartNonBlocking(ctx)
 		processorNames[i] = processor.GetName()
@@ -155,9 +154,8 @@ func (s *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if err != nil {
-				s.T().Fatal(err)
-			}
+			s.Require().NoError(err)
+
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -189,9 +187,8 @@ func (s *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if err != nil {
-				s.T().Fatal(err)
-			}
+			s.Require().NoError(err)
+
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -240,7 +237,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, store *sharedStore
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, store)
 	processor, err := New(ctx, s.Namespace, hubName, provider, leaserCheckpointer, leaserCheckpointer, WithNoBanner())
