@@ -120,7 +120,7 @@ func (s *testSuite) TestMultiple() {
 	processors := make(map[string]*EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
 	defer cancel()
 	for i := 0; i < numPartitions; i++ {
 		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
@@ -240,7 +240,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, store *sharedStore
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, store)
 	processor, err := New(ctx, s.Namespace, hubName, provider, leaserCheckpointer, leaserCheckpointer, WithNoBanner())
