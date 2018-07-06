@@ -2,7 +2,6 @@
 
 
 [[projects]]
-  branch = "parsing"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -18,7 +17,8 @@
     "sas",
     "uuid"
   ]
-  revision = "6a949e464b118d941f47dfa3265c81155489dc0b"
+  revision = "e05d7e9b03e1fd3a074d0f0b819bad445e3a0a69"
+  version = "v0.6.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -168,7 +168,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "87b3feba568e144938625fc5d80ec92566c1a8fe"
+  revision = "32a936f46389aa10549d60bd7833e54b01685d09"
 
 [[projects]]
   branch = "master"
@@ -177,7 +177,7 @@
     "unix",
     "windows"
   ]
-  revision = "7138fd3d9dc8335c567ca206f4333fb75eb05d56"
+  revision = "ce36f3865eeb42541ce3f87f32f8462c5687befa"
 
 [[projects]]
   name = "pack.ag/amqp"
@@ -191,6 +191,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c6c460be8f334b53e45118ef4da364f6c2f5b3c204662c466766d885074842a6"
+  inputs-digest = "97a19b37e5b50ba71bfb1b440e9b516df82da5ac19cfc4575fe62b3f31c2d0f2"
   solver-name = "gps-cdcl"
   solver-version = 1

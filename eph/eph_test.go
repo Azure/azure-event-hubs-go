@@ -52,6 +52,32 @@ func TestEventProcessorHost(t *testing.T) {
 	suite.Run(t, new(testSuite))
 }
 
+func (s *testSuite) TestRegisterUnRegisterHandler() {
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
+	defer del()
+
+	p, err := s.newInMemoryEPH(*hub.Name)
+	s.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	s.Len(p.RegisteredHandlerIDs(), 0, "should have no registered handlers")
+	handlerID1, err := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
+		return nil
+	})
+
+	handlerID2, err := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
+		return nil
+	})
+
+	s.Len(p.RegisteredHandlerIDs(), 2, "should have 2 registered handlers")
+	p.UnregisterHandler(ctx, handlerID2)
+	s.Require().Len(p.RegisteredHandlerIDs(), 1, "should have 1 registered handlers")
+	s.Equal(handlerID1, p.RegisteredHandlerIDs()[0], "should only contain handlerID1")
+}
+
 func (s *testSuite) TestSingle() {
 	hub, del, err := s.RandomHub()
 	s.Require().NoError(err)

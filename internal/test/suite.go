@@ -25,7 +25,7 @@ package test
 import (
 	"context"
 	"flag"
-		"io"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -128,7 +128,7 @@ func (suite *BaseSuite) TearDownSuite() {
 
 // RandomHub creates a hub with a random'ish name
 func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func(), error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout*2)
 	defer cancel()
 
 	name := suite.RandomName("goehtest", 6)
