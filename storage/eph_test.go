@@ -86,7 +86,7 @@ func (ts *testSuite) TestSingle() {
 }
 
 func (ts *testSuite) TestMultiple() {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
 	defer cancel()
 
 	hub, delHub, err := ts.RandomHub()

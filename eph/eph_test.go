@@ -113,7 +113,7 @@ func (s *testSuite) TestSingle() {
 func (s *testSuite) TestMultiple() {
 	hub, del, err := s.RandomHub()
 	s.Require().NoError(err)
-	defer del() 
+	defer del()
 
 	numPartitions := len(*hub.PartitionIds)
 	sharedStore := new(sharedStore)
@@ -237,7 +237,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, store *sharedStore
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, store)
 	processor, err := New(ctx, s.Namespace, hubName, provider, leaserCheckpointer, leaserCheckpointer, WithNoBanner())
