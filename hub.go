@@ -25,6 +25,7 @@ package eventhub
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"sync"
@@ -36,7 +37,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -44,7 +44,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "0.3.1"
+	Version = "0.4.0"
 )
 
 type (
@@ -146,7 +146,7 @@ func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOp
 		return NewHub(namespace, name, provider, opts...)
 	}
 
-	return nil, errors.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
+	return nil, fmt.Errorf("neither Azure Active Directory nor SAS token provider could be built - AAD error: %v, SAS error: %v", aadErr, sasErr)
 }
 
 // NewHubFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
@@ -188,11 +188,11 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 	var namespace, name string
 
 	if namespace = os.Getenv("EVENTHUB_NAMESPACE"); namespace == "" {
-		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAMESPACE")
+		return nil, fmt.Errorf(envErrMsg, "EVENTHUB_NAMESPACE")
 	}
 
 	if name = os.Getenv("EVENTHUB_NAME"); name == "" {
-		return nil, errors.Errorf(envErrMsg, "EVENTHUB_NAME")
+		return nil, fmt.Errorf(envErrMsg, "EVENTHUB_NAME")
 	}
 
 	return NewHubWithNamespaceNameAndEnvironment(namespace, name, opts...)
@@ -200,7 +200,7 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
 func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.GetRuntimeInformation")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
 	defer span.Finish()
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.newConnection()
@@ -218,7 +218,7 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInform
 
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
 func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.GetPartitionInformation")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
 	defer span.Finish()
 	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
 	conn, err := h.namespace.newConnection()
@@ -234,7 +234,7 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *Hub) Close(ctx context.Context) error {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.Close")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Close")
 	defer span.Finish()
 
 	var lastErr error
@@ -249,7 +249,7 @@ func (h *Hub) Close(ctx context.Context) error {
 
 // Receive subscribes for messages sent to the provided entityPath.
 func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (*ListenerHandle, error) {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.Receive")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Receive")
 	defer span.Finish()
 
 	h.receiverMu.Lock()
@@ -275,7 +275,7 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 
 // Send sends an event to the Event Hub
 func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.Send")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Send")
 	defer span.Finish()
 
 	sender, err := h.getSender(ctx)
@@ -288,7 +288,7 @@ func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error 
 
 // SendBatch sends an EventBatch to the Event Hub
 func (h *Hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.SendBatch")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.SendBatch")
 	defer span.Finish()
 
 	sender, err := h.getSender(ctx)
@@ -345,7 +345,7 @@ func HubWithEnvironment(env azure.Environment) HubOption {
 func (h *Hub) appendAgent(userAgent string) error {
 	ua := path.Join(h.userAgent, userAgent)
 	if len(ua) > maxUserAgentLen {
-		return errors.Errorf("user agent string has surpassed the max length of %d", maxUserAgentLen)
+		return fmt.Errorf("user agent string has surpassed the max length of %d", maxUserAgentLen)
 	}
 	h.userAgent = ua
 	return nil
@@ -355,7 +355,7 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	h.senderMu.Lock()
 	defer h.senderMu.Unlock()
 
-	span, ctx := h.startSpanFromContext(ctx, "eventhub.Hub.getSender")
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.getSender")
 	defer span.Finish()
 
 	if h.sender == nil {

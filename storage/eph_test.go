@@ -38,15 +38,25 @@ import (
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	defaultTimeout = 1 * time.Minute
 )
 
 func (ts *testSuite) TestSingle() {
-	randomName := strings.ToLower(ts.RandomName("gostoreph", 4))
-	hub, delHub := ts.ensureRandomHubByName(randomName)
-	delContainer := ts.newTestContainerByName(randomName)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	hub, delHub, err := ts.RandomHub()
+	if !ts.NoError(err) {
+		ts.FailNow("could not build a hub")
+	}
+	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()
 
-	processor, err := ts.newStorageBackedEPH(*hub.Name, randomName)
+	processor, err := ts.newStorageBackedEPH(*hub.Name, *hub.Name)
 	if err != nil {
 		ts.T().Fatal(err)
 	}
@@ -65,22 +75,27 @@ func (ts *testSuite) TestSingle() {
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
 
-	processor.Receive(func(c context.Context, event *eventhub.Event) error {
+	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
 	})
 
-	processor.StartNonBlocking(context.Background())
-	waitUntil(ts.T(), &wg, 30*time.Second)
+	processor.StartNonBlocking(ctx)
+	end, _ := ctx.Deadline()
+	waitUntil(ts.T(), &wg, time.Until(end))
 }
 
 func (ts *testSuite) TestMultiple() {
-	randomName := strings.ToLower(ts.RandomName("gostoreph", 4))
-	hub, delHub := ts.ensureRandomHubByName(randomName)
-	delContainer := ts.newTestContainerByName(randomName)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
+	defer cancel()
+
+	hub, delHub, err := ts.RandomHub()
+	require.NoError(ts.T(), err)
+	defer delHub()
+	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()
 
-	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, randomName, AADSASCredentialWithEnvironmentVars())
+	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, *hub.Name, AADSASCredentialWithEnvironmentVars())
 	if err != nil {
 		ts.T().Fatal(err)
 	}
@@ -88,17 +103,15 @@ func (ts *testSuite) TestMultiple() {
 	numPartitions := len(*hub.PartitionIds)
 	processors := make(map[string]*eph.EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	for i := 0; i < numPartitions; i++ {
-		leaserCheckpointer, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, randomName, ts.Env)
+		leaserCheckpointer, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, *hub.Name, ts.Env)
 		if err != nil {
 			ts.T().Fatal(err)
 		}
 
 		processor, err := ts.newStorageBackedEPHOptions(*hub.Name, leaserCheckpointer, leaserCheckpointer)
-		if err != nil {
-			ts.T().Fatal(err)
+		if !ts.NoError(err) {
+			ts.FailNow("could not build a new storage backed EPH")
 		}
 
 		processors[processor.GetName()] = processor
@@ -129,8 +142,8 @@ func (ts *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if err != nil {
-				ts.T().Fatal(err)
+			if !ts.NoError(err) {
+				ts.FailNow("parsing partitions failed")
 			}
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
@@ -141,7 +154,7 @@ func (ts *testSuite) TestMultiple() {
 		}
 	}
 	if !balanced {
-		ts.T().Error("never balanced work within allotted time")
+		ts.Fail("never balanced work within allotted time")
 		return
 	}
 
@@ -175,7 +188,7 @@ func (ts *testSuite) TestMultiple() {
 		}
 	}
 	if !balanced {
-		ts.T().Error("didn't balance after closing a processor")
+		ts.Fail("didn't balance after closing a processor")
 	}
 }
 

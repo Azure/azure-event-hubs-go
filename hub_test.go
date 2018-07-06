@@ -22,6 +22,9 @@ package eventhub
 //	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //	SOFTWARE
 
+// Delete all of the hubs under a given namespace
+// az eventhubs eventhub delete -g ehtest --namespace-name {ns} --ids $(az eventhubs eventhub list -g ehtest --namespace-name {ns} --query "[].id" -o tsv)
+
 import (
 	"context"
 	"fmt"
@@ -37,7 +40,9 @@ import (
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
+	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -64,13 +69,13 @@ func (suite *eventHubSuite) TestNewHubWithNameAndEnvironment() {
 	revert := suite.captureEnv()
 	defer revert()
 	os.Clearenv()
-	suite.NoError(os.Setenv("EVENTHUB_CONNECTION_STRING", connStr))
+	require.NoError(suite.T(), os.Setenv("EVENTHUB_CONNECTION_STRING", connStr))
 	_, err := NewHubWithNamespaceNameAndEnvironment("hello", "world")
-	suite.NoError(err)
+	require.NoError(suite.T(), err)
 }
 
 func (suite *eventHubSuite) TestSasToken() {
-	tests := map[string]func(*testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
 		"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
@@ -78,24 +83,16 @@ func (suite *eventHubSuite) TestSasToken() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := suite.RandomName("goehtest", 10)
-			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer suite.DeleteEventHub(context.Background(), hubName)
 			provider, err := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
-			if err != nil {
-				t.Fatal(err)
-			}
-			client := suite.newClientWithProvider(t, hubName, provider)
-			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-
-			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			suite.Require().NoError(err)
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
+			defer cleanup()
+			client, closer := suite.newClientWithProvider(t, *hub.Name, provider)
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
-			if err := client.Close(closeContext); err != nil {
-				t.Fatal(err)
-			}
+			testFunc(ctx, t, client, *hub.PartitionIds, *hub.Name)
 		}
 
 		suite.T().Run(name, setupTestTeardown)
@@ -103,7 +100,7 @@ func (suite *eventHubSuite) TestSasToken() {
 }
 
 func (suite *eventHubSuite) TestPartitioned() {
-	tests := map[string]func(*testing.T, *Hub, string){
+	tests := map[string]func(context.Context, *testing.T, *Hub, string){
 		"TestSend":                testBasicSend,
 		"TestSendAndReceive":      testBasicSendAndReceive,
 		"TestBatchSendAndReceive": testBatchSendAndReceive,
@@ -111,33 +108,27 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := suite.RandomName("goehtest", 10)
-			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer suite.DeleteEventHub(context.Background(), hubName)
-			partitionID := (*mgmtHub.PartitionIds)[0]
-			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
-
-			testFunc(t, client, partitionID)
-			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
+			defer cleanup()
+			partitionID := (*hub.PartitionIds)[0]
+			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
-			if err := client.Close(closeContext); err != nil {
-				t.Fatal(err)
-			}
+			testFunc(ctx, t, client, partitionID)
 		}
 
 		suite.T().Run(name, setupTestTeardown)
 	}
 }
 
-func testBasicSend(t *testing.T, client *Hub, _ string) {
-	err := client.Send(context.Background(), NewEventFromString("Hello!"))
+func testBasicSend(ctx context.Context, t *testing.T, client *Hub, _ string) {
+	err := client.Send(ctx, NewEventFromString("Hello!"))
 	assert.Nil(t, err)
 }
 
-func testBatchSendAndReceive(t *testing.T, client *Hub, partitionID string) {
+func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
 	messages := []string{"hello", "world", "foo", "bar", "baz", "buzz"}
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
@@ -150,28 +141,22 @@ func testBatchSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 		Events: events,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	err := client.SendBatch(ctx, batch)
-	if err != nil {
-		t.Fatal(err)
+	if assert.NoError(t, client.SendBatch(ctx, batch)) {
+		count := 0
+		_, err := client.Receive(context.Background(), partitionID, func(ctx context.Context, event *Event) error {
+			assert.Equal(t, messages[count], string(event.Data))
+			count++
+			wg.Done()
+			return nil
+		}, ReceiveWithPrefetchCount(100))
+		if !assert.NoError(t, err) {
+			end, _ := ctx.Deadline()
+			waitUntil(t, &wg, time.Until(end))
+		}
 	}
-
-	count := 0
-	_, err = client.Receive(context.Background(), partitionID, func(ctx context.Context, event *Event) error {
-		assert.Equal(t, messages[count], string(event.Data))
-		count++
-		wg.Done()
-		return nil
-	}, ReceiveWithPrefetchCount(100))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	waitUntil(t, &wg, 15*time.Second)
 }
 
-func testBasicSendAndReceive(t *testing.T, client *Hub, partitionID string) {
+func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -182,144 +167,117 @@ func testBasicSendAndReceive(t *testing.T, client *Hub, partitionID string) {
 	}
 
 	for idx, message := range messages {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		err := client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
-		cancel()
-		if err != nil {
-			t.Fatal(err)
+		if !assert.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))) {
+			assert.FailNow(t, "unable to send event")
 		}
 	}
 
 	count := 0
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
 	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 		assert.Equal(t, messages[count], string(event.Data))
 		count++
 		wg.Done()
 		return nil
 	}, ReceiveWithPrefetchCount(100))
-	if err != nil {
-		t.Fatal(err)
+	if !assert.NoError(t, err) {
+		end, _ := ctx.Deadline()
+		waitUntil(t, &wg, time.Until(end))
 	}
-	waitUntil(t, &wg, 15*time.Second)
 }
 
 func (suite *eventHubSuite) TestEpochReceivers() {
-	tests := map[string]func(*testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
 		"TestEpochGreaterThenLess": testEpochGreaterThenLess,
 		"TestEpochLessThenGreater": testEpochLessThenGreater,
 	}
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := suite.RandomName("goehtest", 10)
-			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer suite.DeleteEventHub(context.Background(), hubName)
-			partitionID := (*mgmtHub.PartitionIds)[0]
-			client := suite.newClient(t, hubName, HubWithPartitionedSender(partitionID))
-			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			closeCtx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-			_ = client.Close(closeCtx) // there will be an error here since the link will be forcefully detached
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
+			defer cleanup()
+			partitionID := (*hub.PartitionIds)[0]
+			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
+			testFunc(ctx, t, client, *hub.PartitionIds, *hub.Name)
 		}
 
 		suite.T().Run(name, setupTestTeardown)
 	}
 }
 
-func testEpochGreaterThenLess(t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testEpochGreaterThenLess(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
-	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
-	if err != nil {
-		t.Fatal(err)
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "error receiving with epoch of 4")
 	}
 
-	doneCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
+	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "error receiving with epoch of 1")
+	}
+
 	select {
 	case <-r2.Done():
 		break
-	case <-doneCtx.Done():
-		t.Error("r2 didn't finish in time")
+	case <-ctx.Done():
+		assert.FailNow(t, "r2 didn't finish in time")
 	}
 
-	if r1.Err() != nil {
-		t.Error("r1 should still be running with the higher epoch")
-	}
-
-	if r2.Err() == nil {
-		t.Error("r2 should have failed")
-	}
+	assert.NoError(t, r1.Err(), "r1 should still be running with the higher epoch")
+	assert.Error(t, r2.Err(), "r2 should have failed")
 }
 
-func testEpochLessThenGreater(t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testEpochLessThenGreater(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "testEpochLessThenGreater")
+	span.Finish()
 	partitionID := partitionIDs[0]
-	ctx := context.Background()
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
-	if err != nil {
-		t.Fatal(err)
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "error receiving with epoch of 1")
 	}
 
 	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
-	if err != nil {
-		t.Fatal(err)
+	if !assert.NoError(t, err) {
+		assert.FailNow(t, "error receiving with epoch of 4")
 	}
 
-	doneCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
 	select {
 	case <-r1.Done():
 		break
-	case <-doneCtx.Done():
-		t.Error("r1 didn't finish in time")
+	case <-ctx.Done():
+		assert.FailNow(t, "r1 didn't finish in time")
 	}
 
-	if r1.Err() == nil {
-		t.Error("r1 should have died with error since it has a lower epoch value")
-	}
-
-	if r2.Err() != nil {
-		t.Error("r2 should not have an error and should still be processing")
-	}
+	assert.Error(t, r1.Err(), "r1 should have died with error since it has a lower epoch value")
+	assert.NoError(t, r2.Err(), "r2 should not have an error and should still be processing")
 }
 
 func (suite *eventHubSuite) TestMultiPartition() {
-	tests := map[string]func(*testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
 		"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestSendWithPartitionKeyAndReceive": testSendWithPartitionKeyAndReceive,
 	}
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := suite.RandomName("goehtest", 10)
-			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer suite.DeleteEventHub(context.Background(), hubName)
-			client := suite.newClient(t, hubName)
-			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			hub, cleanup, err := suite.RandomHub()
+			suite.Require().NoError(err)
+			defer cleanup()
+			client, closer := suite.newClient(t, *hub.Name)
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
-			if err := client.Close(closeContext); err != nil {
-				t.Fatal(err)
-			}
+			testFunc(ctx, t, client, *hub.PartitionIds, *hub.Name)
 		}
-
 		suite.T().Run(name, setupTestTeardown)
 	}
 }
 
-func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testMultiSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -330,29 +288,25 @@ func testMultiSendAndReceive(t *testing.T, client *Hub, partitionIDs []string, _
 	}
 
 	for idx, message := range messages {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		err := client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
-		cancel()
-		if err != nil {
-			t.Fatal(err)
+		if !assert.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))) {
+			assert.FailNow(t, "unable to send message")
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
 	for _, partitionID := range partitionIDs {
 		_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 			wg.Done()
 			return nil
 		}, ReceiveWithPrefetchCount(100))
-		if err != nil {
-			t.Fatal(err)
+		if !assert.NoError(t, err) {
+			assert.FailNow(t, "unable to setup receiver")
 		}
 	}
-	waitUntil(t, &wg, 15*time.Second)
+	end, _ := ctx.Deadline()
+	waitUntil(t, &wg, time.Until(end))
 }
 
-func testSendWithPartitionKeyAndReceive(t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testSendWithPartitionKeyAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -369,9 +323,6 @@ func testSendWithPartitionKeyAndReceive(t *testing.T, client *Hub, partitionIDs 
 		event.ID = id.String()
 		sentEvents[event.ID] = event
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
 
 	for _, event := range sentEvents {
 		if !assert.NoError(t, client.Send(ctx, event)) {
@@ -413,49 +364,42 @@ func testSendWithPartitionKeyAndReceive(t *testing.T, client *Hub, partitionIDs 
 }
 
 func (suite *eventHubSuite) TestHubManagement() {
-	tests := map[string]func(*testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hubName := suite.RandomName("goehtest", 10)
-			mgmtHub, err := suite.EnsureEventHub(context.Background(), hubName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer suite.DeleteEventHub(context.Background(), hubName)
-			client := suite.newClient(t, hubName)
-			testFunc(t, client, *mgmtHub.PartitionIds, hubName)
-			closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			hub, cleanup, err := suite.RandomHub()
+			require.NoError(t, err)
+			defer cleanup()
+			client, closer := suite.newClient(t, *hub.Name)
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
-			if err := client.Close(closeContext); err != nil {
-				t.Fatal(err)
-			}
+			testFunc(ctx, t, client, *hub.PartitionIds, *hub.Name)
 		}
 
 		suite.T().Run(name, setupTestTeardown)
 	}
 }
 
-func testHubRuntimeInformation(t *testing.T, client *Hub, partitionIDs []string, hubName string) {
-	info, err := client.GetRuntimeInformation(context.Background())
-	if err != nil {
-		t.Fatal(err)
+func testHubRuntimeInformation(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, hubName string) {
+	info, err := client.GetRuntimeInformation(ctx)
+	if assert.NoError(t, err) {
+		assert.Equal(t, len(partitionIDs), info.PartitionCount)
+		assert.Equal(t, hubName, info.Path)
 	}
-	assert.Equal(t, len(partitionIDs), info.PartitionCount)
-	assert.Equal(t, hubName, info.Path)
 }
 
-func testHubPartitionRuntimeInformation(t *testing.T, client *Hub, partitionIDs []string, hubName string) {
-	info, err := client.GetPartitionInformation(context.Background(), partitionIDs[0])
-	if err != nil {
-		t.Fatal(err)
+func testHubPartitionRuntimeInformation(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, hubName string) {
+	info, err := client.GetPartitionInformation(ctx, partitionIDs[0])
+	if assert.NoError(t, err) {
+		assert.Equal(t, hubName, info.HubPath)
+		assert.Equal(t, partitionIDs[0], info.PartitionID)
+		assert.Equal(t, "-1", info.LastEnqueuedOffset) // brand new, so should be very last
 	}
-	assert.Equal(t, hubName, info.HubPath)
-	assert.Equal(t, partitionIDs[0], info.PartitionID)
-	assert.Equal(t, "-1", info.LastEnqueuedOffset) // brand new, so should be very last
 }
 
 func TestEnvironmentalCreation(t *testing.T) {
@@ -465,79 +409,25 @@ func TestEnvironmentalCreation(t *testing.T) {
 	os.Unsetenv("EVENTHUB_NAME")
 }
 
-func BenchmarkReceive(b *testing.B) {
-	testSuite := new(eventHubSuite)
-	testSuite.SetupSuite()
-	hubName := testSuite.RandomName("goehtest", 10)
-	mgmtHub, err := testSuite.EnsureEventHub(context.Background(), hubName, test.HubWithPartitions(8))
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	var wg sync.WaitGroup
-	wg.Add(b.N)
-
-	messages := make([]string, b.N)
-	for i := 0; i < b.N; i++ {
-		messages[i] = testSuite.RandomName("hello", 10)
-	}
-
-	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
-	if err != nil {
-		b.Fatal(err)
-	}
-	hub, err := NewHub(testSuite.Namespace, *mgmtHub.Name, provider)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	defer func() {
-		closeContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		hub.Close(closeContext)
-		cancel()
-		testSuite.DeleteEventHub(context.Background(), hubName)
-	}()
-
-	for idx, message := range messages {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		err := hub.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))
-		cancel()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-
-	b.ResetTimer()
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	// receive from all partition IDs
-	for _, partitionID := range *mgmtHub.PartitionIds {
-		_, err = hub.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
-			wg.Done()
-			return nil
-		}, ReceiveWithPrefetchCount(100))
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-	wg.Wait()
-	b.StopTimer()
-}
-
-func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) *Hub {
+func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) (*Hub, func()) {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&suite.Env))
-	if err != nil {
-		t.Fatal(err)
+	if !suite.NoError(err) {
+		suite.FailNow("unable to make a new JWT provider")
 	}
 	return suite.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) *Hub {
+func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) (*Hub, func()) {
 	opts = append(opts, HubWithEnvironment(suite.Env))
 	client, err := NewHub(suite.Namespace, hubName, provider, opts...)
-	suite.NoError(err)
-	return client
+	if !suite.NoError(err) {
+		suite.FailNow("unable to make a new Hub")
+	}
+	return client, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = client.Close(ctx)
+	}
 }
 
 func waitUntil(t *testing.T, wg *sync.WaitGroup, d time.Duration) bool {

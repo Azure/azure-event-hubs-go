@@ -34,8 +34,11 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/stretchr/testify/suite"
+)
+
+const (
+	defaultTimeout = 1 * time.Minute
 )
 
 type (
@@ -49,51 +52,80 @@ func TestEventProcessorHost(t *testing.T) {
 	suite.Run(t, new(testSuite))
 }
 
-func (s *testSuite) TestSingle() {
-	hub, del := s.ensureRandomHub("goEPH", 10)
+func (s *testSuite) TestRegisterUnRegisterHandler() {
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
 	defer del()
 
+	p, err := s.newInMemoryEPH(*hub.Name)
+	s.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	s.Len(p.RegisteredHandlerIDs(), 0, "should have no registered handlers")
+	handlerID1, err := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
+		return nil
+	})
+
+	handlerID2, err := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
+		return nil
+	})
+
+	s.Len(p.RegisteredHandlerIDs(), 2, "should have 2 registered handlers")
+	p.UnregisterHandler(ctx, handlerID2)
+	s.Require().Len(p.RegisteredHandlerIDs(), 1, "should have 1 registered handlers")
+	s.Equal(handlerID1, p.RegisteredHandlerIDs()[0], "should only contain handlerID1")
+}
+
+func (s *testSuite) TestSingle() {
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
+
 	processor, err := s.newInMemoryEPH(*hub.Name)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 
 	messages, err := s.sendMessages(*hub.Name, 10)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
 
-	processor.Receive(func(c context.Context, event *eventhub.Event) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
 	})
 
-	processor.StartNonBlocking(context.Background())
+	s.NoError(processor.StartNonBlocking(context.Background()))
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		processor.Close(closeContext)
 		cancel()
+		del()
 	}()
 
-	waitUntil(s.T(), &wg, 30*time.Second)
+	end, _ := ctx.Deadline()
+	waitUntil(s.T(), &wg, time.Until(end))
 }
 
 func (s *testSuite) TestMultiple() {
-	hub, del := s.ensureRandomHub("goEPH", 10)
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
+	defer del()
+
 	numPartitions := len(*hub.PartitionIds)
 	sharedStore := new(sharedStore)
 	processors := make(map[string]*EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
 	defer cancel()
 	for i := 0; i < numPartitions; i++ {
 		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
-		if err != nil {
-			s.T().Fatal(err)
-		}
+		s.Require().NoError(err)
+
 		processors[processor.GetName()] = processor
 		processor.StartNonBlocking(ctx)
 		processorNames[i] = processor.GetName()
@@ -122,9 +154,8 @@ func (s *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if err != nil {
-				s.T().Fatal(err)
-			}
+			s.Require().NoError(err)
+
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -156,9 +187,8 @@ func (s *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if err != nil {
-				s.T().Fatal(err)
-			}
+			s.Require().NoError(err)
+
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -197,18 +227,6 @@ func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	return messages, ctx.Err()
 }
 
-func (s *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
-	hubName := s.RandomName(prefix, length)
-	hub, err := s.EnsureEventHub(context.Background(), hubName)
-	if err != nil {
-		s.T().Fatal(err)
-	}
-
-	return hub, func() {
-		s.DeleteEventHub(context.Background(), hubName)
-	}
-}
-
 func (s *testSuite) newInMemoryEPH(hubName string) (*EventProcessorHost, error) {
 	return s.newInMemoryEPHWithOptions(hubName, new(sharedStore))
 }
@@ -219,7 +237,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, store *sharedStore
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, store)
 	processor, err := New(ctx, s.Namespace, hubName, provider, leaserCheckpointer, leaserCheckpointer, WithNoBanner())

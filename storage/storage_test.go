@@ -25,24 +25,19 @@ package storage
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/stretchr/testify/assert"
-)
-
-var (
-	timeout = 60 * time.Second
+	"github.com/stretchr/testify/require"
 )
 
 func (ts *testSuite) TestLeaserStoreCreation() {
 	leaser, del := ts.newLeaser()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	exists, err := leaser.StoreExists(ctx)
 	if err != nil {
@@ -66,7 +61,7 @@ func (ts *testSuite) TestLeaserLeaseEnsure() {
 	leaser, del := ts.leaserWithEPH()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	for _, partitionID := range leaser.processor.GetPartitionIDs() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
@@ -81,7 +76,7 @@ func (ts *testSuite) TestLeaserAcquire() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	if err != nil {
@@ -111,7 +106,7 @@ func (ts *testSuite) TestLeaserRenewLease() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	if err != nil {
@@ -139,7 +134,7 @@ func (ts *testSuite) TestLeaserRelease() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	if err != nil {
@@ -161,7 +156,7 @@ func (ts *testSuite) TestLeaserRelease() {
 func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.leaserWithEPH()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	for _, partitionID := range leaser.processor.GetPartitionIDs() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
@@ -176,28 +171,30 @@ func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 
 func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.newLeaser()
-	hub, delHub := ts.ensureRandomHub("stortest", 4)
-
+	hub, delHub, err := ts.RandomHub()
+	require.NoError(ts.T(), err)
 	delAll := func() {
 		delHub()
 		del()
 	}
 
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars())
-	if err != nil {
-		ts.T().Fatal(err)
+	if !ts.NoError(err) {
+		delAll()
+		ts.FailNow("could not build a new JWT provider from env")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	processor, err := eph.New(ctx, ts.Namespace, *hub.Name, provider, nil, nil)
-	if err != nil {
-		ts.FailNow(err.Error())
+	if !ts.NoError(err) {
+		delAll()
+		ts.FailNow("could not create a new eph")
 	}
 	leaser.SetEventHostProcessor(processor)
-	err = leaser.EnsureStore(ctx)
-	if err != nil {
-		ts.T().Fatal(err)
+	if !ts.NoError(leaser.EnsureStore(ctx)) {
+		delAll()
+		ts.FailNow("could not ensure store")
 	}
 
 	return leaser, delAll
@@ -216,30 +213,10 @@ func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	}
 
 	return leaser, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 		if err := leaser.DeleteStore(ctx); err != nil {
 			ts.T().Fatal(err)
 		}
 	}
-}
-
-func (ts *testSuite) ensureRandomHubByName(hubName string) (*mgmt.Model, func()) {
-	hub, err := ts.EnsureEventHub(context.Background(), hubName)
-	if err != nil {
-		ts.T().Fatal(err)
-	}
-
-	return hub, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		err := ts.DeleteEventHub(ctx, hubName)
-		if err != nil {
-			ts.T().Fatal(err)
-		}
-	}
-}
-
-func (ts *testSuite) ensureRandomHub(prefix string, length int) (*mgmt.Model, func()) {
-	return ts.ensureRandomHubByName(ts.RandomName(prefix, length))
 }

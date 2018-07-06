@@ -33,7 +33,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/mitchellh/mapstructure"
 	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
 	"pack.ag/amqp"
 )
 
@@ -91,7 +90,7 @@ func NewClient(namespace, hubName string, provider auth.TokenProvider, env azure
 
 // GetHubRuntimeInformation requests runtime information for an Event Hub
 func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "eventhub.mgmt.Client.GetHubRuntimeInformation")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.Client.GetHubRuntimeInformation")
 	defer span.Finish()
 
 	rpcLink, err := rpc.NewLink(conn, address)
@@ -125,7 +124,7 @@ func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 
 // GetHubPartitionRuntimeInformation fetches runtime information from the AMQP management node for a given partition
 func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "eventhub.mgmt.Client.GetHubPartitionRuntimeInformation")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.Client.GetHubPartitionRuntimeInformation")
 	defer span.Finish()
 
 	rpcLink, err := rpc.NewLink(conn, address)
@@ -175,7 +174,7 @@ func (c *Client) getTokenAudience() string {
 func newHubPartitionRuntimeInformation(msg *amqp.Message) (*HubPartitionRuntimeInformation, error) {
 	values, ok := msg.Value.(map[string]interface{})
 	if !ok {
-		return nil, errors.Errorf("values were not map[string]interface{}, it was: %v", values)
+		return nil, fmt.Errorf("values were not map[string]interface{}, it was: %v", values)
 	}
 
 	var partitionInfo HubPartitionRuntimeInformation
@@ -187,7 +186,7 @@ func newHubPartitionRuntimeInformation(msg *amqp.Message) (*HubPartitionRuntimeI
 func newHubRuntimeInformation(msg *amqp.Message) (*HubRuntimeInformation, error) {
 	values, ok := msg.Value.(map[string]interface{})
 	if !ok {
-		return nil, errors.Errorf("values were not map[string]interface{}, it was: %v", values)
+		return nil, fmt.Errorf("values were not map[string]interface{}, it was: %v", values)
 	}
 
 	var runtimeInfo HubRuntimeInformation

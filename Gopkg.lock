@@ -17,14 +17,14 @@
     "sas",
     "uuid"
   ]
-  revision = "8d02d4e77aba80165452199bb9bb24a82eb3b219"
-  version = "v0.5.0"
+  revision = "e05d7e9b03e1fd3a074d0f0b819bad445e3a0a69"
+  version = "v0.6.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
-  revision = "098e490af5dc2a905cdc5b64cafda6887b29164b"
-  version = "0.1.6"
+  revision = "7571e8eb0876932ab505918ff7ed5107773e5ee2"
+  version = "0.1.7"
 
 [[projects]]
   name = "github.com/Azure/azure-sdk-for-go"
@@ -34,8 +34,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "4650843026a7fdec254a8d9cf893693a254edd0b"
-  version = "v16.2.1"
+  revision = "7971189ecf5a584b9211f2527737f94bb979644e"
+  version = "v17.4.0"
 
 [[projects]]
   name = "github.com/Azure/azure-storage-blob-go"
@@ -54,8 +54,8 @@
     "autorest/to",
     "autorest/validation"
   ]
-  revision = "eaa7994b2278094c904d31993d26f56324db3052"
-  version = "v10.8.1"
+  revision = "1f7cd6cfe0adea687ad44a512dfe76140f804318"
+  version = "v10.12.0"
 
 [[projects]]
   branch = "master"
@@ -122,8 +122,8 @@
     "require",
     "suite"
   ]
-  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
-  version = "v1.2.1"
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   name = "github.com/uber/jaeger-client-go"
@@ -162,13 +162,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "1a580b3eff7814fc9b40602fd35256c63b50f491"
+  revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "2491c5de3490fced2f6cff376127c667efeed857"
+  revision = "32a936f46389aa10549d60bd7833e54b01685d09"
 
 [[projects]]
   branch = "master"
@@ -177,7 +177,7 @@
     "unix",
     "windows"
   ]
-  revision = "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b"
+  revision = "ce36f3865eeb42541ce3f87f32f8462c5687befa"
 
 [[projects]]
   name = "pack.ag/amqp"
@@ -185,12 +185,12 @@
     ".",
     "internal/testconn"
   ]
-  revision = "390d7eaeac0368026b93a13f4f7bc30d903c61cd"
-  version = "v0.5.0"
+  revision = "751cf0d4eb77d69534dabeff0f3afb2a0eb8588c"
+  version = "v0.6.2"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9e8d39c2948233a4f9dc40bdfcbee21ae301de912713e0f0c8c6644668aece5b"
+  inputs-digest = "97a19b37e5b50ba71bfb1b440e9b516df82da5ac19cfc4575fe62b3f31c2d0f2"
   solver-name = "gps-cdcl"
   solver-version = 1

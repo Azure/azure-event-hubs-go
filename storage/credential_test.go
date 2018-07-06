@@ -76,7 +76,7 @@ func (ts *testSuite) TestCredential() {
 		ts.T().Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	pipeline := azblob.NewPipeline(tokenProvider, azblob.PipelineOptions{})
 	fooURL, err := url.Parse("https://" + ts.AccountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
@@ -99,7 +99,7 @@ func (ts *testSuite) TestCredential() {
 }
 
 func (ts *testSuite) deleteStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
@@ -108,7 +108,7 @@ func (ts *testSuite) deleteStorageAccount() error {
 }
 
 func (ts *testSuite) ensureStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)

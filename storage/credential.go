@@ -144,7 +144,7 @@ func (cred *AADSASCredential) New(next pipeline.Policy, po *pipeline.PolicyOptio
 
 // GetToken fetches a Azure Storage SAS token using an AAD token
 func (cred *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.AADSASCredential.getToken")
+	span, ctx := startConsumerSpanFromContext(ctx, "storage.AADSASCredential.getToken")
 	defer span.Finish()
 
 	if cred.token != nil {
@@ -162,7 +162,7 @@ func (cred *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
 }
 
 func (cred *AADSASCredential) refreshToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eventhub.storage.AADSASCredential.refreshToken")
+	span, ctx := startConsumerSpanFromContext(ctx, "storage.AADSASCredential.refreshToken")
 	defer span.Finish()
 
 	now := time.Now().Add(-1 * time.Second)
