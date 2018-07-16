@@ -224,8 +224,9 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 		}
 
 		if err != nil {
-			if amqpErr, ok := err.(*amqp.Error); ok && amqpErr.Condition == "amqp:link:stolen" {
+			if amqpErr, ok := err.(amqp.DetachError); ok && amqpErr.RemoteError.Condition == "amqp:link:stolen" {
 				log.For(ctx).Debug("link has been stolen by a higher epoch")
+				r.Close(ctx)
 				return
 			}
 
