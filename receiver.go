@@ -223,12 +223,12 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			return
 		}
 
-		if amqpErr, ok := err.(*amqp.Error); ok && amqpErr.Condition == "amqp:link:stolen" {
-			log.For(ctx).Debug("link has been stolen by a higher epoch")
-			return
-		}
-
 		if err != nil {
+			if amqpErr, ok := err.(*amqp.Error); ok && amqpErr.Condition == "amqp:link:stolen" {
+				log.For(ctx).Debug("link has been stolen by a higher epoch")
+				return
+			}
+			
 			log.For(ctx).Debug("retrying error")
 			_, retryErr := common.Retry(5, 10*time.Second, func() (interface{}, error) {
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages.tryRecover")
