@@ -153,7 +153,7 @@ func (r *receiver) Recover(ctx context.Context) error {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.Recover")
 	defer span.Finish()
 
-	_ = r.Close(ctx) // we expect the receiver is in an error state
+	_ = r.connection.Close() // we expect the receiver is in an error state
 	return r.newSessionAndLink(ctx)
 }
 
@@ -228,7 +228,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 				log.For(ctx).Debug("link has been stolen by a higher epoch")
 				return
 			}
-			
+
 			log.For(ctx).Debug("retrying error")
 			_, retryErr := common.Retry(5, 10*time.Second, func() (interface{}, error) {
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages.tryRecover")
