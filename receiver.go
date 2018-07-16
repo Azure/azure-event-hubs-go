@@ -219,21 +219,24 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 	for {
 		msg, err := r.listenForMessage(ctx)
 		if ctx.Err() != nil && ctx.Err() == context.DeadlineExceeded {
+			log.For(ctx).Debug("context exceeded")
 			return
 		}
 
 		if amqpErr, ok := err.(*amqp.Error); ok && amqpErr.Condition == "amqp:link:stolen" {
-			// exit since the link has been stolen by a higher epoch
+			log.For(ctx).Debug("link has been stolen by a higher epoch")
 			return
 		}
 
 		if err != nil {
+			log.For(ctx).Debug("retrying error")
 			_, retryErr := common.Retry(5, 10*time.Second, func() (interface{}, error) {
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages.tryRecover")
 				defer sp.Finish()
 
 				err := r.Recover(ctx)
 				if ctx.Err() != nil && ctx.Err() == context.DeadlineExceeded {
+					log.For(ctx).Debug("context exceeded")
 					return nil, ctx.Err()
 				}
 
@@ -245,6 +248,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			})
 
 			if retryErr != nil {
+				log.For(ctx).Debug("retried, but error was unrecoverable")
 				r.lastError = retryErr
 				r.Close(ctx)
 				return
