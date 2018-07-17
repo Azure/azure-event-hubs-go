@@ -74,7 +74,7 @@ func (s *sender) Recover(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.Finish()
 
-	_ = s.Close(ctx) // we expect the sender is in an error state
+	_ = s.connection.Close() // we expect the sender is in an error state
 	return s.newSessionAndLink(ctx)
 }
 
