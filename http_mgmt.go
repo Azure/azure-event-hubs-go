@@ -133,9 +133,12 @@ func (em *entityManager) Execute(ctx context.Context, method string, entityPath 
 	req = req.WithContext(ctx)
 	res, err := client.Do(req)
 
-	applyResponseInfo(span, res)
 	if err != nil {
 		log.For(ctx).Error(err)
+	}
+	
+	if res != nil {
+		applyResponseInfo(span, res)
 	}
 
 	return res, err
