@@ -2,6 +2,7 @@ package eventhub
 
 import (
 	"context"
+	"net/http"
 	"os"
 
 	"github.com/opentracing/opentracing-go"
@@ -46,6 +47,13 @@ func (r *receiver) startConsumerSpanFromWire(ctx context.Context, operationName 
 	return span, ctx
 }
 
+func (em *entityManager) startSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, operationName, opts...)
+	ApplyComponentInfo(span)
+	tag.SpanKindRPCClient.Set(span)
+	return span, ctx
+}
+
 // ApplyComponentInfo applies eventhub library and network info to the span
 func ApplyComponentInfo(span opentracing.Span) {
 	tag.Component.Set(span, "github.com/Azure/azure-event-hubs-go")
@@ -58,4 +66,13 @@ func applyNetworkInfo(span opentracing.Span) {
 	if err == nil {
 		tag.PeerHostname.Set(span, hostname)
 	}
+}
+
+func applyRequestInfo(span opentracing.Span, req *http.Request) {
+	tag.HTTPUrl.Set(span, req.URL.String())
+	tag.HTTPMethod.Set(span, req.Method)
+}
+
+func applyResponseInfo(span opentracing.Span, res *http.Response) {
+	tag.HTTPStatusCode.Set(span, uint16(res.StatusCode))
 }

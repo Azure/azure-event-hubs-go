@@ -1,5 +1,4 @@
-// Package mgmt provides functionality for calling the Event Hubs management operations
-package mgmt
+package eventhub
 
 //	MIT License
 //
@@ -28,9 +27,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/rpc"
-	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/mitchellh/mapstructure"
 	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
@@ -51,12 +48,10 @@ const (
 )
 
 type (
-	// Client communicates with an AMQP management node
-	Client struct {
-		namespace     string
-		hubName       string
-		tokenProvider auth.TokenProvider
-		env           azure.Environment
+	// client communicates with an AMQP management node
+	client struct {
+		namespace *namespace
+		hubName   string
 	}
 
 	// HubRuntimeInformation provides management node information about a given Event Hub instance
@@ -78,19 +73,17 @@ type (
 	}
 )
 
-// NewClient constructs a new AMQP management client
-func NewClient(namespace, hubName string, provider auth.TokenProvider, env azure.Environment) *Client {
-	return &Client{
-		namespace:     namespace,
-		hubName:       hubName,
-		tokenProvider: provider,
-		env:           env,
+// newClient constructs a new AMQP management client
+func newClient(namespace *namespace, hubName string) *client {
+	return &client{
+		namespace: namespace,
+		hubName:   hubName,
 	}
 }
 
 // GetHubRuntimeInformation requests runtime information for an Event Hub
-func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.Client.GetHubRuntimeInformation")
+func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.client.GetHubRuntimeInformation")
 	defer span.Finish()
 
 	rpcLink, err := rpc.NewLink(conn, address)
@@ -123,8 +116,8 @@ func (c *Client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 }
 
 // GetHubPartitionRuntimeInformation fetches runtime information from the AMQP management node for a given partition
-func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.Client.GetHubPartitionRuntimeInformation")
+func (c *client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.client.GetHubPartitionRuntimeInformation")
 	defer span.Finish()
 
 	rpcLink, err := rpc.NewLink(conn, address)
@@ -157,8 +150,8 @@ func (c *Client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *am
 	return hubPartitionRuntimeInfo, nil
 }
 
-func (c *Client) addSecurityToken(msg *amqp.Message) (*amqp.Message, error) {
-	token, err := c.tokenProvider.GetToken(c.getTokenAudience())
+func (c *client) addSecurityToken(msg *amqp.Message) (*amqp.Message, error) {
+	token, err := c.namespace.tokenProvider.GetToken(c.getTokenAudience())
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +160,8 @@ func (c *Client) addSecurityToken(msg *amqp.Message) (*amqp.Message, error) {
 	return msg, nil
 }
 
-func (c *Client) getTokenAudience() string {
-	return fmt.Sprintf("amqp://%s.%s/%s", c.namespace, c.env.ServiceBusEndpointSuffix, c.hubName)
+func (c *client) getTokenAudience() string {
+	return c.namespace.getAmqpHostURI() + c.hubName
 }
 
 func newHubPartitionRuntimeInformation(msg *amqp.Message) (*HubPartitionRuntimeInformation, error) {

@@ -27,6 +27,7 @@ package eventhub
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"math/rand"
 	"os"
@@ -59,6 +60,45 @@ var (
 
 const (
 	connStr = "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=keyName;SharedAccessKey=secret;EntityPath=hubName"
+
+	hubDescription = `
+        <EventHubDescription xmlns="http://schemas.microsoft.com/netservices/2010/10/servicebus/connect" 
+            xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+            <MessageRetentionInDays>7</MessageRetentionInDays>
+            <AuthorizationRules></AuthorizationRules>
+            <Status>Active</Status>
+            <CreatedAt>2018-07-18T17:04:00.67Z</CreatedAt>
+            <UpdatedAt>2018-07-18T17:04:00.95Z</UpdatedAt>
+            <PartitionCount>4</PartitionCount>
+            <PartitionIds xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+                <d2p1:string>0</d2p1:string>
+                <d2p1:string>1</d2p1:string>
+                <d2p1:string>2</d2p1:string>
+                <d2p1:string>3</d2p1:string>
+            </PartitionIds>
+        </EventHubDescription>
+`
+
+	hubEntry1 = `
+<entry xmlns="http://www.w3.org/2005/Atom">
+    <id>https://foo.servicebus.windows.net/goehcqqrjf-tag3lxnf?api-version=2017-04</id>
+    <title type="text">goehcqqrjf-tag3lxnf</title>
+    <published>2018-07-18T17:04:00Z</published>
+    <updated>2018-07-18T17:04:00Z</updated>
+    <author>
+        <name>foo</name>
+    </author>
+    <link rel="self" href="https://foo.servicebus.windows.net/goehcqqrjf-tag3lxnf?api-version=2017-04"/>
+    <content type="application/xml">` + hubDescription +
+		`</content>
+</entry>`
+
+	feedOfHubDescriptions = `
+<feed xmlns="http://www.w3.org/2005/Atom">
+			<title type="text">Queues</title>
+			<id>https://foo.servicebus.windows.net/$Resources/EventHubs</id>
+			<updated>2018-05-03T00:21:15Z</updated>
+			<link rel="self" href="https://sbdjtest.servicebus.windows.net/$Resources/EventHubs"/>` + hubEntry1 + `</feed>`
 )
 
 func TestEH(t *testing.T) {
@@ -72,6 +112,122 @@ func (suite *eventHubSuite) TestNewHubWithNameAndEnvironment() {
 	require.NoError(suite.T(), os.Setenv("EVENTHUB_CONNECTION_STRING", connStr))
 	_, err := NewHubWithNamespaceNameAndEnvironment("hello", "world")
 	require.NoError(suite.T(), err)
+}
+
+func (suite *eventHubSuite) TestUnmarshalHubEntry() {
+	var entry hubEntry
+	err := xml.Unmarshal([]byte(hubEntry1), &entry)
+	suite.Nil(err)
+	suite.Require().NotNil(entry)
+	suite.Equal("https://foo.servicebus.windows.net/goehcqqrjf-tag3lxnf?api-version=2017-04", entry.ID)
+	suite.Equal("goehcqqrjf-tag3lxnf", entry.Title)
+	suite.Require().NotNil(entry.Author)
+	suite.Equal("foo", *entry.Author.Name)
+	suite.Require().NotNil(entry.Link)
+	suite.Equal("https://foo.servicebus.windows.net/goehcqqrjf-tag3lxnf?api-version=2017-04", entry.Link.HREF)
+	suite.Require().NotNil(entry.Content)
+	suite.Require().NotNil(entry.Content.HubDescription)
+	suite.Require().NotNil(entry.Content.HubDescription.PartitionCount)
+	suite.Equal(int32(4), *entry.Content.HubDescription.PartitionCount)
+	suite.Require().NotNil(entry.Content.HubDescription.PartitionIDs)
+	suite.Equal([]string{"0", "1", "2", "3"}, *entry.Content.HubDescription.PartitionIDs)
+	suite.Require().NotNil(entry.Content.HubDescription.MessageRetentionInDays)
+	suite.Equal(int32(7), *entry.Content.HubDescription.MessageRetentionInDays)
+}
+
+func (suite *eventHubSuite) TestUnmarshalHubList() {
+	var feed hubFeed
+	suite.Require().NoError(xml.Unmarshal([]byte(feedOfHubDescriptions), &feed))
+	suite.Require().NotNil(feed)
+	suite.Require().NotNil(feed.Entries)
+	suite.Len(feed.Entries, 1)
+}
+
+func (suite *eventHubSuite) TestHubManagementWrites() {
+	tests := map[string]func(context.Context, *testing.T, *HubManager, string){
+		"TestPutDefaultHub": testPutHub,
+	}
+
+	hm, err := NewHubManagerFromConnectionString(os.Getenv("EVENTHUB_CONNECTION_STRING"))
+	suite.Require().NoError(err)
+
+	for name, testFunc := range tests {
+		suite.T().Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			name := suite.randEntityName()
+			testFunc(ctx, t, hm, name)
+			defer suite.DeleteEventHub(name)
+		})
+	}
+}
+
+func testPutHub(ctx context.Context, t *testing.T, hm *HubManager, name string) {
+	hd, err := hm.Put(ctx, name, HubDescription{})
+	require.NoError(t, err)
+	require.NotNil(t, hd.PartitionCount)
+	assert.Equal(t, int32(4), *hd.PartitionCount)
+	require.NotNil(t, hd.PartitionIDs)
+	assert.Equal(t, []string{"0", "1", "2", "3"}, *hd.PartitionIDs)
+	require.NotNil(t, hd.MessageRetentionInDays)
+	assert.Equal(t, int32(7), *hd.MessageRetentionInDays)
+}
+
+func (suite *eventHubSuite) TestHubManagementReads() {
+	tests := map[string]func(context.Context, *testing.T, *HubManager, []string){
+		"TestGetHub":   testGetHub,
+		"TestListHubs": testListHubs,
+	}
+
+	hm, err := NewHubManagerFromConnectionString(os.Getenv("EVENTHUB_CONNECTION_STRING"))
+	suite.Require().NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	names := []string{suite.randEntityName(), suite.randEntityName()}
+	for _, name := range names {
+		if _, err := hm.Put(ctx, name, HubDescription{}); err != nil {
+			suite.Require().NoError(err)
+		}
+	}
+
+	for name, testFunc := range tests {
+		suite.T().Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			testFunc(ctx, t, hm, names)
+		})
+	}
+
+	for _, name := range names {
+		suite.DeleteEventHub(name)
+	}
+}
+
+func testGetHub(ctx context.Context, t *testing.T, hm *HubManager, names []string) {
+	q, err := hm.Get(ctx, names[0])
+	require.NoError(t, err)
+	require.NotNil(t, q)
+	assert.Equal(t, q.Name, names[0])
+}
+
+func testListHubs(ctx context.Context, t *testing.T, hm *HubManager, names []string) {
+	hubs, err := hm.List(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, hubs)
+	hubNames := make([]string, len(hubs))
+	for idx, q := range hubs {
+		hubNames[idx] = q.Name
+	}
+
+	for _, name := range names {
+		assert.Contains(t, hubNames, name)
+	}
+}
+
+func (suite *eventHubSuite) randEntityName() string {
+	return suite.RandomName("goeh", 6)
 }
 
 func (suite *eventHubSuite) TestSasToken() {

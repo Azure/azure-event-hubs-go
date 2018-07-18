@@ -150,7 +150,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 						amqpErr.Condition == "com.microsoft:timeout" {
 
 						log.For(ctx).Debug(amqpErr.Error())
-						time.Sleep(2*time.Second) // delay send for a moment due to server busy
+						time.Sleep(2 * time.Second) // delay send for a moment due to server busy
 						return nil, common.Retryable(amqpErr.Error())
 					}
 				}

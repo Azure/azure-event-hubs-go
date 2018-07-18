@@ -25,9 +25,12 @@ package eventhub
 import (
 	"context"
 	"runtime"
+	"strings"
 
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/cbs"
+	"github.com/Azure/azure-amqp-common-go/conn"
+	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"pack.ag/amqp"
 )
@@ -36,22 +39,56 @@ type (
 	namespace struct {
 		name          string
 		tokenProvider auth.TokenProvider
-		environment   azure.Environment
+		host          string
 	}
+
+	// namespaceOption provides structure for configuring a new Event Hub namespace
+	namespaceOption func(h *namespace) error
 )
 
-func newNamespace(name string, tokenProvider auth.TokenProvider, env azure.Environment) *namespace {
-	ns := &namespace{
-		name:          name,
-		tokenProvider: tokenProvider,
-		environment:   env,
+// newNamespaceWithConnectionString configures a namespace with the information provided in a Service Bus connection string
+func namespaceWithConnectionString(connStr string) namespaceOption {
+	return func(ns *namespace) error {
+		parsed, err := conn.ParsedConnectionFromStr(connStr)
+		if err != nil {
+			return err
+		}
+		ns.name = parsed.Namespace
+		ns.host = parsed.Host
+		provider, err := sas.NewTokenProvider(sas.TokenProviderWithKey(parsed.KeyName, parsed.Key))
+		if err != nil {
+			return err
+		}
+		ns.tokenProvider = provider
+		return nil
+	}
+}
+
+func namespaceWithAzureEnvironment(name string, tokenProvider auth.TokenProvider, env azure.Environment) namespaceOption {
+	return func(ns *namespace) error {
+		ns.name = name
+		ns.tokenProvider = tokenProvider
+		ns.host = "amqps://" + ns.name + "." + env.ServiceBusEndpointSuffix
+		return nil
+	}
+}
+
+// newNamespace creates a new namespace configured through NamespaceOption(s)
+func newNamespace(opts ...namespaceOption) (*namespace, error) {
+	ns := &namespace{}
+
+	for _, opt := range opts {
+		err := opt(ns)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return ns
+	return ns, nil
 }
 
 func (ns *namespace) newConnection() (*amqp.Client, error) {
-	host := ns.getAmqpHostURI()
+	host := ns.getAmqpsHostURI()
 	return amqp.Dial(host,
 		amqp.ConnSASLAnonymous(),
 		amqp.ConnProperty("product", "MSGolangClient"),
@@ -70,10 +107,18 @@ func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Client, enti
 	return cbs.NegotiateClaim(ctx, audience, conn, ns.tokenProvider)
 }
 
+func (ns *namespace) getAmqpsHostURI() string {
+	return ns.host + "/"
+}
+
 func (ns *namespace) getAmqpHostURI() string {
-	return "amqps://" + ns.name + "." + ns.environment.ServiceBusEndpointSuffix + "/"
+	return strings.Replace(ns.getAmqpsHostURI(), "amqps", "amqp", 1)
 }
 
 func (ns *namespace) getEntityAudience(entityPath string) string {
-	return ns.getAmqpHostURI() + entityPath
+	return ns.getAmqpsHostURI() + entityPath
+}
+
+func (ns *namespace) getHTTPSHostURI() string {
+	return strings.Replace(ns.getAmqpsHostURI(), "amqps", "https", 1)
 }

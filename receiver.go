@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
-	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
 )
@@ -45,7 +44,7 @@ const (
 
 	defaultPrefetchCount = 1000
 
-	epochKey = mgmt.MsftVendor + ":epoch"
+	epochKey = MsftVendor + ":epoch"
 )
 
 // receiver provides session and link handling for a receiving entity path
