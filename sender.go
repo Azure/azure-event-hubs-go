@@ -143,35 +143,23 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
 				defer sp.Finish()
 
-				if amqpErr, ok := err.(*amqp.Error); ok {
-					// retry on known errors
+				shouldRecover := false
+				switch amqpErr := err.(type) {
+				case *amqp.Error:
 					if amqpErr.Condition == "com.microsoft:server-busy" ||
 						amqpErr.Condition == "com.microsoft:operation-cancelled" ||
 						amqpErr.Condition == "com.microsoft:entity-moved" ||
 						amqpErr.Condition == "com.microsoft:timeout" ||
 						amqpErr.Condition == "com.microsoft:container-close" {
-
 						log.For(ctx).Debug(amqpErr.Error())
 						time.Sleep(time.Duration(4*rand.Intn(1000)/1000) * time.Second) // delay send for a moment due to server busy
-
-						err := s.Recover(ctx)
-						select {
-						case <-ctx.Done():
-							// context is done, so return
-							return nil, ctx.Err()
-						default:
-							if err != nil {
-								log.For(ctx).Error(err)
-								return nil, common.Retryable(err.Error())
-							}
-							log.For(ctx).Debug("recovered the connection")
-							return nil, nil
-						}
+						shouldRecover = true
 					}
+				case *amqp.DetachError:
+					shouldRecover = true
 				}
 
-				if _, ok := err.(*amqp.DetachError); ok {
-					// try to recover on detach
+				if shouldRecover {
 					err := s.Recover(ctx)
 					select {
 					case <-ctx.Done():
