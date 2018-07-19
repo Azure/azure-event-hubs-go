@@ -141,10 +141,9 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			_, retryErr := common.Retry(10, 5*time.Second, func() (interface{}, error) {
 				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
 				defer sp.Finish()
-				
+
 				switch err.(type) {
-				case *amqp.Error:
-				case *amqp.DetachError:
+				case *amqp.Error, *amqp.DetachError:
 					err := s.Recover(ctx)
 					select {
 					case <-ctx.Done():
