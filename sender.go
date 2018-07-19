@@ -148,13 +148,25 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 					if amqpErr.Condition == "com.microsoft:server-busy" ||
 						amqpErr.Condition == "com.microsoft:operation-cancelled" ||
 						amqpErr.Condition == "com.microsoft:entity-moved" ||
-						amqpErr.Condition == "com.microsoft:timeout" {
+						amqpErr.Condition == "com.microsoft:timeout" ||
+						amqpErr.Condition == "com.microsoft:container-close" {
 
 						log.For(ctx).Debug(amqpErr.Error())
-						time.Sleep(time.Duration(2*rand.Intn(1000)/1000) * time.Second) // delay send for a moment due to server busy
+						time.Sleep(time.Duration(4*rand.Intn(1000)/1000) * time.Second) // delay send for a moment due to server busy
 
-						// connection should still be good
-						return nil, nil
+						err := s.Recover(ctx)
+						select {
+						case <-ctx.Done():
+							// context is done, so return
+							return nil, ctx.Err()
+						default:
+							if err != nil {
+								log.For(ctx).Error(err)
+								return nil, common.Retryable(err.Error())
+							}
+							log.For(ctx).Debug("recovered the connection")
+							return nil, nil
+						}
 					}
 				}
 
