@@ -25,8 +25,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"time"
+		"time"
 
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
@@ -142,24 +141,10 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			_, retryErr := common.Retry(10, 5*time.Second, func() (interface{}, error) {
 				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
 				defer sp.Finish()
-
-				shouldRecover := false
-				switch amqpErr := err.(type) {
+				
+				switch err.(type) {
 				case *amqp.Error:
-					if amqpErr.Condition == "com.microsoft:server-busy" ||
-						amqpErr.Condition == "com.microsoft:operation-cancelled" ||
-						amqpErr.Condition == "com.microsoft:entity-moved" ||
-						amqpErr.Condition == "com.microsoft:timeout" ||
-						amqpErr.Condition == "com.microsoft:container-close" {
-						log.For(ctx).Debug(amqpErr.Error())
-						time.Sleep(time.Duration(4*rand.Intn(1000)/1000) * time.Second) // delay send for a moment due to server busy
-						shouldRecover = true
-					}
 				case *amqp.DetachError:
-					shouldRecover = true
-				}
-
-				if shouldRecover {
 					err := s.Recover(ctx)
 					select {
 					case <-ctx.Done():
