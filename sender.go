@@ -139,7 +139,6 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return ctx.Err()
 		default:
 			// try to recover the connection
-			count := 0
 			_, retryErr := common.Retry(10, 5*time.Second, func() (interface{}, error) {
 				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
 				defer sp.Finish()
@@ -154,28 +153,29 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 						log.For(ctx).Debug(amqpErr.Error())
 						time.Sleep(time.Duration(2*rand.Intn(1000)/1000) * time.Second) // delay send for a moment due to server busy
 
-						if count >= 1 {
-							// we've been here before, try to recover the connection
-							err := s.Recover(ctx)
-							select {
-							case <-ctx.Done():
-								// context is done, so return
-								return nil, ctx.Err()
-							default:
-								if err != nil {
-									log.For(ctx).Error(err)
-									return nil, common.Retryable(err.Error())
-								}
-								log.For(ctx).Debug("recovered the connection")
-								return nil, nil
-							}
-						}
-
-						count++
 						// connection should still be good
 						return nil, nil
 					}
 				}
+
+				if _, ok := err.(*amqp.DetachError); ok {
+					// try to recover on detach
+					err := s.Recover(ctx)
+					select {
+					case <-ctx.Done():
+						// context is done, so return
+						return nil, ctx.Err()
+					default:
+						if err != nil {
+							log.For(ctx).Error(err)
+							return nil, common.Retryable(err.Error())
+						}
+						log.For(ctx).Debug("recovered the connection")
+						return nil, nil
+					}
+				}
+
+				// failed...
 				return nil, err
 			})
 

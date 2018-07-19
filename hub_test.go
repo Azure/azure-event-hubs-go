@@ -360,7 +360,9 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 		setupTestTeardown := func(t *testing.T) {
 			hub, cleanup, err := suite.RandomHub()
 			require.NoError(t, err)
+			require.NotNil(t, hub)
 			defer cleanup()
+			require.Len(t, *hub.PartitionIds, 4)
 			partitionID := (*hub.PartitionIds)[0]
 			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
 			defer closer()
