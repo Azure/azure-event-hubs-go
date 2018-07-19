@@ -136,7 +136,7 @@ func (em *entityManager) Execute(ctx context.Context, method string, entityPath 
 	if err != nil {
 		log.For(ctx).Error(err)
 	}
-	
+
 	if res != nil {
 		applyResponseInfo(span, res)
 	}

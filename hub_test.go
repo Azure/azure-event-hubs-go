@@ -258,6 +258,7 @@ func (suite *eventHubSuite) TestSasToken() {
 func (suite *eventHubSuite) TestPartitioned() {
 	tests := map[string]func(context.Context, *testing.T, *Hub, string){
 		"TestSend":                testBasicSend,
+		"TestSendTooBig":          testSendTooBig,
 		"TestSendAndReceive":      testBasicSendAndReceive,
 		"TestBatchSendAndReceive": testBatchSendAndReceive,
 	}
@@ -281,7 +282,15 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 func testBasicSend(ctx context.Context, t *testing.T, client *Hub, _ string) {
 	err := client.Send(ctx, NewEventFromString("Hello!"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
+}
+
+func testSendTooBig(ctx context.Context, t *testing.T, client *Hub, _ string) {
+	data := make([]byte, 256*1024)
+	_, _ = rand.Read(data)
+	event := NewEvent(data)
+	err := client.Send(ctx, event)
+	assert.Error(t, err)
 }
 
 func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
