@@ -421,7 +421,7 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 }
 
 // NewHubFromConnectionString creates a new Event Hub client for sending and receiving messages from a connection string
-// formmated like the following:
+// formatted like the following:
 //
 // Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName
 func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error) {

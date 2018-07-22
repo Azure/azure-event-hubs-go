@@ -25,6 +25,7 @@ package eph
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -48,7 +49,7 @@ type (
 	}
 )
 
-func TestEventProcessorHost(t *testing.T) {
+func TestEPH(t *testing.T) {
 	suite.Run(t, new(testSuite))
 }
 
@@ -76,6 +77,19 @@ func (s *testSuite) TestRegisterUnRegisterHandler() {
 	p.UnregisterHandler(ctx, handlerID2)
 	s.Require().Len(p.RegisteredHandlerIDs(), 1, "should have 1 registered handlers")
 	s.Equal(handlerID1, p.RegisteredHandlerIDs()[0], "should only contain handlerID1")
+}
+
+func (s *testSuite) TestNewWithConnectionString() {
+	hub, del, err := s.RandomHub()
+	s.Require().NoError(err)
+	defer del()
+
+	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, new(sharedStore))
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	host, err := NewFromConnectionString(ctx, os.Getenv("EVENTHUB_CONNECTION_STRING")+";EntityPath="+*hub.Name, leaserCheckpointer, leaserCheckpointer)
+	s.NoError(err)
+	s.NotNil(host)
 }
 
 func (s *testSuite) TestSingle() {

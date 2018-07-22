@@ -103,11 +103,13 @@ func (e *Event) Set(key, value string) {
 }
 
 // ForeachKey implements the opentracing.TextMapReader and gets properties on the event to be propagated from the message broker
-func (e *Event) ForeachKey(handler func(key string, val interface{}) error) error {
+func (e *Event) ForeachKey(handler func(key, val string) error) error {
 	for key, value := range e.Properties {
-		err := handler(key, value)
-		if err != nil {
-			return err
+		if strVal, ok := value.(string); ok {
+			err := handler(key, strVal)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

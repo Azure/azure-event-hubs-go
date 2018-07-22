@@ -25,7 +25,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
-		"time"
+	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
@@ -49,7 +49,8 @@ type (
 	SendOption func(event *Event) error
 
 	eventer interface {
-		Set(key, value string)
+		opentracing.TextMapWriter
+		opentracing.TextMapReader
 		toMsg() *amqp.Message
 	}
 )
@@ -138,7 +139,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return ctx.Err()
 		default:
 			// try to recover the connection
-			_, retryErr := common.Retry(10, 5*time.Second, func() (interface{}, error) {
+			_, retryErr := common.Retry(10, 4*time.Second, func() (interface{}, error) {
 				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
 				defer sp.Finish()
 
