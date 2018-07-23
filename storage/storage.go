@@ -49,20 +49,19 @@ import (
 type (
 	// LeaserCheckpointer implements the eph.LeaserCheckpointer interface for Azure Storage
 	LeaserCheckpointer struct {
-		leases            map[string]*storageLease
-		processor         *eph.EventProcessorHost
-		leaseDuration     time.Duration
-		credential        Credential
-		containerURL      *azblob.ContainerURL
-		serviceURL        *azblob.ServiceURL
-		containerName     string
-		accountName       string
-		env               azure.Environment
-		dirtyPartitions   map[string]uuid.UUID
-		updatedPartitions map[string]uuid.UUID
-		leasesMu          sync.Mutex
-		dirtyMu           sync.Mutex
-		done              func()
+		leases          map[string]*storageLease
+		processor       *eph.EventProcessorHost
+		leaseDuration   time.Duration
+		credential      Credential
+		containerURL    *azblob.ContainerURL
+		serviceURL      *azblob.ServiceURL
+		containerName   string
+		accountName     string
+		env             azure.Environment
+		dirtyPartitions map[string]uuid.UUID
+		leasesMu        sync.Mutex
+		dirtyMu         sync.Mutex
+		done            func()
 	}
 
 	storageLease struct {
@@ -96,16 +95,15 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 	containerURL := svURL.NewContainerURL(containerName)
 
 	return &LeaserCheckpointer{
-		credential:        credential,
-		containerName:     containerName,
-		accountName:       accountName,
-		leaseDuration:     eph.DefaultLeaseDuration,
-		env:               env,
-		serviceURL:        &svURL,
-		containerURL:      &containerURL,
-		leases:            make(map[string]*storageLease),
-		dirtyPartitions:   make(map[string]uuid.UUID),
-		updatedPartitions: make(map[string]uuid.UUID),
+		credential:      credential,
+		containerName:   containerName,
+		accountName:     accountName,
+		leaseDuration:   eph.DefaultLeaseDuration,
+		env:             env,
+		serviceURL:      &svURL,
+		containerURL:    &containerURL,
+		leases:          make(map[string]*storageLease),
+		dirtyPartitions: make(map[string]uuid.UUID),
 	}, nil
 }
 
@@ -114,7 +112,6 @@ func (sl *LeaserCheckpointer) SetEventHostProcessor(eph *eph.EventProcessorHost)
 	sl.processor = eph
 	for _, partitionID := range eph.GetPartitionIDs() {
 		sl.dirtyPartitions[partitionID] = uuid.Nil
-		sl.updatedPartitions[partitionID] = uuid.Nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go sl.persistLeases(ctx)
@@ -466,19 +463,41 @@ func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			for partitionID, val := range sl.dirtyPartitions {
-				if val != sl.updatedPartitions[partitionID] {
-					err := sl.persistLease(ctx, partitionID)
-					if err != nil {
-						log.For(ctx).Error(err)
-						continue
-					}
-					sl.updatedPartitions[partitionID] = val
-				}
+			err := sl.persistDirtyPartitions(ctx)
+			if err != nil {
+				log.For(ctx).Error(err)
+				continue
 			}
 			<-time.After(1 * time.Second)
 		}
 	}
+}
+
+func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error {
+	sl.leasesMu.Lock()
+	defer sl.leasesMu.Unlock()
+
+	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistDirtyPartitions")
+	defer span.Finish()
+
+	errCh := make(chan error)
+	for partitionID := range sl.dirtyPartitions {
+		go func(id string) {
+			errCh <- sl.persistLease(ctx, id)
+		}(partitionID)
+	}
+
+	for i := 0; i < len(sl.dirtyPartitions); i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errCh:
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (sl *LeaserCheckpointer) persistLease(ctx context.Context, partitionID string) error {
