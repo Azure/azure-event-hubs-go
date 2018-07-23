@@ -107,6 +107,13 @@ func (s *scheduler) scan(ctx context.Context) {
 		return
 	}
 
+	randomLeases := make([]LeaseMarker, len(allLeases))
+	perm := rand.Perm(len(allLeases))
+	for i, v := range perm {
+		randomLeases[v] = allLeases[i]
+	}
+	allLeases = randomLeases
+
 	// try to acquire any leases that have expired
 	acquired, notAcquired, err := s.acquireExpiredLeases(ctx, allLeases)
 	s.dlog(ctx, fmt.Sprintf("acquired: %v, not acquired: %v", acquired, notAcquired))
