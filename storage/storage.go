@@ -457,6 +457,7 @@ func (sl *LeaserCheckpointer) Close() error {
 func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLeases")
 	defer span.Finish()
+	time.After(5 * time.Second) // initial delay
 
 	for {
 		select {
@@ -505,7 +506,8 @@ func (sl *LeaserCheckpointer) persistLease(ctx context.Context, partitionID stri
 	defer span.Finish()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, ok, err := sl.UpdateLease(ctx, partitionID)
+	_, ok, err := sl.updateLease(ctx, partitionID)
+
 	cancel()
 	if err != nil {
 		return err
