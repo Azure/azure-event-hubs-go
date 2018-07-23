@@ -117,6 +117,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 			time.Sleep(DefaultLeaseRenewalInterval + skew)
 			err := lr.tryRenew(ctx)
 			if err != nil {
+				log.For(ctx).Error(err)
 				lr.processor.scheduler.stopReceiver(ctx, lr.lease)
 			}
 		}

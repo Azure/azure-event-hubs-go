@@ -42,10 +42,12 @@ const (
 	DefaultLeaseRenewalInterval = 20 * time.Second
 
 	// DefaultLeaseDuration defines the default amount of time a lease is valid
-	DefaultLeaseDuration = 45 * time.Second
+	DefaultLeaseDuration = 60 * time.Second
 
 	partitionIDTag = "eph.receiver.partitionID"
 	epochTag       = "eph.receiver.epoch"
+
+	greed = 10
 )
 
 type (
@@ -116,12 +118,13 @@ func (s *scheduler) scan(ctx context.Context) {
 	// start receiving message from newly acquired partitions
 	for _, lease := range acquired {
 		if err := s.startReceiver(ctx, lease); err != nil {
+			_, _ = s.processor.leaser.ReleaseLease(ctx, lease.GetPartitionID())
 			log.For(ctx).Error(err)
 			return
 		}
 	}
 
-	if len(acquired) > 0 {
+	if len(acquired) >= greed {
 		// don't be too greedy
 		return
 	}
@@ -158,6 +161,7 @@ func (s *scheduler) scan(ctx context.Context) {
 		default:
 			s.dlog(ctx, fmt.Sprintf("stole: %v", stolen))
 			if err := s.startReceiver(ctx, stolen); err != nil {
+				_, _ = s.processor.leaser.ReleaseLease(acquireCtx, candidate.GetPartitionID())
 				log.For(ctx).Error(err)
 				return
 			}
@@ -250,7 +254,8 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMark
 	defer span.Finish()
 
 	for _, lease := range leases {
-		if lease.IsExpired(ctx) {
+		if lease.IsExpired(ctx) && len(acquired) < greed {
+			// if lease has no owner or is expired and we haven't been too greedy
 			acquireCtx, cancel := context.WithTimeout(ctx, timeout)
 			if acquiredLease, ok, err := s.processor.leaser.AcquireLease(acquireCtx, lease.GetPartitionID()); ok {
 				cancel()

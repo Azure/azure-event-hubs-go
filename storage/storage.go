@@ -77,6 +77,11 @@ type (
 	Credential interface {
 		azblob.Credential
 	}
+
+	leaseGetResult struct {
+		Lease *storageLease
+		Err   error
+	}
 )
 
 // NewStorageLeaserCheckpointer builds an Azure Storage Leaser Checkpointer which handles leasing and checkpointing for
@@ -176,13 +181,28 @@ func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker,
 	defer span.Finish()
 
 	partitionIDs := sl.processor.GetPartitionIDs()
-	leases := make([]eph.LeaseMarker, len(partitionIDs))
+	leaseCh := make(chan leaseGetResult)
 	for idx, partitionID := range partitionIDs {
-		lease, err := sl.getLease(ctx, partitionID)
-		if err != nil {
-			return nil, err
+		go func(i int, pID string) {
+			lease, err := sl.getLease(ctx, pID)
+			leaseCh <- leaseGetResult{
+				Lease: lease,
+				Err:   err,
+			}
+		}(idx, partitionID)
+	}
+
+	leases := make([]eph.LeaseMarker, len(partitionIDs))
+	for i := 0; i < len(partitionIDs); i++ {
+		select {
+		case <-ctx.Done():
+			return leases, ctx.Err()
+		case result := <-leaseCh:
+			if result.Err != nil {
+				return nil, result.Err
+			}
+			leases[i] = result.Lease
 		}
-		leases[idx] = lease
 	}
 	return leases, nil
 }
@@ -450,6 +470,7 @@ func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 				if val != sl.updatedPartitions[partitionID] {
 					err := sl.persistLease(ctx, partitionID)
 					if err != nil {
+						log.For(ctx).Error(err)
 						continue
 					}
 					sl.updatedPartitions[partitionID] = val
