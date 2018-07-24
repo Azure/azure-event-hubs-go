@@ -124,8 +124,8 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	msg := evt.toMsg()
 	sp.SetTag("eh.message-id", msg.Properties.MessageID)
 
-	// try as long as the context is not dead
 	for {
+		// try as long as the context is not dead
 		err = s.sender.Send(ctx, msg)
 		if err == nil {
 			// successful send
@@ -136,6 +136,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 		select {
 		case <-ctx.Done():
 			// context is done, so return
+			log.For(ctx).Error(ctx.Err())
 			return ctx.Err()
 		default:
 			// try to recover the connection
@@ -145,23 +146,33 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 
 				switch err.(type) {
 				case *amqp.Error, *amqp.DetachError:
-					err := s.Recover(ctx)
 					select {
 					case <-ctx.Done():
 						// context is done, so return
+						log.For(ctx).Error(ctx.Err())
 						return nil, ctx.Err()
 					default:
-						if err != nil {
-							log.For(ctx).Error(err)
-							return nil, common.Retryable(err.Error())
+						err := s.Recover(ctx)
+						if err == nil {
+							// recovered
+							log.For(ctx).Debug("recovered connection")
+							return nil, nil
 						}
-						log.For(ctx).Debug("recovered the connection")
-						return nil, nil
-					}
-				}
 
-				// failed...
-				return nil, err
+						switch err.(type) {
+						case *amqp.Error, *amqp.DetachError:
+							log.For(ctx).Debug("retrying error: " + err.Error())
+							return nil, common.Retryable(err.Error())
+						default:
+							// failed recovery... something is broken
+							log.For(ctx).Error(err)
+							return nil, err
+						}
+					}
+				default:
+					// failed...
+					return nil, err
+				}
 			})
 
 			if retryErr != nil {
