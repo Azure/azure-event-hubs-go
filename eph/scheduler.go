@@ -47,7 +47,7 @@ const (
 	partitionIDTag = "eph.receiver.partitionID"
 	epochTag       = "eph.receiver.epoch"
 
-	greed = 10
+	greed = 20
 )
 
 type (
@@ -190,6 +190,7 @@ func (s *scheduler) Stop(ctx context.Context) error {
 		if err := lr.Close(ctx); err != nil {
 			lastErr = err
 		}
+		_, _ = s.processor.leaser.ReleaseLease(ctx, lr.lease.GetPartitionID())
 	}
 
 	return lastErr
