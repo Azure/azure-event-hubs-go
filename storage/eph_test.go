@@ -97,8 +97,9 @@ func (ts *testSuite) TestMultiple() {
 
 		processor, err := ts.newStorageBackedEPHOptions(*hub.Name, leaserCheckpointer, leaserCheckpointer)
 		ts.Require().NoError(err)
+
 		processors[processor.GetName()] = processor
-		processor.StartNonBlocking(ctx)
+		ts.Require().NoError(processor.StartNonBlocking(ctx))
 		processorNames[i] = processor.GetName()
 	}
 
@@ -319,7 +320,18 @@ func allHandled(partitionsByProcessor map[string][]int, numberOfPartitions int) 
 		}
 	}
 
-	fmt.Println(partitionsByProcessor)
+	//var keys []string
+	//for key := range partitionsByProcessor {
+	//	keys = append(keys, key)
+	//}
+	//sort.Strings(keys)
+	//for _, key := range keys {
+	//	ints := partitionsByProcessor[key]
+	//	sort.Ints(ints)
+	//	fmt.Printf("Processor: %q, Partitions %+v\n", key, ints)
+	//}
+	//fmt.Println("========================================")
+	//fmt.Println("========================================")
 
 	for _, count := range countByPartition {
 		if count != 1 {

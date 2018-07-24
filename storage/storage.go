@@ -330,6 +330,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 		return false, err
 	}
 	delete(sl.leases, partitionID)
+	delete(sl.dirtyPartitions, partitionID)
 	return true, nil
 }
 
@@ -511,9 +512,8 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 			if res.Err != nil {
 				fmt.Printf("run: %d, err: %+v\n", i, res.Err)
 				lastErr = res.Err
-			} else {
-				delete(sl.dirtyPartitions, res.PartitionID)
 			}
+			delete(sl.dirtyPartitions, res.PartitionID)
 		}
 	}
 	return lastErr
