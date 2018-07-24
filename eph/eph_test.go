@@ -164,7 +164,6 @@ func (s *testSuite) TestMultiple() {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
 			s.Require().NoError(err)
-
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -173,10 +172,7 @@ func (s *testSuite) TestMultiple() {
 			break
 		}
 	}
-	if !balanced {
-		s.T().Error("never balanced work within allotted time")
-		return
-	}
+	s.Require().True(balanced, "never balanced work within allotted time")
 
 	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	processors[processorNames[numPartitions-1]].Close(closeContext) // close the last partition

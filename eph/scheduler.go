@@ -177,6 +177,9 @@ func (s *scheduler) scan(ctx context.Context) {
 }
 
 func (s *scheduler) Stop(ctx context.Context) error {
+	s.receiverMu.Lock()
+	defer s.receiverMu.Unlock()
+
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.Stop")
 	defer span.Finish()
 

@@ -134,6 +134,8 @@ func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
 	name := suite.RandomName("goehtest", 6)
 	model, err := suite.ensureEventHub(ctx, name, opts...)
 	suite.Require().NoError(err)
+	suite.Require().NotNil(model.PartitionIds)
+	suite.Require().Len(*model.PartitionIds, 4)
 	return model, func() {
 		if model != nil {
 			err := suite.DeleteEventHub(*model.Name)
