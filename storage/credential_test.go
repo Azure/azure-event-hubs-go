@@ -24,6 +24,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/url"
 	"strings"
@@ -54,9 +55,7 @@ func TestStorage(t *testing.T) {
 func (ts *testSuite) SetupSuite() {
 	ts.BaseSuite.SetupSuite()
 	ts.AccountName = strings.ToLower(test.RandomString("ehtest", 6))
-	if err := ts.ensureStorageAccount(); err != nil {
-		ts.T().Fatal(err)
-	}
+	ts.Require().NoError(ts.ensureStorageAccount())
 }
 
 func (ts *testSuite) TearDownSuite() {
@@ -76,7 +75,7 @@ func (ts *testSuite) TestCredential() {
 		ts.T().Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	pipeline := azblob.NewPipeline(tokenProvider, azblob.PipelineOptions{})
 	fooURL, err := url.Parse("https://" + ts.AccountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
@@ -99,7 +98,7 @@ func (ts *testSuite) TestCredential() {
 }
 
 func (ts *testSuite) deleteStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
@@ -108,13 +107,21 @@ func (ts *testSuite) deleteStorageAccount() error {
 }
 
 func (ts *testSuite) ensureStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 
 	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
 	accounts, err := client.ListByResourceGroup(ctx, test.ResourceGroupName)
-	if err != nil && accounts.StatusCode != 404 {
+	if err != nil {
 		return err
+	}
+
+	if accounts.Response.Response == nil {
+		return errors.New("response is nil and error is not nil")
+	}
+
+	if accounts.Response.Response != nil && accounts.StatusCode == 404 {
+		return errors.New("resource group does not exist")
 	}
 
 	for _, account := range *accounts.Value {

@@ -127,17 +127,21 @@ func (suite *BaseSuite) TearDownSuite() {
 }
 
 // RandomHub creates a hub with a random'ish name
-func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func(), error) {
+func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout*2)
 	defer cancel()
 
 	name := suite.RandomName("goehtest", 6)
 	model, err := suite.ensureEventHub(ctx, name, opts...)
+	suite.Require().NoError(err)
 	return model, func() {
-		if err := suite.DeleteEventHub(*model.Name); err != nil {
-			suite.T().Log(err)
+		if model != nil {
+			err := suite.DeleteEventHub(*model.Name)
+			if err != nil {
+				suite.T().Log(err)
+			}
 		}
-	}, err
+	}
 }
 
 // EnsureEventHub creates an Event Hub if it doesn't exist

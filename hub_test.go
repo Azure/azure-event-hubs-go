@@ -241,8 +241,7 @@ func (suite *eventHubSuite) TestSasToken() {
 		setupTestTeardown := func(t *testing.T) {
 			provider, err := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
 			suite.Require().NoError(err)
-			hub, cleanup, err := suite.RandomHub()
-			require.NoError(t, err)
+			hub, cleanup := suite.RandomHub()
 			defer cleanup()
 			client, closer := suite.newClientWithProvider(t, *hub.Name, provider)
 			defer closer()
@@ -265,8 +264,7 @@ func (suite *eventHubSuite) TestPartitioned() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup, err := suite.RandomHub()
-			require.NoError(t, err)
+			hub, cleanup := suite.RandomHub()
 			defer cleanup()
 			partitionID := (*hub.PartitionIds)[0]
 			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
@@ -358,8 +356,7 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup, err := suite.RandomHub()
-			require.NoError(t, err)
+			hub, cleanup := suite.RandomHub()
 			require.NotNil(t, hub)
 			defer cleanup()
 			require.Len(t, *hub.PartitionIds, 4)
@@ -431,8 +428,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup, err := suite.RandomHub()
-			suite.Require().NoError(err)
+			hub, cleanup := suite.RandomHub()
 			defer cleanup()
 			client, closer := suite.newClient(t, *hub.Name)
 			defer closer()
@@ -538,8 +534,7 @@ func (suite *eventHubSuite) TestHubManagement() {
 
 	for name, testFunc := range tests {
 		setupTestTeardown := func(t *testing.T) {
-			hub, cleanup, err := suite.RandomHub()
-			require.NoError(t, err)
+			hub, cleanup := suite.RandomHub()
 			defer cleanup()
 			client, closer := suite.newClient(t, *hub.Name)
 			defer closer()

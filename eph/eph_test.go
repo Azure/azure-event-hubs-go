@@ -54,8 +54,7 @@ func TestEPH(t *testing.T) {
 }
 
 func (s *testSuite) TestRegisterUnRegisterHandler() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
+	hub, del := s.RandomHub()
 	defer del()
 
 	p, err := s.newInMemoryEPH(*hub.Name)
@@ -80,8 +79,7 @@ func (s *testSuite) TestRegisterUnRegisterHandler() {
 }
 
 func (s *testSuite) TestNewWithConnectionString() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
+	hub, del := s.RandomHub()
 	defer del()
 
 	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, new(sharedStore))
@@ -93,9 +91,7 @@ func (s *testSuite) TestNewWithConnectionString() {
 }
 
 func (s *testSuite) TestSingle() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
-
+	hub, del := s.RandomHub()
 	processor, err := s.newInMemoryEPH(*hub.Name)
 	s.Require().NoError(err)
 
@@ -125,8 +121,7 @@ func (s *testSuite) TestSingle() {
 }
 
 func (s *testSuite) TestMultiple() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
+	hub, del := s.RandomHub()
 	defer del()
 
 	numPartitions := len(*hub.PartitionIds)

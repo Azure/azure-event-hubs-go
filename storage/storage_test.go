@@ -25,19 +25,23 @@ package storage
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+)
+
+const (
+	shortTimeout = 30 * time.Second
 )
 
 func (ts *testSuite) TestLeaserStoreCreation() {
 	leaser, del := ts.newLeaser()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	exists, err := leaser.StoreExists(ctx)
 	ts.Require().NoError(err)
@@ -55,7 +59,7 @@ func (ts *testSuite) TestLeaserLeaseEnsure() {
 	leaser, del := ts.leaserWithEPH()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	for _, partitionID := range leaser.processor.GetPartitionIDs() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
@@ -68,7 +72,7 @@ func (ts *testSuite) TestLeaserAcquire() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	ts.Require().NoError(err)
@@ -90,7 +94,7 @@ func (ts *testSuite) TestLeaserRenewLease() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	ts.Require().NoError(err)
@@ -113,7 +117,7 @@ func (ts *testSuite) TestLeaserRelease() {
 	leaser, del := ts.leaserWithEPHAndLeases()
 	defer del()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	leases, err := leaser.GetLeases(ctx)
 	ts.Require().NoError(err)
@@ -133,7 +137,7 @@ func (ts *testSuite) TestLeaserRelease() {
 func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.leaserWithEPH()
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	for _, partitionID := range leaser.processor.GetPartitionIDs() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
@@ -146,8 +150,7 @@ func (ts *testSuite) leaserWithEPHAndLeases() (*LeaserCheckpointer, func()) {
 
 func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 	leaser, del := ts.newLeaser()
-	hub, delHub, err := ts.RandomHub()
-	require.NoError(ts.T(), err)
+	hub, delHub := ts.RandomHub()
 	delAll := func() {
 		delHub()
 		del()
@@ -159,7 +162,7 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 		ts.FailNow("could not build a new JWT provider from env")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 	defer cancel()
 	processor, err := eph.New(ctx, ts.Namespace, *hub.Name, provider, nil, nil)
 	if !ts.NoError(err) {
@@ -178,17 +181,11 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	containerName := strings.ToLower(ts.RandomName("stortest", 4))
 	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
-	if err != nil {
-		ts.T().Fatal(err)
-	}
-
+	ts.Require().NoError(err)
 	leaser, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, containerName, ts.Env)
-	if err != nil {
-		ts.T().Fatal(err)
-	}
-
+	ts.Require().NoError(err)
 	return leaser, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
 		defer cancel()
 		if err := leaser.DeleteStore(ctx); err != nil {
 			ts.T().Fatal(err)
