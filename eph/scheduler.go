@@ -47,7 +47,7 @@ const (
 	partitionIDTag = "eph.receiver.partitionID"
 	epochTag       = "eph.receiver.epoch"
 
-	greed = 20
+	greed = 15
 )
 
 type (
@@ -213,6 +213,7 @@ func (s *scheduler) getPartitionIDsBeingProcessed() []string {
 func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error {
 	s.receiverMu.Lock()
 	defer s.receiverMu.Unlock()
+
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.startReceiver")
 	defer span.Finish()
 
