@@ -510,7 +510,6 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 			return ctx.Err()
 		case res := <-resCh:
 			if res.Err != nil {
-				fmt.Printf("run: %d, err: %+v\n", i, res.Err)
 				lastErr = res.Err
 			}
 			delete(sl.dirtyPartitions, res.PartitionID)
