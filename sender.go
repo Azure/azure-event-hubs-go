@@ -193,8 +193,6 @@ func isRecoverableError(err error) bool {
 		return true
 	} else if _, ok = err.(amqp.DetachError); ok {
 		return true
-	} else if _, ok = err.(amqp.Error); ok {
-		return true
 	}
 	return false
 }
