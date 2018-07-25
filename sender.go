@@ -143,36 +143,10 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			_, retryErr := common.Retry(10, 4*time.Second, func() (interface{}, error) {
 				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
 				defer sp.Finish()
-
-				switch err.(type) {
-				case *amqp.Error, *amqp.DetachError:
-					select {
-					case <-ctx.Done():
-						// context is done, so return
-						log.For(ctx).Error(ctx.Err())
-						return nil, ctx.Err()
-					default:
-						err := s.Recover(ctx)
-						if err == nil {
-							// recovered
-							log.For(ctx).Debug("recovered connection")
-							return nil, nil
-						}
-
-						switch err.(type) {
-						case *amqp.Error, *amqp.DetachError:
-							log.For(ctx).Debug("retrying error: " + err.Error())
-							return nil, common.Retryable(err.Error())
-						default:
-							// failed recovery... something is broken
-							log.For(ctx).Error(err)
-							return nil, err
-						}
-					}
-				default:
-					// failed...
-					return nil, err
+				if isRecoverableError(err) {
+					return nil, s.recover(ctx, err)
 				}
+				return nil, err
 			})
 
 			if retryErr != nil {
@@ -184,6 +158,46 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	}
 }
 
+func (s *sender) recover(ctx context.Context, err error) error {
+	sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.recover")
+	defer sp.Finish()
+
+	select {
+	case <-ctx.Done():
+		// context is done, so return
+		log.For(ctx).Error(ctx.Err())
+		return ctx.Err()
+	default:
+		err := s.Recover(ctx)
+		if err == nil {
+			// recovered
+			log.For(ctx).Debug("recovered connection")
+			return nil
+		}
+
+		if isRecoverableError(err) {
+			log.For(ctx).Debug("retrying error: " + err.Error())
+			return common.Retryable(err.Error())
+		}
+
+		// failed recovery... something is broken
+		log.For(ctx).Error(err)
+		return err
+	}
+}
+
+func isRecoverableError(err error) bool {
+	if _, ok := err.(*amqp.Error); ok {
+		return true
+	} else if _, ok = err.(*amqp.DetachError); ok {
+		return true
+	} else if _, ok = err.(amqp.DetachError); ok {
+		return true
+	} else if _, ok = err.(amqp.Error); ok {
+		return true
+	}
+	return false
+}
 func (s *sender) String() string {
 	return s.Name
 }
