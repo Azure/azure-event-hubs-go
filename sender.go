@@ -124,7 +124,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	msg := evt.toMsg()
 	sp.SetTag("eh.message-id", msg.Properties.MessageID)
 
-	for {
+	for i := 0; i < 10; i++ {
 		// try as long as the context is not dead
 		err = s.sender.Send(ctx, msg)
 		if err == nil {
@@ -156,6 +156,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			}
 		}
 	}
+	return err
 }
 
 func (s *sender) recover(ctx context.Context, err error) error {
