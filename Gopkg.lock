@@ -17,8 +17,8 @@
     "sas",
     "uuid"
   ]
-  revision = "e05d7e9b03e1fd3a074d0f0b819bad445e3a0a69"
-  version = "v0.6.0"
+  revision = "1fa44b828b6a39462b3d0e6248c69103b02272b2"
+  version = "v0.7.0"
 
 [[projects]]
   name = "github.com/Azure/azure-pipeline-go"
@@ -52,10 +52,11 @@
     "autorest/azure/auth",
     "autorest/date",
     "autorest/to",
-    "autorest/validation"
+    "autorest/validation",
+    "version"
   ]
-  revision = "1f7cd6cfe0adea687ad44a512dfe76140f804318"
-  version = "v10.12.0"
+  revision = "bca49d5b51a50dc5bb17bbf6204c711c6dbded06"
+  version = "v10.14.0"
 
 [[projects]]
   branch = "master"
@@ -76,16 +77,16 @@
   version = "v3.2.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/dimchansky/utfbom"
   packages = ["."]
-  revision = "6c6132ff69f0f6c088739067407b5d32c52e1d0f"
+  revision = "5448fe645cb1964ba70ac8f9f2ffe975e61a536c"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
-  revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
+  revision = "f15292f7a699fcc1a38a80977f80a046874ba8ac"
 
 [[projects]]
   name = "github.com/opentracing/opentracing-go"
@@ -112,8 +113,8 @@
 [[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
-  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
-  version = "v1.0.5"
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
 
 [[projects]]
   name = "github.com/stretchr/testify"
@@ -162,13 +163,13 @@
     "pkcs12/internal/rc2",
     "ssh/terminal"
   ]
-  revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
+  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context"]
-  revision = "32a936f46389aa10549d60bd7833e54b01685d09"
+  revision = "3673e40ba22529d22c3fd7c93e97b0ce50fa7bdd"
 
 [[projects]]
   branch = "master"
@@ -177,7 +178,7 @@
     "unix",
     "windows"
   ]
-  revision = "ce36f3865eeb42541ce3f87f32f8462c5687befa"
+  revision = "e072cadbbdc8dd3d3ffa82b8b4b9304c261d9311"
 
 [[projects]]
   name = "pack.ag/amqp"
@@ -185,12 +186,12 @@
     ".",
     "internal/testconn"
   ]
-  revision = "751cf0d4eb77d69534dabeff0f3afb2a0eb8588c"
-  version = "v0.6.2"
+  revision = "4b9cda815aa2612789543484d4e29855c791eeeb"
+  version = "v0.7.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "97a19b37e5b50ba71bfb1b440e9b516df82da5ac19cfc4575fe62b3f31c2d0f2"
+  inputs-digest = "940f4c5388c80fa45357b8b1c02f9f6fd9f953eafc954acf0a98bd0ed6e0572e"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -187,14 +187,12 @@ func (s *sender) recover(ctx context.Context, err error) error {
 }
 
 func isRecoverableError(err error) bool {
-	if _, ok := err.(*amqp.Error); ok {
+	switch err.(type) {
+	case *amqp.Error, *amqp.DetachError:
 		return true
-	} else if _, ok = err.(*amqp.DetachError); ok {
-		return true
-	} else if _, ok = err.(amqp.DetachError); ok {
-		return true
+	default:
+		return false
 	}
-	return false
 }
 func (s *sender) String() string {
 	return s.Name
