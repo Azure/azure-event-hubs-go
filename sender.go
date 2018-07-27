@@ -25,6 +25,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
@@ -155,7 +156,8 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 					return nil, nil
 				case *amqp.Error:
 					log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
-					time.Sleep(4 * time.Second)
+					skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
+					time.Sleep(4*time.Second + skew)
 				}
 				return nil, err
 			})

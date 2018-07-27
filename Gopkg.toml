@@ -4,7 +4,7 @@
 
 [[constraint]]
     name = "github.com/Azure/azure-sdk-for-go"
-    version = "17"
+    version = "19"
 
 [[constraint]]
     name = "github.com/Azure/azure-amqp-common-go"
