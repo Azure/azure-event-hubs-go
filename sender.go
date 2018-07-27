@@ -28,7 +28,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -126,46 +125,28 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	sp.SetTag("eh.message-id", msg.Properties.MessageID)
 
 	for {
-		// try as long as the context is not dead
-		err = s.sender.Send(ctx, msg)
-		if err == nil {
-			// successful send
-			return err
-		}
-
-		// error recovery
 		select {
 		case <-ctx.Done():
-			// context is done, so return
-			log.For(ctx).Error(ctx.Err())
 			return ctx.Err()
 		default:
-			// try to recover the connection
-			_, retryErr := common.Retry(10, 4*time.Second, func() (interface{}, error) {
-				sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.tryRecover")
-				defer sp.Finish()
+			// try as long as the context is not dead
+			err = s.sender.Send(ctx, msg)
+			if err == nil {
+				// successful send
+				return err
+			}
 
-				switch err.(type) {
-				case *amqp.DetachError:
-					err := s.Recover(ctx)
-					if err != nil {
-						log.For(ctx).Debug("failed to recover connection")
-						return nil, common.Retryable(err.Error())
-					}
-					log.For(ctx).Debug("recovered connection")
-					return nil, nil
-				case *amqp.Error:
-					log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
-					skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
-					time.Sleep(4*time.Second + skew)
+			switch err.(type) {
+			case *amqp.DetachError:
+				err := s.Recover(ctx)
+				if err != nil {
+					log.For(ctx).Debug("failed to recover connection")
 				}
-				return nil, err
-			})
-
-			if retryErr != nil {
-				log.For(ctx).Debug("retried, but error was unrecoverable")
-				log.For(ctx).Error(retryErr)
-				return retryErr
+				log.For(ctx).Debug("recovered connection")
+			case *amqp.Error:
+				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
+				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
+				time.Sleep(4*time.Second + skew)
 			}
 		}
 	}

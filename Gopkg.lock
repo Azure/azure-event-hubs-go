@@ -34,8 +34,8 @@
     "services/storage/mgmt/2017-10-01/storage",
     "version"
   ]
-  revision = "7971189ecf5a584b9211f2527737f94bb979644e"
-  version = "v17.4.0"
+  revision = "520918e6c8e8e1064154f51d13e02fad92b287b8"
+  version = "v19.0.0"
 
 [[projects]]
   name = "github.com/Azure/azure-storage-blob-go"
@@ -192,6 +192,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "940f4c5388c80fa45357b8b1c02f9f6fd9f953eafc954acf0a98bd0ed6e0572e"
+  inputs-digest = "2b562ea59efa5c044e6728e090533cbe6838f1e0316e634e913dca370b84ffc7"
   solver-name = "gps-cdcl"
   solver-version = 1
