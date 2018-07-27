@@ -147,6 +147,8 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
 				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
 				time.Sleep(4*time.Second + skew)
+			default:
+				return err
 			}
 		}
 	}
