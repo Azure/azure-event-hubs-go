@@ -74,7 +74,13 @@ func (s *sender) Recover(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.Finish()
 
-	_ = s.connection.Close() // we expect the sender is in an error state
+	// we expect the sender, session or client is in an error state, ignore errors
+	closeCtx, cancel := context.WithTimeout(ctx, 10 * time.Second)
+	closeCtx = opentracing.ContextWithSpan(closeCtx, span)
+	defer cancel()
+	_ = s.sender.Close(closeCtx)
+	_ = s.session.Close(closeCtx)
+	_ = s.connection.Close()
 	return s.newSessionAndLink(ctx)
 }
 
@@ -137,17 +143,15 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			}
 
 			switch err.(type) {
-			case *amqp.DetachError:
+			case *amqp.Error, *amqp.DetachError:
+				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
+				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
+				time.Sleep(4*time.Second + skew)
 				err := s.Recover(ctx)
 				if err != nil {
 					log.For(ctx).Debug("failed to recover connection")
 				}
 				log.For(ctx).Debug("recovered connection")
-			case *amqp.Error:
-				fmt.Println(err.Error())
-				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
-				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
-				time.Sleep(4*time.Second + skew)
 			default:
 				fmt.Println(err.Error())
 				return err
