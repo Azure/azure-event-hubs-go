@@ -24,7 +24,7 @@ package eventhub
 
 import (
 	"context"
-	"fmt"
+		"fmt"
 	"math/rand"
 	"time"
 
@@ -75,7 +75,7 @@ func (s *sender) Recover(ctx context.Context) error {
 	defer span.Finish()
 
 	// we expect the sender, session or client is in an error state, ignore errors
-	closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	closeCtx, cancel := context.WithTimeout(ctx, 10 * time.Second)
 	closeCtx = opentracing.ContextWithSpan(closeCtx, span)
 	defer cancel()
 	_ = s.sender.Close(closeCtx)
@@ -136,50 +136,28 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return ctx.Err()
 		default:
 			// try as long as the context is not dead
-			err = s.timeBoxedSend(ctx, msg, 10*time.Second)
+			err = s.sender.Send(ctx, msg)
 			if err == nil {
 				// successful send
 				return err
 			}
 
-			if err == context.Canceled {
-				s.recoverOnError(ctx, err)
-				continue
-			}
-
 			switch err.(type) {
 			case *amqp.Error, *amqp.DetachError:
-				s.recoverOnError(ctx, err)
+				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
+				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
+				time.Sleep(4*time.Second + skew)
+				err := s.Recover(ctx)
+				if err != nil {
+					log.For(ctx).Debug("failed to recover connection")
+				}
+				log.For(ctx).Debug("recovered connection")
 			default:
 				fmt.Println(err.Error())
 				return err
 			}
 		}
 	}
-}
-
-func (s *sender) recoverOnError(ctx context.Context, err error) {
-	sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.recoverOnError")
-	defer sp.Finish()
-
-	log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
-	skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
-	time.Sleep(4*time.Second + skew)
-	err = s.Recover(ctx)
-	if err != nil {
-		log.For(ctx).Debug("failed to recover connection")
-	}
-	log.For(ctx).Debug("recovered connection")
-}
-
-func (s *sender) timeBoxedSend(ctx context.Context, msg *amqp.Message, timeout time.Duration) error {
-	timeCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	err := s.sender.Send(timeCtx, msg)
-	if timeCtx.Err() == context.Canceled {
-		return timeCtx.Err()
-	}
-	return err
 }
 
 func (s *sender) String() string {
