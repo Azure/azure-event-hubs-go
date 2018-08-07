@@ -24,7 +24,7 @@ package eventhub
 
 import (
 	"context"
-		"fmt"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -75,7 +75,7 @@ func (s *sender) Recover(ctx context.Context) error {
 	defer span.Finish()
 
 	// we expect the sender, session or client is in an error state, ignore errors
-	closeCtx, cancel := context.WithTimeout(ctx, 10 * time.Second)
+	closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	closeCtx = opentracing.ContextWithSpan(closeCtx, span)
 	defer cancel()
 	_ = s.sender.Close(closeCtx)
