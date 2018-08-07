@@ -34,10 +34,13 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/conn"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
+	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/opentracing/opentracing-go"
 	tag "github.com/opentracing/opentracing-go/ext"
 )
@@ -71,6 +74,7 @@ type (
 		handlersMu    sync.Mutex
 		partitionIDs  []string
 		noBanner      bool
+		env           *azure.Environment
 	}
 
 	// EventProcessorHostOption provides configuration options for an EventProcessorHost
@@ -97,21 +101,84 @@ func WithNoBanner() EventProcessorHostOption {
 	}
 }
 
-// New constructs a new instance of an EventHostProcessor
-func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eph.New")
+// WithEnvironment will configure an EventProcessorHost to use the specified Azure Environment
+func WithEnvironment(env azure.Environment) EventProcessorHostOption {
+	return func(host *EventProcessorHost) error {
+		host.env = &env
+		return nil
+	}
+}
+
+// NewFromConnectionString builds a new Event Processor Host from an Event Hub connection string which can be found in
+// the Azure portal
+func NewFromConnectionString(ctx context.Context, connStr string, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.NewFromConnectionString")
 	defer span.Finish()
 
-	persister := checkpointPersister{checkpointer: checkpointer}
-	client, err := eventhub.NewHub(namespace, hubName, tokenProvider, eventhub.HubWithOffsetPersistence(persister))
+	hostName, err := uuid.NewV4()
 	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	parsed, err := conn.ParsedConnectionFromStr(connStr)
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	tokenProvider, err := sas.NewTokenProvider(sas.TokenProviderWithKey(parsed.KeyName, parsed.Key))
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	host := &EventProcessorHost{
+		namespace:     parsed.Namespace,
+		name:          hostName.String(),
+		hubName:       parsed.HubName,
+		tokenProvider: tokenProvider,
+		handlers:      make(map[string]eventhub.Handler),
+		leaser:        leaser,
+		checkpointer:  checkpointer,
+		noBanner:      false,
+	}
+
+	for _, opt := range opts {
+		err := opt(host)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	persister := checkpointPersister{checkpointer: checkpointer}
+	hubOpts := []eventhub.HubOption{eventhub.HubWithOffsetPersistence(persister)}
+	if host.env != nil {
+		hubOpts = append(hubOpts, eventhub.HubWithEnvironment(*host.env))
+	}
+
+	client, err := eventhub.NewHubFromConnectionString(connStr, hubOpts...)
+	if err != nil {
+		log.For(ctx).Error(err)
 		return nil, err
 	}
 
 	runtimeInfo, err := client.GetRuntimeInformation(ctx)
 	if err != nil {
+		log.For(ctx).Error(err)
 		return nil, err
 	}
+
+	host.client = client
+	host.partitionIDs = runtimeInfo.PartitionIDs
+
+	return host, nil
+}
+
+// New constructs a new instance of an EventHostProcessor
+func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
+	span, ctx := startConsumerSpanFromContext(ctx, "eph.New")
+	defer span.Finish()
 
 	hostName, err := uuid.NewV4()
 	if err != nil {
@@ -123,11 +190,9 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		name:          hostName.String(),
 		hubName:       hubName,
 		tokenProvider: tokenProvider,
-		client:        client,
 		handlers:      make(map[string]eventhub.Handler),
 		leaser:        leaser,
 		checkpointer:  checkpointer,
-		partitionIDs:  runtimeInfo.PartitionIDs,
 		noBanner:      false,
 	}
 
@@ -138,6 +203,24 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		}
 	}
 
+	persister := checkpointPersister{checkpointer: checkpointer}
+	hubOpts := []eventhub.HubOption{eventhub.HubWithOffsetPersistence(persister)}
+	if host.env != nil {
+		hubOpts = append(hubOpts, eventhub.HubWithEnvironment(*host.env))
+	}
+
+	client, err := eventhub.NewHub(namespace, hubName, tokenProvider, hubOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	runtimeInfo, err := client.GetRuntimeInformation(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	host.client = client
+	host.partitionIDs = runtimeInfo.PartitionIDs
 	return host, nil
 }
 

@@ -25,6 +25,7 @@ package storage
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/aad"
@@ -48,6 +49,7 @@ type (
 		aadTokenProvider *adal.ServicePrincipalToken
 		token            *SASToken
 		env              *azure.Environment
+		lockMu           sync.Mutex
 	}
 
 	// SASToken contains the expiry time and token for a given SAS
@@ -144,6 +146,9 @@ func (cred *AADSASCredential) New(next pipeline.Policy, po *pipeline.PolicyOptio
 
 // GetToken fetches a Azure Storage SAS token using an AAD token
 func (cred *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
+	cred.lockMu.Lock()
+	defer cred.lockMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.AADSASCredential.getToken")
 	defer span.Finish()
 

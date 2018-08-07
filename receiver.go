@@ -30,7 +30,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
-	"github.com/Azure/azure-event-hubs-go/mgmt"
 	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
 )
@@ -45,7 +44,7 @@ const (
 
 	defaultPrefetchCount = 1000
 
-	epochKey = mgmt.MsftVendor + ":epoch"
+	epochKey = MsftVendor + ":epoch"
 )
 
 // receiver provides session and link handling for a receiving entity path
@@ -153,7 +152,7 @@ func (r *receiver) Recover(ctx context.Context) error {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.Recover")
 	defer span.Finish()
 
-	_ = r.Close(ctx) // we expect the receiver is in an error state
+	_ = r.connection.Close() // we expect the receiver is in an error state
 	return r.newSessionAndLink(ctx)
 }
 
@@ -218,43 +217,47 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 
 	for {
 		msg, err := r.listenForMessage(ctx)
-		if ctx.Err() != nil && ctx.Err() == context.DeadlineExceeded {
-			return
+		if err == nil {
+			msgChan <- msg
+			continue
 		}
 
-		if amqpErr, ok := err.(*amqp.Error); ok && amqpErr.Condition == "amqp:link:stolen" {
-			// exit since the link has been stolen by a higher epoch
+		select {
+		case <-ctx.Done():
+			log.For(ctx).Debug("context done")
 			return
-		}
+		default:
+			if amqpErr, ok := err.(*amqp.DetachError); ok && amqpErr.RemoteError != nil && amqpErr.RemoteError.Condition == "amqp:link:stolen" {
+				log.For(ctx).Debug("link has been stolen by a higher epoch")
+				r.Close(ctx)
+				return
+			}
 
-		if err != nil {
-			_, retryErr := common.Retry(5, 10*time.Second, func() (interface{}, error) {
+			_, retryErr := common.Retry(10, 10*time.Second, func() (interface{}, error) {
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages.tryRecover")
 				defer sp.Finish()
 
+				log.For(ctx).Debug("recovering connection")
 				err := r.Recover(ctx)
-				if ctx.Err() != nil && ctx.Err() == context.DeadlineExceeded {
-					return nil, ctx.Err()
+				if err == nil {
+					log.For(ctx).Debug("recovered connection")
+					return nil, nil
 				}
 
-				if err != nil {
-					log.For(ctx).Error(err)
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				default:
 					return nil, common.Retryable(err.Error())
 				}
-				return nil, nil
 			})
 
 			if retryErr != nil {
+				log.For(ctx).Debug("retried, but error was unrecoverable")
 				r.lastError = retryErr
 				r.Close(ctx)
 				return
 			}
-			continue
-		}
-		select {
-		case msgChan <- msg:
-		case <-ctx.Done():
-			return
 		}
 	}
 }

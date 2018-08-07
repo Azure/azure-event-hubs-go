@@ -25,18 +25,25 @@ package eventhub
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"path"
 	"sync"
 
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/conn"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/sas"
-	"github.com/Azure/azure-event-hubs-go/mgmt"
+	"github.com/Azure/azure-event-hubs-go/atom"
+	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/Azure/go-autorest/autorest/date"
+	"github.com/Azure/go-autorest/autorest/to"
 )
 
 const (
@@ -77,17 +84,232 @@ type (
 
 	// Manager provides the ability to query management node information about a node
 	Manager interface {
-		GetRuntimeInformation(context.Context) (*mgmt.HubRuntimeInformation, error)
-		GetPartitionInformation(context.Context, string) (*mgmt.HubPartitionRuntimeInformation, error)
+		GetRuntimeInformation(context.Context) (HubRuntimeInformation, error)
+		GetPartitionInformation(context.Context, string) (HubPartitionRuntimeInformation, error)
 	}
 
 	// HubOption provides structure for configuring new Event Hub instances
 	HubOption func(h *Hub) error
+
+	// HubManager provides CRUD functionality for Event Hubs
+	HubManager struct {
+		*entityManager
+	}
+
+	// HubEntity is the Azure Event Hub description of a Hub for management activities
+	HubEntity struct {
+		*HubDescription
+		Name string
+	}
+
+	// hubFeed is a specialized feed containing hubEntries
+	hubFeed struct {
+		*atom.Feed
+		Entries []hubEntry `xml:"entry"`
+	}
+
+	// hubEntry is a specialized Hub feed entry
+	hubEntry struct {
+		*atom.Entry
+		Content *hubContent `xml:"content"`
+	}
+
+	// hubContent is a specialized Hub body for an Atom entry
+	hubContent struct {
+		XMLName        xml.Name       `xml:"content"`
+		Type           string         `xml:"type,attr"`
+		HubDescription HubDescription `xml:"EventHubDescription"`
+	}
+
+	// HubDescription is the content type for Event Hub management requests
+	HubDescription struct {
+		XMLName                  xml.Name               `xml:"EventHubDescription"`
+		MessageRetentionInDays   *int32                 `xml:"MessageRetentionInDays,omitempty"`
+		SizeInBytes              *int64                 `xml:"SizeInBytes,omitempty"`
+		Status                   *eventhub.EntityStatus `xml:"Status,omitempty"`
+		CreatedAt                *date.Time             `xml:"CreatedAt,omitempty"`
+		UpdatedAt                *date.Time             `xml:"UpdatedAt,omitempty"`
+		PartitionCount           *int32                 `xml:"PartitionCount,omitempty"`
+		PartitionIDs             *[]string              `xml:"PartitionIds>string,omitempty"`
+		EntityAvailabilityStatus *string                `xml:"EntityAvailabilityStatus,omitempty"`
+		BaseEntityDescription
+	}
 )
+
+// NewHubManagerFromConnectionString builds a HubManager from an Event Hub connection string
+func NewHubManagerFromConnectionString(connStr string) (*HubManager, error) {
+	ns, err := newNamespace(namespaceWithConnectionString(connStr))
+	if err != nil {
+		return nil, err
+	}
+	return &HubManager{
+		entityManager: newEntityManager(ns.getHTTPSHostURI(), ns.tokenProvider),
+	}, nil
+}
+
+// NewHubManagerFromAzureEnvironment builds a HubManager from a Event Hub name, SAS or AAD token provider and Azure Environment
+func NewHubManagerFromAzureEnvironment(namespace string, tokenProvider auth.TokenProvider, env azure.Environment) (*HubManager, error) {
+	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, env))
+	if err != nil {
+		return nil, err
+	}
+	return &HubManager{
+		entityManager: newEntityManager(ns.getHTTPSHostURI(), ns.tokenProvider),
+	}, nil
+}
+
+// Delete deletes an Event Hub entity by name
+func (hm *HubManager) Delete(ctx context.Context, name string) error {
+	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Delete")
+	defer span.Finish()
+
+	res, err := hm.entityManager.Delete(ctx, "/"+name)
+	if res != nil {
+		defer res.Body.Close()
+	}
+
+	return err
+}
+
+// Put creates or updates an Event Hubs Hub
+func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (*HubEntity, error) {
+	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Put")
+	defer span.Finish()
+
+	hd.ServiceBusSchema = to.StringPtr(serviceBusSchema)
+
+	he := &hubEntry{
+		Entry: &atom.Entry{
+			AtomSchema: atomSchema,
+		},
+		Content: &hubContent{
+			Type:           applicationXML,
+			HubDescription: hd,
+		},
+	}
+
+	reqBytes, err := xml.Marshal(he)
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	reqBytes = xmlDoc(reqBytes)
+	res, err := hm.entityManager.Put(ctx, "/"+name, reqBytes)
+	if res != nil {
+		defer res.Body.Close()
+	}
+
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	var entry hubEntry
+	err = xml.Unmarshal(b, &entry)
+	if err != nil {
+		return nil, formatManagementError(b)
+	}
+	return hubEntryToEntity(&entry), nil
+}
+
+// List fetches all of the Hub for an Event Hubs Namespace
+func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
+	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.List")
+	defer span.Finish()
+
+	res, err := hm.entityManager.Get(ctx, `/$Resources/EventHubs`)
+	if res != nil {
+		defer res.Body.Close()
+	}
+
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	var feed hubFeed
+	err = xml.Unmarshal(b, &feed)
+	if err != nil {
+		return nil, formatManagementError(b)
+	}
+
+	qd := make([]*HubEntity, len(feed.Entries))
+	for idx, entry := range feed.Entries {
+		qd[idx] = hubEntryToEntity(&entry)
+	}
+	return qd, nil
+}
+
+// Get fetches an Event Hubs Hub entity by name
+func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) {
+	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Get")
+	defer span.Finish()
+
+	res, err := hm.entityManager.Get(ctx, name)
+	if res != nil {
+		defer res.Body.Close()
+	}
+
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	if res.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.For(ctx).Error(err)
+		return nil, err
+	}
+
+	var entry hubEntry
+	err = xml.Unmarshal(b, &entry)
+	if err != nil {
+		if isEmptyFeed(b) {
+			return nil, nil
+		}
+		return nil, formatManagementError(b)
+	}
+
+	return hubEntryToEntity(&entry), nil
+}
+
+func isEmptyFeed(b []byte) bool {
+	var emptyFeed hubFeed
+	feedErr := xml.Unmarshal(b, &emptyFeed)
+	return feedErr == nil && emptyFeed.Title == "Publicly Listed Services"
+}
+
+func hubEntryToEntity(entry *hubEntry) *HubEntity {
+	return &HubEntity{
+		HubDescription: &entry.Content.HubDescription,
+		Name:           entry.Title,
+	}
+}
 
 // NewHub creates a new Event Hub client for sending and receiving messages
 func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (*Hub, error) {
-	ns := newNamespace(namespace, tokenProvider, azure.PublicCloud)
+	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, azure.PublicCloud))
+	if err != nil {
+		return nil, err
+	}
+
 	h := &Hub{
 		name:            name,
 		namespace:       ns,
@@ -123,10 +345,10 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 //
 //
 // AAD TokenProvider environment variables:
-// 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+// 1. client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
 //    "AZURE_CLIENT_SECRET"
 //
-// 2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+// 2. client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
 //    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
 //
 // 3. Managed Service Identity (MSI): attempt to authenticate via MSI on the default local MSI internally addressable IP
@@ -173,10 +395,10 @@ func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOp
 //
 //
 // AAD TokenProvider environment variables:
-// 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+// 1. client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
 //    "AZURE_CLIENT_SECRET"
 //
-// 2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+// 2. client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
 //    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
 //
 // 3. Managed Service Identity (MSI): attempt to authenticate via MSI
@@ -198,11 +420,44 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 	return NewHubWithNamespaceNameAndEnvironment(namespace, name, opts...)
 }
 
+// NewHubFromConnectionString creates a new Event Hub client for sending and receiving messages from a connection string
+// formatted like the following:
+//
+// Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName
+func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error) {
+	parsed, err := conn.ParsedConnectionFromStr(connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	ns, err := newNamespace(namespaceWithConnectionString(connStr))
+	if err != nil {
+		return nil, err
+	}
+
+	h := &Hub{
+		name:            parsed.HubName,
+		namespace:       ns,
+		offsetPersister: persist.NewMemoryPersister(),
+		userAgent:       rootUserAgent,
+		receivers:       make(map[string]*receiver),
+	}
+
+	for _, opt := range opts {
+		err := opt(h)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return h, err
+}
+
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
-func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInformation, error) {
+func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
 	defer span.Finish()
-	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
+	client := newClient(h.namespace, h.name)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
 		log.For(ctx).Error(err)
@@ -217,10 +472,10 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*mgmt.HubRuntimeInform
 }
 
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
-func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*mgmt.HubPartitionRuntimeInformation, error) {
+func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*HubPartitionRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
 	defer span.Finish()
-	client := mgmt.NewClient(h.namespace.name, h.name, h.namespace.tokenProvider, h.namespace.environment)
+	client := newClient(h.namespace, h.name)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
 		return nil, err
@@ -337,7 +592,7 @@ func HubWithUserAgent(userAgent string) HubOption {
 // By default, the Hub instance will use Azure US Public cloud environment
 func HubWithEnvironment(env azure.Environment) HubOption {
 	return func(h *Hub) error {
-		h.namespace.environment = env
+		h.namespace.host = "amqps://" + h.namespace.name + "." + env.ServiceBusEndpointSuffix
 		return nil
 	}
 }

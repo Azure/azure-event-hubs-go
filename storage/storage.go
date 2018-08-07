@@ -49,20 +49,19 @@ import (
 type (
 	// LeaserCheckpointer implements the eph.LeaserCheckpointer interface for Azure Storage
 	LeaserCheckpointer struct {
-		leases            map[string]*storageLease
-		processor         *eph.EventProcessorHost
-		leaseDuration     time.Duration
-		credential        Credential
-		containerURL      *azblob.ContainerURL
-		serviceURL        *azblob.ServiceURL
-		containerName     string
-		accountName       string
-		env               azure.Environment
-		dirtyPartitions   map[string]uuid.UUID
-		updatedPartitions map[string]uuid.UUID
-		leasesMu          sync.Mutex
-		dirtyMu           sync.Mutex
-		done              func()
+		leases          map[string]*storageLease
+		processor       *eph.EventProcessorHost
+		leaseDuration   time.Duration
+		credential      Credential
+		containerURL    *azblob.ContainerURL
+		serviceURL      *azblob.ServiceURL
+		containerName   string
+		accountName     string
+		env             azure.Environment
+		dirtyPartitions map[string]uuid.UUID
+		leasesMu        sync.Mutex
+		dirtyMu         sync.Mutex
+		done            func()
 	}
 
 	storageLease struct {
@@ -76,6 +75,16 @@ type (
 	// Credential is a wrapper for the Azure Storage azblob.Credential
 	Credential interface {
 		azblob.Credential
+	}
+
+	leaseGetResult struct {
+		Lease *storageLease
+		Err   error
+	}
+
+	dirtyResult struct {
+		PartitionID string
+		Err         error
 	}
 )
 
@@ -91,26 +100,21 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 	containerURL := svURL.NewContainerURL(containerName)
 
 	return &LeaserCheckpointer{
-		credential:        credential,
-		containerName:     containerName,
-		accountName:       accountName,
-		leaseDuration:     eph.DefaultLeaseDuration,
-		env:               env,
-		serviceURL:        &svURL,
-		containerURL:      &containerURL,
-		leases:            make(map[string]*storageLease),
-		dirtyPartitions:   make(map[string]uuid.UUID),
-		updatedPartitions: make(map[string]uuid.UUID),
+		credential:      credential,
+		containerName:   containerName,
+		accountName:     accountName,
+		leaseDuration:   eph.DefaultLeaseDuration,
+		env:             env,
+		serviceURL:      &svURL,
+		containerURL:    &containerURL,
+		leases:          make(map[string]*storageLease),
+		dirtyPartitions: make(map[string]uuid.UUID),
 	}, nil
 }
 
 // SetEventHostProcessor sets the EventHostProcessor on the instance of the LeaserCheckpointer
 func (sl *LeaserCheckpointer) SetEventHostProcessor(eph *eph.EventProcessorHost) {
 	sl.processor = eph
-	for _, partitionID := range eph.GetPartitionIDs() {
-		sl.dirtyPartitions[partitionID] = uuid.Nil
-		sl.updatedPartitions[partitionID] = uuid.Nil
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go sl.persistLeases(ctx)
 	sl.done = cancel
@@ -162,8 +166,12 @@ func (sl *LeaserCheckpointer) EnsureStore(ctx context.Context) error {
 
 // DeleteStore deletes the Azure Storage container
 func (sl *LeaserCheckpointer) DeleteStore(ctx context.Context) error {
+	sl.leasesMu.Lock()
+	defer sl.leasesMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.DeleteStore")
 	defer span.Finish()
+
 	_, err := sl.containerURL.Delete(ctx, azblob.ContainerAccessConditions{})
 	return err
 }
@@ -172,17 +180,33 @@ func (sl *LeaserCheckpointer) DeleteStore(ctx context.Context) error {
 func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.GetLeases")
 	defer span.Finish()
 
 	partitionIDs := sl.processor.GetPartitionIDs()
-	leases := make([]eph.LeaseMarker, len(partitionIDs))
+	leaseCh := make(chan leaseGetResult)
 	for idx, partitionID := range partitionIDs {
-		lease, err := sl.getLease(ctx, partitionID)
-		if err != nil {
-			return nil, err
+		go func(i int, pID string) {
+			lease, err := sl.getLease(ctx, pID)
+			leaseCh <- leaseGetResult{
+				Lease: lease,
+				Err:   err,
+			}
+		}(idx, partitionID)
+	}
+
+	leases := make([]eph.LeaseMarker, len(partitionIDs))
+	for i := 0; i < len(partitionIDs); i++ {
+		select {
+		case <-ctx.Done():
+			return leases, ctx.Err()
+		case result := <-leaseCh:
+			if result.Err != nil {
+				return nil, result.Err
+			}
+			leases[i] = result.Lease
 		}
-		leases[idx] = lease
 	}
 	return leases, nil
 }
@@ -201,6 +225,7 @@ func (sl *LeaserCheckpointer) EnsureLease(ctx context.Context, partitionID strin
 func (sl *LeaserCheckpointer) DeleteLease(ctx context.Context, partitionID string) error {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.DeleteLease")
 	defer span.Finish()
 
@@ -213,6 +238,7 @@ func (sl *LeaserCheckpointer) DeleteLease(ctx context.Context, partitionID strin
 func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID string) (eph.LeaseMarker, bool, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.AcquireLease")
 	defer span.Finish()
 
@@ -266,6 +292,7 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string) (eph.LeaseMarker, bool, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.RenewLease")
 	defer span.Finish()
 
@@ -287,6 +314,7 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID string) (bool, error) {
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
+
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.ReleaseLease")
 	defer span.Finish()
 
@@ -302,6 +330,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 		return false, err
 	}
 	delete(sl.leases, partitionID)
+	delete(sl.dirtyPartitions, partitionID)
 	return true, nil
 }
 
@@ -440,33 +469,63 @@ func (sl *LeaserCheckpointer) Close() error {
 func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLeases")
 	defer span.Finish()
+	<-time.After(5 * time.Second) // initial delay
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			for partitionID, val := range sl.dirtyPartitions {
-				if val != sl.updatedPartitions[partitionID] {
-					err := sl.persistLease(ctx, partitionID)
-					if err != nil {
-						continue
-					}
-					sl.updatedPartitions[partitionID] = val
-				}
+			err := sl.persistDirtyPartitions(ctx)
+			if err != nil {
+				log.For(ctx).Error(err)
 			}
 			<-time.After(1 * time.Second)
 		}
 	}
 }
 
+func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error {
+	sl.leasesMu.Lock()
+	defer sl.leasesMu.Unlock()
+
+	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistDirtyPartitions")
+	defer span.Finish()
+
+	resCh := make(chan dirtyResult)
+	for partitionID := range sl.dirtyPartitions {
+		go func(id string) {
+			err := sl.persistLease(ctx, id)
+			resCh <- dirtyResult{
+				Err:         err,
+				PartitionID: id,
+			}
+		}(partitionID)
+	}
+
+	var lastErr error
+	for i := 0; i < len(sl.dirtyPartitions); i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case res := <-resCh:
+			if res.Err != nil {
+				lastErr = res.Err
+			}
+			delete(sl.dirtyPartitions, res.PartitionID)
+		}
+	}
+	return lastErr
+}
+
 func (sl *LeaserCheckpointer) persistLease(ctx context.Context, partitionID string) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLease")
 	defer span.Finish()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	_, ok, err := sl.UpdateLease(ctx, partitionID)
-	cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	_, ok, err := sl.updateLease(ctx, partitionID)
+
 	if err != nil {
 		return err
 	}

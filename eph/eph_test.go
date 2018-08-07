@@ -25,6 +25,7 @@ package eph
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -48,13 +49,12 @@ type (
 	}
 )
 
-func TestEventProcessorHost(t *testing.T) {
+func TestEPH(t *testing.T) {
 	suite.Run(t, new(testSuite))
 }
 
 func (s *testSuite) TestRegisterUnRegisterHandler() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
+	hub, del := s.RandomHub()
 	defer del()
 
 	p, err := s.newInMemoryEPH(*hub.Name)
@@ -78,10 +78,20 @@ func (s *testSuite) TestRegisterUnRegisterHandler() {
 	s.Equal(handlerID1, p.RegisteredHandlerIDs()[0], "should only contain handlerID1")
 }
 
-func (s *testSuite) TestSingle() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
+func (s *testSuite) TestNewWithConnectionString() {
+	hub, del := s.RandomHub()
+	defer del()
 
+	leaserCheckpointer := newMemoryLeaserCheckpointer(DefaultLeaseDuration, new(sharedStore))
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	host, err := NewFromConnectionString(ctx, os.Getenv("EVENTHUB_CONNECTION_STRING")+";EntityPath="+*hub.Name, leaserCheckpointer, leaserCheckpointer)
+	s.NoError(err)
+	s.NotNil(host)
+}
+
+func (s *testSuite) TestSingle() {
+	hub, del := s.RandomHub()
 	processor, err := s.newInMemoryEPH(*hub.Name)
 	s.Require().NoError(err)
 
@@ -111,8 +121,7 @@ func (s *testSuite) TestSingle() {
 }
 
 func (s *testSuite) TestMultiple() {
-	hub, del, err := s.RandomHub()
-	s.Require().NoError(err)
+	hub, del := s.RandomHub()
 	defer del()
 
 	numPartitions := len(*hub.PartitionIds)
@@ -120,7 +129,7 @@ func (s *testSuite) TestMultiple() {
 	processors := make(map[string]*EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout*2)
 	defer cancel()
 	for i := 0; i < numPartitions; i++ {
 		processor, err := s.newInMemoryEPHWithOptions(*hub.Name, sharedStore)
@@ -155,7 +164,6 @@ func (s *testSuite) TestMultiple() {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
 			s.Require().NoError(err)
-
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -164,10 +172,7 @@ func (s *testSuite) TestMultiple() {
 			break
 		}
 	}
-	if !balanced {
-		s.T().Error("never balanced work within allotted time")
-		return
-	}
+	s.Require().True(balanced, "never balanced work within allotted time")
 
 	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	processors[processorNames[numPartitions-1]].Close(closeContext) // close the last partition

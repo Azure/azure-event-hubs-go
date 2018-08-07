@@ -38,7 +38,6 @@ import (
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -49,17 +48,12 @@ func (ts *testSuite) TestSingle() {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	hub, delHub, err := ts.RandomHub()
-	if !ts.NoError(err) {
-		ts.FailNow("could not build a hub")
-	}
+	hub, delHub := ts.RandomHub()
 	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()
 
 	processor, err := ts.newStorageBackedEPH(*hub.Name, *hub.Name)
-	if err != nil {
-		ts.T().Fatal(err)
-	}
+	ts.Require().NoError(err)
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		processor.Close(closeContext)
@@ -68,9 +62,7 @@ func (ts *testSuite) TestSingle() {
 	}()
 
 	messages, err := ts.sendMessages(*hub.Name, 10)
-	if err != nil {
-		ts.T().Fatal(err)
-	}
+	ts.Require().NoError(err)
 
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
@@ -86,36 +78,28 @@ func (ts *testSuite) TestSingle() {
 }
 
 func (ts *testSuite) TestMultiple() {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout * 2)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout*2)
 	defer cancel()
 
-	hub, delHub, err := ts.RandomHub()
-	require.NoError(ts.T(), err)
+	hub, delHub := ts.RandomHub()
 	defer delHub()
 	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()
 
 	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, *hub.Name, AADSASCredentialWithEnvironmentVars())
-	if err != nil {
-		ts.T().Fatal(err)
-	}
-
+	ts.Require().NoError(err)
 	numPartitions := len(*hub.PartitionIds)
 	processors := make(map[string]*eph.EventProcessorHost, numPartitions)
 	processorNames := make([]string, numPartitions)
 	for i := 0; i < numPartitions; i++ {
 		leaserCheckpointer, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, *hub.Name, ts.Env)
-		if err != nil {
-			ts.T().Fatal(err)
-		}
+		ts.Require().NoError(err)
 
 		processor, err := ts.newStorageBackedEPHOptions(*hub.Name, leaserCheckpointer, leaserCheckpointer)
-		if !ts.NoError(err) {
-			ts.FailNow("could not build a new storage backed EPH")
-		}
+		ts.Require().NoError(err)
 
 		processors[processor.GetName()] = processor
-		processor.StartNonBlocking(ctx)
+		ts.Require().NoError(processor.StartNonBlocking(ctx))
 		processorNames[i] = processor.GetName()
 	}
 
@@ -142,9 +126,7 @@ func (ts *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if !ts.NoError(err) {
-				ts.FailNow("parsing partitions failed")
-			}
+			ts.Require().NoError(err)
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -176,9 +158,7 @@ func (ts *testSuite) TestMultiple() {
 		for _, processor := range processors {
 			partitions := processor.PartitionIDsBeingProcessed()
 			partitionInts, err := stringsToInts(partitions)
-			if err != nil {
-				ts.T().Fatal(err)
-			}
+			ts.Require().NoError(err)
 			partitionsByProcessor[processor.GetName()] = partitionInts
 		}
 
@@ -197,21 +177,15 @@ func (ts *testSuite) newTestContainerByName(containerName string) func() {
 	defer cancel()
 
 	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
-	if err != nil {
-		ts.T().Fatal(err)
-	}
+	ts.Require().NoError(err)
 
 	pipeline := azblob.NewPipeline(cred, azblob.PipelineOptions{})
 	fooURL, err := url.Parse("https://" + ts.AccountName + ".blob." + ts.Env.StorageEndpointSuffix + "/" + containerName)
-	if err != nil {
-		ts.T().Error(err)
-	}
+	ts.NoError(err)
 
 	containerURL := azblob.NewContainerURL(*fooURL, pipeline)
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
-	if err != nil {
-		ts.T().Error(err)
-	}
+	ts.NoError(err)
 
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -252,14 +226,9 @@ func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) 
 
 func (ts *testSuite) newStorageBackedEPH(hubName, containerName string) (*eph.EventProcessorHost, error) {
 	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
-	if err != nil {
-		ts.T().Fatal(err)
-	}
+	ts.Require().NoError(err)
 	leaserCheckpointer, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, containerName, ts.Env)
-	if err != nil {
-		ts.T().Fatal(err)
-	}
-
+	ts.Require().NoError(err)
 	return ts.newStorageBackedEPHOptions(hubName, leaserCheckpointer, leaserCheckpointer)
 }
 
@@ -281,18 +250,14 @@ func (ts *testSuite) newStorageBackedEPHOptions(hubName string, leaser eph.Lease
 
 func (ts *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) *eventhub.Hub {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&ts.Env))
-	if err != nil {
-		t.Fatal(err)
-	}
+	ts.Require().NoError(err)
 	return ts.newClientWithProvider(t, hubName, provider, opts...)
 }
 
 func (ts *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) *eventhub.Hub {
 	opts = append(opts, eventhub.HubWithEnvironment(ts.Env))
 	client, err := eventhub.NewHub(ts.Namespace, hubName, provider, opts...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ts.Require().NoError(err)
 	return client
 }
 
@@ -354,6 +319,19 @@ func allHandled(partitionsByProcessor map[string][]int, numberOfPartitions int) 
 			}
 		}
 	}
+
+	//var keys []string
+	//for key := range partitionsByProcessor {
+	//	keys = append(keys, key)
+	//}
+	//sort.Strings(keys)
+	//for _, key := range keys {
+	//	ints := partitionsByProcessor[key]
+	//	sort.Ints(ints)
+	//	fmt.Printf("Processor: %q, Partitions %+v\n", key, ints)
+	//}
+	//fmt.Println("========================================")
+	//fmt.Println("========================================")
 
 	for _, count := range countByPartition {
 		if count != 1 {

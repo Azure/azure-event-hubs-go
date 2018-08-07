@@ -25,12 +25,11 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/uuid"
-	"github.com/Azure/azure-event-hubs-go/internal"
 	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
 )
@@ -50,7 +49,8 @@ type (
 	SendOption func(event *Event) error
 
 	eventer interface {
-		Set(key, value string)
+		opentracing.TextMapWriter
+		opentracing.TextMapReader
 		toMsg() *amqp.Message
 	}
 )
@@ -74,7 +74,13 @@ func (s *sender) Recover(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.Finish()
 
-	_ = s.Close(ctx) // we expect the sender is in an error state
+	// we expect the sender, session or client is in an error state, ignore errors
+	closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	closeCtx = opentracing.ContextWithSpan(closeCtx, span)
+	defer cancel()
+	_ = s.sender.Close(closeCtx)
+	_ = s.session.Close(closeCtx)
+	_ = s.connection.Close()
 	return s.newSessionAndLink(ctx)
 }
 
@@ -115,50 +121,43 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend")
 	defer sp.Finish()
 
-	times := 3
-	delay := 10 * time.Second
-	durationOfSend := 3 * time.Second
-	if deadline, ok := ctx.Deadline(); ok {
-		times = int(time.Until(deadline) / (delay + durationOfSend))
-		times = ehmath.Max(times, 1) // give at least one chance at sending
+	err := opentracing.GlobalTracer().Inject(sp.Context(), opentracing.TextMap, evt)
+	if err != nil {
+		log.For(ctx).Error(err)
+		return err
 	}
-	_, err := common.Retry(times, delay, func() (interface{}, error) {
-		sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend.transmit")
-		defer sp.Finish()
 
+	msg := evt.toMsg()
+	sp.SetTag("eh.message-id", msg.Properties.MessageID)
+
+	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		default:
-			innerCtx, cancel := context.WithTimeout(ctx, durationOfSend)
-			defer cancel()
-
-			err := opentracing.GlobalTracer().Inject(sp.Context(), opentracing.TextMap, evt)
-			if err != nil {
-				log.For(ctx).Error(err)
-				return nil, err
+			// try as long as the context is not dead
+			err = s.sender.Send(ctx, msg)
+			if err == nil {
+				// successful send
+				return err
 			}
 
-			msg := evt.toMsg()
-			sp.SetTag("eh.message-id", msg.Properties.MessageID)
-			err = s.sender.Send(innerCtx, msg)
-			if err != nil {
-				recoverErr := s.Recover(ctx)
-				if recoverErr != nil {
-					log.For(ctx).Error(recoverErr)
+			switch err.(type) {
+			case *amqp.Error, *amqp.DetachError:
+				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
+				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
+				time.Sleep(4*time.Second + skew)
+				err := s.Recover(ctx)
+				if err != nil {
+					log.For(ctx).Debug("failed to recover connection")
 				}
+				log.For(ctx).Debug("recovered connection")
+			default:
+				fmt.Println(err.Error())
+				return err
 			}
-
-			if amqpErr, ok := err.(*amqp.Error); ok {
-				if amqpErr.Condition == "com.microsoft:server-busy" {
-					return nil, common.Retryable(amqpErr.Condition)
-				}
-			}
-
-			return nil, err
 		}
-	})
-	return err
+	}
 }
 
 func (s *sender) String() string {
