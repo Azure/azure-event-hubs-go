@@ -23,19 +23,6 @@
   version = "v0.7.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:d273e10320689a58ab610b7654122fc65d3985d43526502de658a4ee6547a950"
-  name = "github.com/Azure/azure-event-hubs-go"
-  packages = [
-    ".",
-    "atom",
-    "eph",
-    "internal/test",
-  ]
-  pruneopts = "UT"
-  revision = "c9c1890d5685f3c884890a0a56fb21aea24b7f9d"
-
-[[projects]]
   digest = "1:d2ccb697dc13c8fbffafa37baae97594d5592ae8f7e113471084137315536e2b"
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
@@ -65,7 +52,7 @@
   version = "0.1.4"
 
 [[projects]]
-  digest = "1:a1d63c0ee3eedc3951a2be849d5b0ba41a5e3f0f838733149b8a6d050cf42cff"
+  digest = "1:e782078a170a8f36451e2b6468d0cce2ac394d809054d8ec6820961fa58430fe"
   name = "github.com/Azure/go-autorest"
   packages = [
     "autorest",
@@ -79,8 +66,8 @@
     "version",
   ]
   pruneopts = "UT"
-  revision = "22deab8fa353631a78351bd7808fcb5002024b67"
-  version = "v10.15.1"
+  revision = "39013ecb48eaf6ced3f4e3e1d95515140ce6b3cf"
+  version = "v10.15.2"
 
 [[projects]]
   branch = "master"
@@ -91,12 +78,12 @@
   revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
-  digest = "1:a2c1d0e43bd3baaa071d1b9ed72c27d78169b2b269f71c105ac4ba34b1be4a39"
+  digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   pruneopts = "UT"
-  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
-  version = "v1.1.0"
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:76dc72490af7174349349838f2fe118996381b31ea83243812a97e5a0fd5ed55"
@@ -221,7 +208,7 @@
     "ssh/terminal",
   ]
   pruneopts = "UT"
-  revision = "f027049dab0ad238e394a753dba2d14753473a04"
+  revision = "614d502a4dac94afa3a6ce146bd1736da82514c6"
 
 [[projects]]
   branch = "master"
@@ -229,18 +216,18 @@
   name = "golang.org/x/net"
   packages = ["context"]
   pruneopts = "UT"
-  revision = "19491d39cadbd9cd33f26ca22cc89ba4ba38251c"
+  revision = "922f4815f713f213882e8ef45e0d315b164d705c"
 
 [[projects]]
   branch = "master"
-  digest = "1:2455630696ece2771aab91b25300a375df10b948d43d1b565feda5d89afd2bde"
+  digest = "1:48774faa158e9eaee1ba45aad66434bb0345927b43756a24d4fe4c44ad79e307"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "acbc56fc7007d2a01796d5bde54f39e3b3e95945"
+  revision = "3b58ed4ad3395d483fc92d5d14123ce2c3581fec"
 
 [[projects]]
   digest = "1:efd7f4a2c3339485190142d3b83052207aaadf6e4e724fdbac79a5de0a8120c5"
@@ -267,10 +254,6 @@
     "github.com/Azure/azure-amqp-common-go/rpc",
     "github.com/Azure/azure-amqp-common-go/sas",
     "github.com/Azure/azure-amqp-common-go/uuid",
-    "github.com/Azure/azure-event-hubs-go",
-    "github.com/Azure/azure-event-hubs-go/atom",
-    "github.com/Azure/azure-event-hubs-go/eph",
-    "github.com/Azure/azure-event-hubs-go/internal/test",
     "github.com/Azure/azure-pipeline-go/pipeline",
     "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub",
     "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2017-05-10/resources",
