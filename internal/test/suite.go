@@ -306,6 +306,11 @@ func ensureNamespace(ctx context.Context, subscriptionID, rg, name, location str
 			return nil, err
 		}
 
+		err = nsFuture.WaitForCompletionRef(ctx, client.Client)
+		if err != nil {
+			return nil, err
+		}
+
 		namespace, err = nsFuture.Result(*client)
 		if err != nil {
 			return nil, err
