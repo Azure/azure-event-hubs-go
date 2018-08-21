@@ -23,6 +23,19 @@
   version = "v0.7.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:d273e10320689a58ab610b7654122fc65d3985d43526502de658a4ee6547a950"
+  name = "github.com/Azure/azure-event-hubs-go"
+  packages = [
+    ".",
+    "atom",
+    "eph",
+    "internal/test",
+  ]
+  pruneopts = "UT"
+  revision = "c9c1890d5685f3c884890a0a56fb21aea24b7f9d"
+
+[[projects]]
   digest = "1:d2ccb697dc13c8fbffafa37baae97594d5592ae8f7e113471084137315536e2b"
   name = "github.com/Azure/azure-pipeline-go"
   packages = ["pipeline"]
@@ -100,6 +113,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "5448fe645cb1964ba70ac8f9f2ffe975e61a536c"
+
+[[projects]]
+  digest = "1:b6bbd2f9e0724bd81890c8644259f920c6d61c08453978faff0bebd25f3e7d3e"
+  name = "github.com/jpillora/backoff"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8eab2debe79d12b7bd3d10653910df25fa9552ba"
+  version = "1.0.0"
 
 [[projects]]
   branch = "master"
@@ -246,6 +267,10 @@
     "github.com/Azure/azure-amqp-common-go/rpc",
     "github.com/Azure/azure-amqp-common-go/sas",
     "github.com/Azure/azure-amqp-common-go/uuid",
+    "github.com/Azure/azure-event-hubs-go",
+    "github.com/Azure/azure-event-hubs-go/atom",
+    "github.com/Azure/azure-event-hubs-go/eph",
+    "github.com/Azure/azure-event-hubs-go/internal/test",
     "github.com/Azure/azure-pipeline-go/pipeline",
     "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub",
     "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2017-05-10/resources",
@@ -257,6 +282,7 @@
     "github.com/Azure/go-autorest/autorest/azure/auth",
     "github.com/Azure/go-autorest/autorest/date",
     "github.com/Azure/go-autorest/autorest/to",
+    "github.com/jpillora/backoff",
     "github.com/mitchellh/mapstructure",
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/ext",

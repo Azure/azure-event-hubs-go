@@ -25,11 +25,11 @@ package eventhub
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/uuid"
+	"github.com/jpillora/backoff"
 	"github.com/opentracing/opentracing-go"
 	"pack.ag/amqp"
 )
@@ -37,12 +37,13 @@ import (
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
-		hub         *Hub
-		connection  *amqp.Client
-		session     *session
-		sender      *amqp.Sender
-		partitionID *string
-		Name        string
+		hub             *Hub
+		connection      *amqp.Client
+		session         *session
+		sender          *amqp.Sender
+		partitionID     *string
+		Name            string
+		recoveryBackoff *backoff.Backoff
 	}
 
 	// SendOption provides a way to customize a message on sending
@@ -63,6 +64,11 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 	s := &sender{
 		hub:         h,
 		partitionID: h.senderPartitionID,
+		recoveryBackoff: &backoff.Backoff{
+			Min:    10 * time.Millisecond,
+			Max:    4 * time.Second,
+			Jitter: true,
+		},
 	}
 	log.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
@@ -141,17 +147,18 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				// successful send
 				return err
 			}
-
 			switch err.(type) {
 			case *amqp.Error, *amqp.DetachError:
-				log.For(ctx).Debug("amqp error, delaying 4 seconds: " + err.Error())
-				skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
-				time.Sleep(4*time.Second + skew)
-				err := s.Recover(ctx)
+				duration := s.recoveryBackoff.Duration()
+				log.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
+				time.Sleep(duration)
+				err = s.Recover(ctx)
 				if err != nil {
 					log.For(ctx).Debug("failed to recover connection")
+				} else {
+					log.For(ctx).Debug("recovered connection")
+					s.recoveryBackoff.Reset()
 				}
-				log.For(ctx).Debug("recovered connection")
 			default:
 				fmt.Println(err.Error())
 				return err
