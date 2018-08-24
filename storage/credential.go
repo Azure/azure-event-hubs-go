@@ -150,7 +150,7 @@ func (cred *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
 	defer cred.lockMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.AADSASCredential.getToken")
-	defer span.Finish()
+	defer span.End()
 
 	if cred.token != nil {
 		if cred.token.expiry.Before(time.Now().Add(-5 * time.Minute)) {
@@ -168,7 +168,7 @@ func (cred *AADSASCredential) getToken(ctx context.Context) (SASToken, error) {
 
 func (cred *AADSASCredential) refreshToken(ctx context.Context, canonicalizedResource string) (SASToken, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.AADSASCredential.refreshToken")
-	defer span.Finish()
+	defer span.End()
 
 	now := time.Now().Add(-1 * time.Second)
 	expiry := now.Add(1 * time.Hour)

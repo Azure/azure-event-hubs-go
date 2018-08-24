@@ -41,8 +41,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/opentracing/opentracing-go"
-	tag "github.com/opentracing/opentracing-go/ext"
+	"go.opencensus.io/trace"
 )
 
 const (
@@ -113,7 +112,7 @@ func WithEnvironment(env azure.Environment) EventProcessorHostOption {
 // the Azure portal
 func NewFromConnectionString(ctx context.Context, connStr string, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.NewFromConnectionString")
-	defer span.Finish()
+	defer span.End()
 
 	hostName, err := uuid.NewV4()
 	if err != nil {
@@ -178,7 +177,7 @@ func NewFromConnectionString(ctx context.Context, connStr string, leaser Leaser,
 // New constructs a new instance of an EventHostProcessor
 func New(ctx context.Context, namespace, hubName string, tokenProvider auth.TokenProvider, leaser Leaser, checkpointer Checkpointer, opts ...EventProcessorHostOption) (*EventProcessorHost, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.New")
-	defer span.Finish()
+	defer span.End()
 
 	hostName, err := uuid.NewV4()
 	if err != nil {
@@ -241,7 +240,7 @@ func (h *EventProcessorHost) RegisteredHandlerIDs() []HandlerID {
 // RegisterHandler will register an event handler which will receive events after Start or StartNonBlocking is called
 func (h *EventProcessorHost) RegisterHandler(ctx context.Context, handler eventhub.Handler) (HandlerID, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.RegisterHandler")
-	defer span.Finish()
+	defer span.End()
 
 	h.handlersMu.Lock()
 	defer h.handlersMu.Unlock()
@@ -259,7 +258,7 @@ func (h *EventProcessorHost) RegisterHandler(ctx context.Context, handler eventh
 // the last handler registered.
 func (h *EventProcessorHost) UnregisterHandler(ctx context.Context, id HandlerID) {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.UnregisterHandler")
-	defer span.Finish()
+	defer span.End()
 
 	h.handlersMu.Lock()
 	defer h.handlersMu.Unlock()
@@ -274,7 +273,7 @@ func (h *EventProcessorHost) UnregisterHandler(ctx context.Context, id HandlerID
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
 func (h *EventProcessorHost) Start(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.Start")
-	defer span.Finish()
+	defer span.End()
 
 	if !h.noBanner {
 		fmt.Print(banner)
@@ -290,8 +289,8 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		span := opentracing.SpanFromContext(ctx)
-		ctx := opentracing.ContextWithSpan(context.Background(), span)
+		span := trace.FromContext(ctx)
+		ctx := trace.NewContext(context.Background(), span)
 		h.scheduler.Run(ctx)
 	}()
 
@@ -305,7 +304,7 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 // StartNonBlocking begins processing of messages for registered handlers
 func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.StartNonBlocking")
-	defer span.Finish()
+	defer span.End()
 
 	if !h.noBanner {
 		fmt.Print(banner)
@@ -316,8 +315,8 @@ func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 	}
 
 	go func() {
-		span := opentracing.SpanFromContext(ctx)
-		ctx := opentracing.ContextWithSpan(context.Background(), span)
+		span := trace.FromContext(ctx)
+		ctx := trace.NewContext(context.Background(), span)
 		h.scheduler.Run(ctx)
 	}()
 
@@ -368,7 +367,7 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 	h.hostMu.Lock()
 	defer h.hostMu.Unlock()
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.setup")
-	defer span.Finish()
+	defer span.End()
 
 	if h.scheduler == nil {
 		h.leaser.SetEventHostProcessor(h)
@@ -396,7 +395,7 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 	return func(ctx context.Context, event *eventhub.Event) error {
 		span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.compositeHandlers")
-		defer span.Finish()
+		defer span.End()
 
 		h.handlersMu.Lock()
 		defer h.handlersMu.Unlock()
@@ -428,9 +427,9 @@ func (c checkpointPersister) Read(namespace, name, consumerGroup, partitionID st
 	return c.checkpointer.EnsureCheckpoint(ctx, partitionID)
 }
 
-func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, operationName, opts...)
+func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
+	ctx, span := trace.StartSpan(ctx, operationName, opts...)
 	eventhub.ApplyComponentInfo(span)
-	tag.SpanKindConsumer.Set(span)
+	span.AddAttributes(trace.StringAttribute("span.kind", "consumer"))
 	return span, ctx
 }

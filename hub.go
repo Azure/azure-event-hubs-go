@@ -161,7 +161,7 @@ func NewHubManagerFromAzureEnvironment(namespace string, tokenProvider auth.Toke
 // Delete deletes an Event Hub entity by name
 func (hm *HubManager) Delete(ctx context.Context, name string) error {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Delete")
-	defer span.Finish()
+	defer span.End()
 
 	res, err := hm.entityManager.Delete(ctx, "/"+name)
 	if res != nil {
@@ -174,7 +174,7 @@ func (hm *HubManager) Delete(ctx context.Context, name string) error {
 // Put creates or updates an Event Hubs Hub
 func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Put")
-	defer span.Finish()
+	defer span.End()
 
 	hd.ServiceBusSchema = to.StringPtr(serviceBusSchema)
 
@@ -222,7 +222,7 @@ func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (
 // List fetches all of the Hub for an Event Hubs Namespace
 func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.List")
-	defer span.Finish()
+	defer span.End()
 
 	res, err := hm.entityManager.Get(ctx, `/$Resources/EventHubs`)
 	if res != nil {
@@ -256,7 +256,7 @@ func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 // Get fetches an Event Hubs Hub entity by name
 func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Get")
-	defer span.Finish()
+	defer span.End()
 
 	res, err := hm.entityManager.Get(ctx, name)
 	if res != nil {
@@ -459,7 +459,7 @@ func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error)
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
 func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
-	defer span.Finish()
+	defer span.End()
 	client := newClient(h.namespace, h.name)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
@@ -477,7 +477,7 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
 func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*HubPartitionRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
-	defer span.Finish()
+	defer span.End()
 	client := newClient(h.namespace, h.name)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
@@ -493,7 +493,7 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *Hub) Close(ctx context.Context) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Close")
-	defer span.Finish()
+	defer span.End()
 
 	var lastErr error
 	for _, r := range h.receivers {
@@ -522,7 +522,7 @@ func (h *Hub) Close(ctx context.Context) error {
 // ListenerHandle.Err() provides the last error the listener encountered and was unable to recover from
 func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (*ListenerHandle, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Receive")
-	defer span.Finish()
+	defer span.End()
 
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
@@ -550,7 +550,7 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 // Send will retry sending the message for as long as the context allows
 func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Send")
-	defer span.Finish()
+	defer span.End()
 
 	sender, err := h.getSender(ctx)
 	if err != nil {
@@ -565,7 +565,7 @@ func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error 
 // SendBatch will retry sending the message for as long as the context allows
 func (h *Hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.SendBatch")
-	defer span.Finish()
+	defer span.End()
 
 	sender, err := h.getSender(ctx)
 	if err != nil {
@@ -632,7 +632,7 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	defer h.senderMu.Unlock()
 
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.getSender")
-	defer span.Finish()
+	defer span.End()
 
 	if h.sender == nil {
 		s, err := h.newSender(ctx)

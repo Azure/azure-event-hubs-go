@@ -40,9 +40,6 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
-	"github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/config"
-	jaegerlog "github.com/uber/jaeger-client-go/log"
 )
 
 var (
@@ -108,10 +105,6 @@ func (suite *BaseSuite) SetupSuite() {
 
 	if !suite.NoError(suite.ensureProvisioned(mgmt.SkuTierStandard)) {
 		suite.FailNow("failed provisioning")
-	}
-
-	if !suite.NoError(suite.setupTracing()) {
-		suite.FailNow("failed to setup tracing")
 	}
 }
 
@@ -336,39 +329,6 @@ func (suite *BaseSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
 		return nil, err
 	}
 	return ns, err
-}
-
-func (suite *BaseSuite) setupTracing() error {
-	if os.Getenv("TRACING") == "true" {
-		// Sample configuration for testing. Use constant sampling to sample every trace
-		// and enable LogSpan to log every span via configured Logger.
-		cfg := config.Configuration{
-			Sampler: &config.SamplerConfig{
-				Type:  jaeger.SamplerTypeConst,
-				Param: 1,
-			},
-			Reporter: &config.ReporterConfig{
-				LocalAgentHostPort: "0.0.0.0:6831",
-			},
-		}
-
-		// Example logger and metrics factory. Use github.com/uber/jaeger-client-go/log
-		// and github.com/uber/jaeger-lib/metrics respectively to bind to real logging and metrics
-		// frameworks.
-		jLogger := jaegerlog.StdLogger
-
-		closer, err := cfg.InitGlobalTracer(
-			"ehtests",
-			config.Logger(jLogger),
-		)
-		if !suite.NoError(err) {
-			suite.FailNow("failed to initialize the global trace logger")
-		}
-
-		suite.closer = closer
-		return err
-	}
-	return nil
 }
 
 func getNamespaceMgmtClientWithToken(subscriptionID string, env azure.Environment) *mgmt.NamespacesClient {

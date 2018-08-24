@@ -41,7 +41,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -396,8 +395,6 @@ func testEpochGreaterThenLess(ctx context.Context, t *testing.T, client *Hub, pa
 }
 
 func testEpochLessThenGreater(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "testEpochLessThenGreater")
-	span.Finish()
 	partitionID := partitionIDs[0]
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if !assert.NoError(t, err) {

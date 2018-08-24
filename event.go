@@ -94,25 +94,24 @@ func (e *Event) GetCheckpoint() persist.Checkpoint {
 	return persist.NewCheckpoint(offset, sequenceNumber, enqueueTime)
 }
 
-// Set implements opentracing.TextMapWriter and sets properties on the event to be propagated to the message broker
-func (e *Event) Set(key, value string) {
+// Set will set a key in the event properties
+func (e *Event) Set(key string, value interface{}) {
 	if e.Properties == nil {
 		e.Properties = make(map[string]interface{})
 	}
 	e.Properties[key] = value
 }
 
-// ForeachKey implements the opentracing.TextMapReader and gets properties on the event to be propagated from the message broker
-func (e *Event) ForeachKey(handler func(key, val string) error) error {
-	for key, value := range e.Properties {
-		if strVal, ok := value.(string); ok {
-			err := handler(key, strVal)
-			if err != nil {
-				return err
-			}
-		}
+// Get will fetch a property from the event
+func (e *Event) Get(key string) (interface{}, bool) {
+	if e.Properties == nil {
+		return nil, false
 	}
-	return nil
+
+	if val, ok := e.Properties[key]; ok {
+		return val, true
+	}
+	return nil, false
 }
 
 func (e *Event) toMsg() *amqp.Message {

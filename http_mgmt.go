@@ -78,7 +78,7 @@ func newEntityManager(host string, tokenProvider auth.TokenProvider) *entityMana
 // Get performs an HTTP Get for a given entity path
 func (em *entityManager) Get(ctx context.Context, entityPath string) (*http.Response, error) {
 	span, ctx := em.startSpanFromContext(ctx, "sb.EntityManger.Get")
-	defer span.Finish()
+	defer span.End()
 
 	return em.Execute(ctx, http.MethodGet, entityPath, http.NoBody)
 }
@@ -86,7 +86,7 @@ func (em *entityManager) Get(ctx context.Context, entityPath string) (*http.Resp
 // Put performs an HTTP PUT for a given entity path and body
 func (em *entityManager) Put(ctx context.Context, entityPath string, body []byte) (*http.Response, error) {
 	span, ctx := em.startSpanFromContext(ctx, "sb.EntityManger.Put")
-	defer span.Finish()
+	defer span.End()
 
 	return em.Execute(ctx, http.MethodPut, entityPath, bytes.NewReader(body))
 }
@@ -94,7 +94,7 @@ func (em *entityManager) Put(ctx context.Context, entityPath string, body []byte
 // Delete performs an HTTP DELETE for a given entity path
 func (em *entityManager) Delete(ctx context.Context, entityPath string) (*http.Response, error) {
 	span, ctx := em.startSpanFromContext(ctx, "sb.EntityManger.Delete")
-	defer span.Finish()
+	defer span.End()
 
 	return em.Execute(ctx, http.MethodDelete, entityPath, http.NoBody)
 }
@@ -102,7 +102,7 @@ func (em *entityManager) Delete(ctx context.Context, entityPath string) (*http.R
 // Post performs an HTTP POST for a given entity path and body
 func (em *entityManager) Post(ctx context.Context, entityPath string, body []byte) (*http.Response, error) {
 	span, ctx := em.startSpanFromContext(ctx, "sb.EntityManger.Post")
-	defer span.Finish()
+	defer span.End()
 
 	return em.Execute(ctx, http.MethodPost, entityPath, bytes.NewReader(body))
 }
@@ -110,7 +110,7 @@ func (em *entityManager) Post(ctx context.Context, entityPath string, body []byt
 // Execute performs an HTTP request given a http method, path and body
 func (em *entityManager) Execute(ctx context.Context, method string, entityPath string, body io.Reader) (*http.Response, error) {
 	span, ctx := em.startSpanFromContext(ctx, "sb.EntityManger.Execute")
-	defer span.Finish()
+	defer span.End()
 
 	client := &http.Client{
 		Timeout: 60 * time.Second,

@@ -214,14 +214,14 @@ func (ml *memoryLeaserCheckpointer) SetEventHostProcessor(eph *EventProcessorHos
 
 func (ml *memoryLeaserCheckpointer) StoreExists(ctx context.Context) (bool, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.StoreExists")
-	defer span.Finish()
+	defer span.End()
 
 	return ml.store.exists(), nil
 }
 
 func (ml *memoryLeaserCheckpointer) EnsureStore(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.EnsureStore")
-	defer span.Finish()
+	defer span.End()
 
 	ml.store.ensure()
 	return nil
@@ -229,7 +229,7 @@ func (ml *memoryLeaserCheckpointer) EnsureStore(ctx context.Context) error {
 
 func (ml *memoryLeaserCheckpointer) DeleteStore(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.DeleteStore")
-	defer span.Finish()
+	defer span.End()
 
 	return ml.EnsureStore(ctx)
 }
@@ -239,7 +239,7 @@ func (ml *memoryLeaserCheckpointer) GetLeases(ctx context.Context) ([]LeaseMarke
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.GetLeases")
-	defer span.Finish()
+	defer span.End()
 
 	partitionIDs := ml.processor.GetPartitionIDs()
 	leases := make([]LeaseMarker, len(partitionIDs))
@@ -256,7 +256,7 @@ func (ml *memoryLeaserCheckpointer) EnsureLease(ctx context.Context, partitionID
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.EnsureLease")
-	defer span.Finish()
+	defer span.End()
 
 	l := ml.store.createOrGetLease(partitionID)
 	l.leaser = ml
@@ -268,7 +268,7 @@ func (ml *memoryLeaserCheckpointer) DeleteLease(ctx context.Context, partitionID
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.DeleteLease")
-	defer span.Finish()
+	defer span.End()
 
 	ml.store.deleteLease(partitionID)
 	return nil
@@ -279,7 +279,7 @@ func (ml *memoryLeaserCheckpointer) AcquireLease(ctx context.Context, partitionI
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.AcquireLease")
-	defer span.Finish()
+	defer span.End()
 
 	lease := ml.store.getLease(partitionID)
 	lease.leaser = ml
@@ -316,7 +316,7 @@ func (ml *memoryLeaserCheckpointer) RenewLease(ctx context.Context, partitionID 
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.RenewLease")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if !ok {
@@ -334,7 +334,7 @@ func (ml *memoryLeaserCheckpointer) ReleaseLease(ctx context.Context, partitionI
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.ReleaseLease")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if !ok {
@@ -350,7 +350,7 @@ func (ml *memoryLeaserCheckpointer) ReleaseLease(ctx context.Context, partitionI
 
 func (ml *memoryLeaserCheckpointer) UpdateLease(ctx context.Context, partitionID string) (LeaseMarker, bool, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryLeaserCheckpointer.UpdateLease")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if !ok {
@@ -373,7 +373,7 @@ func (ml *memoryLeaserCheckpointer) GetCheckpoint(ctx context.Context, partition
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryCheckpointer.GetCheckpoint")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if ok {
@@ -387,7 +387,7 @@ func (ml *memoryLeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partit
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryCheckpointer.EnsureCheckpoint")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if ok {
@@ -405,7 +405,7 @@ func (ml *memoryLeaserCheckpointer) UpdateCheckpoint(ctx context.Context, partit
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryCheckpointer.UpdateCheckpoint")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if !ok {
@@ -424,7 +424,7 @@ func (ml *memoryLeaserCheckpointer) DeleteCheckpoint(ctx context.Context, partit
 	defer ml.memMu.Unlock()
 
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.memoryCheckpointer.DeleteCheckpoint")
-	defer span.Finish()
+	defer span.End()
 
 	lease, ok := ml.leases[partitionID]
 	if !ok {

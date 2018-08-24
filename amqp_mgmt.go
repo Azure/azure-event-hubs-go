@@ -29,7 +29,7 @@ import (
 
 	"github.com/Azure/azure-amqp-common-go/rpc"
 	"github.com/mitchellh/mapstructure"
-	"github.com/opentracing/opentracing-go"
+	"go.opencensus.io/trace"
 	"pack.ag/amqp"
 )
 
@@ -83,8 +83,8 @@ func newClient(namespace *namespace, hubName string) *client {
 
 // GetHubRuntimeInformation requests runtime information for an Event Hub
 func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.client.GetHubRuntimeInformation")
-	defer span.Finish()
+	ctx, span := trace.StartSpan(ctx, "eh.mgmt.client.GetHubRuntimeInformation")
+	defer span.End()
 
 	rpcLink, err := rpc.NewLink(conn, address)
 	if err != nil {
@@ -117,8 +117,8 @@ func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 
 // GetHubPartitionRuntimeInformation fetches runtime information from the AMQP management node for a given partition
 func (c *client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "eh.mgmt.client.GetHubPartitionRuntimeInformation")
-	defer span.Finish()
+	ctx, span := trace.StartSpan(ctx, "eh.mgmt.client.GetHubPartitionRuntimeInformation")
+	defer span.End()
 
 	rpcLink, err := rpc.NewLink(conn, address)
 	if err != nil {

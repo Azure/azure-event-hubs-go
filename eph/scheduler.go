@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/log"
-	"github.com/opentracing/opentracing-go"
+	"go.opencensus.io/trace"
 )
 
 var (
@@ -77,7 +77,7 @@ func (s *scheduler) Run(ctx context.Context) {
 	ctx, done := context.WithCancel(ctx)
 	s.done = done
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.Run")
-	defer span.Finish()
+	defer span.End()
 
 	for {
 		select {
@@ -94,7 +94,7 @@ func (s *scheduler) Run(ctx context.Context) {
 
 func (s *scheduler) scan(ctx context.Context) {
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.scan")
-	defer span.Finish()
+	defer span.End()
 
 	s.dlog(ctx, "running scan")
 
@@ -181,7 +181,7 @@ func (s *scheduler) Stop(ctx context.Context) error {
 	defer s.receiverMu.Unlock()
 
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.Stop")
-	defer span.Finish()
+	defer span.End()
 
 	if s.done != nil {
 		s.done()
@@ -218,7 +218,7 @@ func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error 
 	defer s.receiverMu.Unlock()
 
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.startReceiver")
-	defer span.Finish()
+	defer span.End()
 
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		// receiver thinks it's already running... this is probably a bug if it happens
@@ -227,8 +227,11 @@ func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error 
 		}
 		delete(s.receivers, lease.GetPartitionID())
 	}
-	span.SetTag(partitionIDTag, lease.GetPartitionID())
-	span.SetTag(epochTag, lease.GetEpoch())
+
+	span.AddAttributes(
+		trace.StringAttribute(partitionIDTag, lease.GetPartitionID()),
+		trace.Int64Attribute(epochTag, lease.GetEpoch()),
+	)
 	lr := newLeasedReceiver(s.processor, lease)
 	if err := lr.Run(ctx); err != nil {
 		log.For(ctx).Error(err)
@@ -243,10 +246,12 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 	defer s.receiverMu.Unlock()
 
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.stopReceiver")
-	defer span.Finish()
+	defer span.End()
 
-	span.SetTag(partitionIDTag, lease.GetPartitionID())
-	span.SetTag(epochTag, lease.GetEpoch())
+	span.AddAttributes(
+		trace.StringAttribute(partitionIDTag, lease.GetPartitionID()),
+		trace.Int64Attribute(epochTag, lease.GetEpoch()),
+	)
 	s.dlog(ctx, fmt.Sprintf("stopping receiver for partitionID %q", lease.GetPartitionID()))
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		// try to release the lease if possible
@@ -263,7 +268,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 
 func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMarker) (acquired []LeaseMarker, notAcquired []LeaseMarker, err error) {
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.acquireExpiredLeases")
-	defer span.Finish()
+	defer span.End()
 
 	for _, lease := range leases {
 		if lease.IsExpired(ctx) && len(acquired) < greed {
@@ -294,7 +299,7 @@ func (s *scheduler) dlog(ctx context.Context, msg string) {
 
 func (s *scheduler) leaseToSteal(ctx context.Context, candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {
 	span, ctx := s.startConsumerSpanFromContext(ctx, "eph.scheduler.leaseToSteal")
-	defer span.Finish()
+	defer span.End()
 
 	biggestOwner := ownerWithMostLeases(candidates)
 	if biggestOwner != nil && s.processor.GetName() != biggestOwner.Owner {
@@ -334,8 +339,8 @@ func leasesByOwner(candidates []LeaseMarker) map[string][]LeaseMarker {
 	return byOwner
 }
 
-func (s *scheduler) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
+func (s *scheduler) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
 	span, ctx := startConsumerSpanFromContext(ctx, operationName, opts...)
-	span.SetTag("eph.id", s.processor.name)
+	span.AddAttributes(trace.StringAttribute("eph.id", s.processor.name))
 	return span, ctx
 }

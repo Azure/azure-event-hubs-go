@@ -30,7 +30,8 @@ import (
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
-	"github.com/opentracing/opentracing-go"
+	"go.opencensus.io/trace"
+	"go.opencensus.io/trace/propagation"
 	"pack.ag/amqp"
 )
 
@@ -115,7 +116,7 @@ func ReceiveWithEpoch(epoch int64) ReceiveOption {
 // newReceiver creates a new Service Bus message listener given an AMQP client and an entity path
 func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.newReceiver")
-	defer span.Finish()
+	defer span.End()
 
 	receiver := &receiver{
 		hub:           h,
@@ -138,7 +139,7 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 // Close will close the AMQP session and link of the receiver
 func (r *receiver) Close(ctx context.Context) error {
 	span, _ := r.startConsumerSpanFromContext(ctx, "eh.receiver.Close")
-	defer span.Finish()
+	defer span.End()
 
 	if r.done != nil {
 		r.done()
@@ -150,7 +151,7 @@ func (r *receiver) Close(ctx context.Context) error {
 // Recover will attempt to close the current session and link, then rebuild them
 func (r *receiver) Recover(ctx context.Context) error {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.Recover")
-	defer span.Finish()
+	defer span.End()
 
 	_ = r.connection.Close() // we expect the receiver is in an error state
 	return r.newSessionAndLink(ctx)
@@ -162,7 +163,7 @@ func (r *receiver) Listen(handler Handler) *ListenerHandle {
 	r.done = done
 
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.Listen")
-	defer span.Finish()
+	defer span.End()
 
 	messages := make(chan *amqp.Message)
 	go r.listenForMessages(ctx, messages)
@@ -176,7 +177,7 @@ func (r *receiver) Listen(handler Handler) *ListenerHandle {
 
 func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Message, handler Handler) {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.handleMessages")
-	defer span.Finish()
+	defer span.End()
 	for {
 		select {
 		case <-ctx.Done():
@@ -189,19 +190,23 @@ func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Messa
 
 func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler Handler) {
 	event := eventFromMsg(msg)
-	var span opentracing.Span
-	wireContext, err := opentracing.GlobalTracer().Extract(opentracing.TextMap, event)
-	if err == nil {
-		span, ctx = r.startConsumerSpanFromWire(ctx, "eh.receiver.handleMessage", wireContext)
-	} else {
+	var span *trace.Span
+	if val, ok := event.Get("_oc_prop"); ok {
+		if sc, ok := propagation.FromBinary(val.([]byte)); ok {
+			span, ctx = r.startConsumerSpanFromWire(ctx, "eh.receiver.handleMessage", sc)
+		}
+	}
+
+	if span == nil {
 		span, ctx = r.startConsumerSpanFromContext(ctx, "eh.receiver.handleMessage")
 	}
-	defer span.Finish()
 
 	id := messageID(msg)
-	span.SetTag("eh.message-id", id)
+	if str, ok := id.(string); ok {
+		span.AddAttributes(trace.StringAttribute("eh.message_id", str))
+	}
 
-	err = handler(ctx, event)
+	err := handler(ctx, event)
 	if err != nil {
 		msg.Modify(true, false, nil)
 		log.For(ctx).Error(fmt.Errorf("message modified(true, false, nil): id: %v", id))
@@ -213,7 +218,7 @@ func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler
 
 func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Message) {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages")
-	defer span.Finish()
+	defer span.End()
 
 	for {
 		msg, err := r.listenForMessage(ctx)
@@ -235,7 +240,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 
 			_, retryErr := common.Retry(10, 10*time.Second, func() (interface{}, error) {
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages.tryRecover")
-				defer sp.Finish()
+				defer sp.End()
 
 				log.For(ctx).Debug("recovering connection")
 				err := r.Recover(ctx)
@@ -264,7 +269,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 
 func (r *receiver) listenForMessage(ctx context.Context) (*amqp.Message, error) {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessage")
-	defer span.Finish()
+	defer span.End()
 
 	msg, err := r.receiver.Receive(ctx)
 	if err != nil {
@@ -273,14 +278,16 @@ func (r *receiver) listenForMessage(ctx context.Context) (*amqp.Message, error) 
 	}
 
 	id := messageID(msg)
-	span.SetTag("eh.message-id", id)
+	if str, ok := id.(string); ok {
+		span.AddAttributes(trace.StringAttribute("he.message_id", str))
+	}
 	return msg, nil
 }
 
 // newSessionAndLink will replace the session and link on the receiver
 func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.newSessionAndLink")
-	defer span.Finish()
+	defer span.End()
 
 	connection, err := r.hub.namespace.newConnection()
 	if err != nil {
