@@ -188,16 +188,12 @@ func (suite *BaseSuite) tryHubCreate(ctx context.Context, client *mgmt.EventHubs
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	//suite.T().Logf("trying to create hub named %q", name)
 	_, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
 	if err != nil {
-		//suite.T().Logf("failed to create hub named %q", name)
 		return mgmt.Model{}, err
 	}
 
-	createdHub, err := client.Get(ctx, ResourceGroupName, suite.Namespace, name)
-
-	return createdHub, err
+	return client.Get(ctx, ResourceGroupName, suite.Namespace, name)
 }
 
 // DeleteEventHub deletes an Event Hub within the given Namespace
