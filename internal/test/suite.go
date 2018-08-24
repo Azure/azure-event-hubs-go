@@ -189,11 +189,13 @@ func (suite *BaseSuite) tryHubCreate(ctx context.Context, client *mgmt.EventHubs
 	defer cancel()
 
 	//suite.T().Logf("trying to create hub named %q", name)
-	createdHub, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
+	_, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
 	if err != nil {
 		//suite.T().Logf("failed to create hub named %q", name)
 		return mgmt.Model{}, err
 	}
+
+	createdHub, err := client.Get(ctx, ResourceGroupName, suite.Namespace, name)
 
 	return createdHub, err
 }
