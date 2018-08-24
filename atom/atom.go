@@ -1,3 +1,4 @@
+// Package atom contains base data structures for use in the Azure Event Hubs management HTTP API
 package atom
 
 import (
