@@ -2,6 +2,15 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:eee9386329f4fcdf8d6c0def0c9771b634bdd5ba460d888aa98c17d59b37a76c"
+  name = "git.apache.org/thrift.git"
+  packages = ["lib/go/thrift"]
+  pruneopts = "UT"
+  revision = "6e67faa92827ece022380b211c2caaadd6145bf5"
+  source = "github.com/apache/thrift"
+
+[[projects]]
   digest = "1:384e21e626f46c4fe2da09670d90bc9e31f7843c78b747d08008863f7c51a163"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
@@ -158,10 +167,12 @@
   version = "v1.2.2"
 
 [[projects]]
-  digest = "1:fac61a039c5cecedbeeddd5ce7fb4acd7feb844dbeac30d9aa89d7f56ebfdfc3"
+  digest = "1:51455c05d4e275b742f31ef4e9ab815ebd90d9b931296e5f1db33c8149dfc69c"
   name = "go.opencensus.io"
   packages = [
     ".",
+    "exporter/jaeger",
+    "exporter/jaeger/internal/gen-go/jaeger",
     "internal",
     "trace",
     "trace/internal",
@@ -193,6 +204,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:e0140c0c868c6e0f01c0380865194592c011fe521d6e12d78bfd33e756fe018a"
+  name = "golang.org/x/sync"
+  packages = ["semaphore"]
+  pruneopts = "UT"
+  revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
+
+[[projects]]
+  branch = "master"
   digest = "1:0dafafed83f125cdc945a014b2dec15e5b5d8cd2d77a2d1e3763120b08ab381b"
   name = "golang.org/x/sys"
   packages = [
@@ -201,6 +220,14 @@
   ]
   pruneopts = "UT"
   revision = "4910a1d54f876d7b22162a85f4d066d3ee649450"
+
+[[projects]]
+  branch = "master"
+  digest = "1:c0c17c94fe8bc1ab34e7f586a4a8b788c5e1f4f9f750ff23395b8b2f5a523530"
+  name = "google.golang.org/api"
+  packages = ["support/bundler"]
+  pruneopts = "UT"
+  revision = "943e5aafc110feadee8cf71cde31afa0d1bab9f8"
 
 [[projects]]
   digest = "1:efd7f4a2c3339485190142d3b83052207aaadf6e4e724fdbac79a5de0a8120c5"
@@ -240,11 +267,11 @@
     "github.com/Azure/go-autorest/autorest/to",
     "github.com/jpillora/backoff",
     "github.com/mitchellh/mapstructure",
-    "github.com/opentracing/opentracing-go",
     "github.com/sirupsen/logrus",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
     "github.com/stretchr/testify/suite",
+    "go.opencensus.io/exporter/jaeger",
     "go.opencensus.io/trace",
     "go.opencensus.io/trace/propagation",
     "pack.ag/amqp",

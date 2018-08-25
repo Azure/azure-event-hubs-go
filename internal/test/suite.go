@@ -40,6 +40,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
+	"go.opencensus.io/exporter/jaeger"
+	"go.opencensus.io/trace"
 )
 
 var (
@@ -105,6 +107,10 @@ func (suite *BaseSuite) SetupSuite() {
 
 	if !suite.NoError(suite.ensureProvisioned(mgmt.SkuTierStandard)) {
 		suite.FailNow("failed provisioning")
+	}
+
+	if !suite.NoError(suite.setupTracing()) {
+		suite.FailNow("failed to setup tracing")
 	}
 }
 
@@ -349,6 +355,21 @@ func getRmGroupClientWithToken(subscriptionID string, env azure.Environment) *rm
 	}
 	groupsClient.Authorizer = a
 	return &groupsClient
+}
+
+func (suite *BaseSuite) setupTracing() error {
+	if os.Getenv("TRACING") != "true" {
+		return nil
+	}
+	exporter, err := jaeger.NewExporter(jaeger.Options{
+		AgentEndpoint: "localhost:6831",
+		ServiceName:   "eh-trace",
+	})
+	if err != nil {
+		return err
+	}
+	trace.RegisterExporter(exporter)
+	return nil
 }
 
 func mustGetEnv(key string) string {
