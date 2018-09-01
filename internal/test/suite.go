@@ -40,9 +40,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
-	"github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/config"
-	jaegerlog "github.com/uber/jaeger-client-go/log"
+	"go.opencensus.io/exporter/jaeger"
+	"go.opencensus.io/trace"
 )
 
 var (
@@ -188,14 +187,12 @@ func (suite *BaseSuite) tryHubCreate(ctx context.Context, client *mgmt.EventHubs
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	//suite.T().Logf("trying to create hub named %q", name)
-	createdHub, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
+	_, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
 	if err != nil {
-		//suite.T().Logf("failed to create hub named %q", name)
 		return mgmt.Model{}, err
 	}
 
-	return createdHub, err
+	return client.Get(ctx, ResourceGroupName, suite.Namespace, name)
 }
 
 // DeleteEventHub deletes an Event Hub within the given Namespace
@@ -340,39 +337,6 @@ func (suite *BaseSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
 	return ns, err
 }
 
-func (suite *BaseSuite) setupTracing() error {
-	if os.Getenv("TRACING") == "true" {
-		// Sample configuration for testing. Use constant sampling to sample every trace
-		// and enable LogSpan to log every span via configured Logger.
-		cfg := config.Configuration{
-			Sampler: &config.SamplerConfig{
-				Type:  jaeger.SamplerTypeConst,
-				Param: 1,
-			},
-			Reporter: &config.ReporterConfig{
-				LocalAgentHostPort: "0.0.0.0:6831",
-			},
-		}
-
-		// Example logger and metrics factory. Use github.com/uber/jaeger-client-go/log
-		// and github.com/uber/jaeger-lib/metrics respectively to bind to real logging and metrics
-		// frameworks.
-		jLogger := jaegerlog.StdLogger
-
-		closer, err := cfg.InitGlobalTracer(
-			"ehtests",
-			config.Logger(jLogger),
-		)
-		if !suite.NoError(err) {
-			suite.FailNow("failed to initialize the global trace logger")
-		}
-
-		suite.closer = closer
-		return err
-	}
-	return nil
-}
-
 func getNamespaceMgmtClientWithToken(subscriptionID string, env azure.Environment) *mgmt.NamespacesClient {
 	client := mgmt.NewNamespacesClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
 	a, err := azauth.NewAuthorizerFromEnvironment()
@@ -391,6 +355,21 @@ func getRmGroupClientWithToken(subscriptionID string, env azure.Environment) *rm
 	}
 	groupsClient.Authorizer = a
 	return &groupsClient
+}
+
+func (suite *BaseSuite) setupTracing() error {
+	if os.Getenv("TRACING") != "true" {
+		return nil
+	}
+	exporter, err := jaeger.NewExporter(jaeger.Options{
+		AgentEndpoint: "localhost:6831",
+		ServiceName:   "eh-trace",
+	})
+	if err != nil {
+		return err
+	}
+	trace.RegisterExporter(exporter)
+	return nil
 }
 
 func mustGetEnv(key string) string {

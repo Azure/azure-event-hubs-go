@@ -161,7 +161,7 @@ func NewHubManagerFromAzureEnvironment(namespace string, tokenProvider auth.Toke
 // Delete deletes an Event Hub entity by name
 func (hm *HubManager) Delete(ctx context.Context, name string) error {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Delete")
-	defer span.Finish()
+	defer span.End()
 
 	res, err := hm.entityManager.Delete(ctx, "/"+name)
 	if res != nil {
@@ -174,7 +174,7 @@ func (hm *HubManager) Delete(ctx context.Context, name string) error {
 // Put creates or updates an Event Hubs Hub
 func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Put")
-	defer span.Finish()
+	defer span.End()
 
 	hd.ServiceBusSchema = to.StringPtr(serviceBusSchema)
 
@@ -222,7 +222,7 @@ func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (
 // List fetches all of the Hub for an Event Hubs Namespace
 func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.List")
-	defer span.Finish()
+	defer span.End()
 
 	res, err := hm.entityManager.Get(ctx, `/$Resources/EventHubs`)
 	if res != nil {
@@ -256,7 +256,7 @@ func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 // Get fetches an Event Hubs Hub entity by name
 func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Get")
-	defer span.Finish()
+	defer span.End()
 
 	res, err := hm.entityManager.Get(ctx, name)
 	if res != nil {
@@ -334,28 +334,30 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 // can be built, it will return error.
 //
 // SAS TokenProvider environment variables:
+//
 // There are two sets of environment variables which can produce a SAS TokenProvider
 //
-// 1) Expected Environment Variables:
-//   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
-//   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+//   1) Expected Environment Variables:
+//     - "EVENTHUB_KEY_NAME" the name of the Event Hub key
+//     - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
 //
-// 2) Expected Environment Variable:
-//   - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
+//   2) Expected Environment Variable:
+//     - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
 //
 //
 // AAD TokenProvider environment variables:
-// 1. client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
-//    "AZURE_CLIENT_SECRET"
 //
-// 2. client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
-//    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
+//   1. client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+//     "AZURE_CLIENT_SECRET"
 //
-// 3. Managed Service Identity (MSI): attempt to authenticate via MSI on the default local MSI internally addressable IP
-//    and port. See: adal.GetMSIVMEndpoint()
+//   2. client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+//     "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
+//
+//   3. Managed Service Identity (MSI): attempt to authenticate via MSI on the default local MSI internally addressable IP
+//     and port. See: adal.GetMSIVMEndpoint()
 //
 //
-// The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
+// The Azure Environment used can be specified using the name of the Azure Environment set in the AZURE_ENVIRONMENT var.
 func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOption) (*Hub, error) {
 	var provider auth.TokenProvider
 	provider, sasErr := sas.NewTokenProvider(sas.TokenProviderWithEnvironmentVars())
@@ -374,8 +376,8 @@ func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOp
 // NewHubFromEnvironment creates a new Event Hub client for sending and receiving messages from environment variables
 //
 // Expected Environment Variables:
-// - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
-// - "EVENTHUB_NAME" the name of the Event Hub instance
+//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
+//   - "EVENTHUB_NAME" the name of the Event Hub instance
 //
 //
 // This method depends on NewHubWithNamespaceNameAndEnvironment which will attempt to build a token provider from
@@ -383,28 +385,29 @@ func NewHubWithNamespaceNameAndEnvironment(namespace, name string, opts ...HubOp
 // can be built, it will return error.
 //
 // SAS TokenProvider environment variables:
+//
 // There are two sets of environment variables which can produce a SAS TokenProvider
 //
-// 1) Expected Environment Variables:
-//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
-//   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
-//   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+//   1) Expected Environment Variables:
+//     - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
+//     - "EVENTHUB_KEY_NAME" the name of the Event Hub key
+//     - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
 //
-// 2) Expected Environment Variable:
-//   - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
+//   2) Expected Environment Variable:
+//     - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal
 //
 //
 // AAD TokenProvider environment variables:
-// 1. client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
-//    "AZURE_CLIENT_SECRET"
+//   1. client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+//     "AZURE_CLIENT_SECRET"
 //
-// 2. client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
-//    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
+//   2. client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+//     "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
 //
-// 3. Managed Service Identity (MSI): attempt to authenticate via MSI
+//   3. Managed Service Identity (MSI): attempt to authenticate via MSI
 //
 //
-// The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
+// The Azure Environment used can be specified using the name of the Azure Environment set in the AZURE_ENVIRONMENT var.
 func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 	const envErrMsg = "environment var %s must not be empty"
 	var namespace, name string
@@ -423,7 +426,7 @@ func NewHubFromEnvironment(opts ...HubOption) (*Hub, error) {
 // NewHubFromConnectionString creates a new Event Hub client for sending and receiving messages from a connection string
 // formatted like the following:
 //
-// Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName
+//   Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName
 func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error) {
 	parsed, err := conn.ParsedConnectionFromStr(connStr)
 	if err != nil {
@@ -456,7 +459,7 @@ func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error)
 // GetRuntimeInformation fetches runtime information from the Event Hub management node
 func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
-	defer span.Finish()
+	defer span.End()
 	client := newClient(h.namespace, h.name)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
@@ -474,7 +477,7 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation
 // GetPartitionInformation fetches runtime information about a specific partition from the Event Hub management node
 func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*HubPartitionRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
-	defer span.Finish()
+	defer span.End()
 	client := newClient(h.namespace, h.name)
 	conn, err := h.namespace.newConnection()
 	if err != nil {
@@ -490,7 +493,7 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *Hub) Close(ctx context.Context) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Close")
-	defer span.Finish()
+	defer span.End()
 
 	var lastErr error
 	for _, r := range h.receivers {
@@ -503,9 +506,23 @@ func (h *Hub) Close(ctx context.Context) error {
 }
 
 // Receive subscribes for messages sent to the provided entityPath.
+//
+// The context passed into Receive is only used to limit the amount of time the caller will wait for the Receive
+// method to connect to the Event Hub. The context passed in does not control the lifetime of Receive after connection.
+//
+// If Receive encounters an initial error setting up the connection, an error will be returned.
+//
+// If Receive starts successfully, a *ListenerHandle and a nil error will be returned. The ListenerHandle exposes
+// methods which will help manage the life span of the receiver.
+//
+// ListenerHandle.Close(ctx) closes the receiver
+//
+// ListenerHandle.Done() signals the consumer when the receiver has stopped
+//
+// ListenerHandle.Err() provides the last error the listener encountered and was unable to recover from
 func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, opts ...ReceiveOption) (*ListenerHandle, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Receive")
-	defer span.Finish()
+	defer span.End()
 
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
@@ -529,9 +546,11 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 }
 
 // Send sends an event to the Event Hub
+//
+// Send will retry sending the message for as long as the context allows
 func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Send")
-	defer span.Finish()
+	defer span.End()
 
 	sender, err := h.getSender(ctx)
 	if err != nil {
@@ -542,9 +561,11 @@ func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error 
 }
 
 // SendBatch sends an EventBatch to the Event Hub
+//
+// SendBatch will retry sending the message for as long as the context allows
 func (h *Hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.SendBatch")
-	defer span.Finish()
+	defer span.End()
 
 	sender, err := h.getSender(ctx)
 	if err != nil {
@@ -611,7 +632,7 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	defer h.senderMu.Unlock()
 
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.getSender")
-	defer span.Finish()
+	defer span.End()
 
 	if h.sender == nil {
 		s, err := h.newSender(ctx)

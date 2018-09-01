@@ -101,7 +101,7 @@ func (ns *namespace) newConnection() (*amqp.Client, error) {
 
 func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Client, entityPath string) error {
 	span, ctx := ns.startSpanFromContext(ctx, "eh.namespace.negotiateClaim")
-	defer span.Finish()
+	defer span.End()
 
 	audience := ns.getEntityAudience(entityPath)
 	return cbs.NegotiateClaim(ctx, audience, conn, ns.tokenProvider)

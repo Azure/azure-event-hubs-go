@@ -14,12 +14,6 @@ general.
 
 This library is a pure Golang implementation of Azure Event Hubs over AMQP.
 
-
-## Preview of Event Hubs for Golang
-This library is currently a preview. There may be breaking interface changes until it reaches semantic version `v1.0.0`. 
-If you run into an issue, please don't hesitate to log a 
-[new issue](https://github.com/Azure/azure-event-hubs-go/issues/new) or open a pull request.
-
 ## Installing the library
 To more reliably manage dependencies in your application we recommend [golang/dep](https://github.com/golang/dep).
 
@@ -45,38 +39,61 @@ and the latter provides some common authentication, persistence and request-resp
 ### Quick start
 Let's send and receive `"hello, world!"`.
 ```go
-// create a new Event Hub from environment variables
-// the go docs for the func have a full description of the environment variables
-hub, err := eventhub.NewHubFromEnvironment()
-if err != nil {
-    // handle err
-}
+package main
 
-ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-defer cancel()
-// send a single message into a random partition
-hub.Send(ctx, eventhub.NewEventFromString("hello, world!"))
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"time"
+	
+	"github.com/Azure/azure-event-hubs-go"
+)
 
-handler := func(c context.Context, event *eventhub.Event) error {
-	fmt.Println(string(event.Data))
-	return nil
-}
+func main() {
+	connStr := "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName"
+	hub, err := eventhub.NewHubFromConnectionString(connStr)
 
-// listen to each partition of the Event Hub
-runtimeInfo, err := hub.GetRuntimeInformation(ctx)
-for _, partitionID := range runtimeInfo.PartitionIDs {
-	// start receiving messages -- Receive is non-blocking and starts immediately
-	_, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
 	if err != nil {
 		// handle err
 	}
-}
 
-// Wait for a signal to quit:
-signalChan := make(chan os.Signal, 1)
-signal.Notify(signalChan, os.Interrupt, os.Kill)
-<-signalChan
-return hub.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// send a single message into a random partition
+	err = hub.Send(ctx, eventhub.NewEventFromString("hello, world!"))
+	if err != nil {
+		// handle error
+	}
+
+	handler := func(c context.Context, event *eventhub.Event) error {
+		fmt.Println(string(event.Data))
+		return nil
+	}
+
+	// listen to each partition of the Event Hub
+	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
+	for _, partitionID := range runtimeInfo.PartitionIDs { 
+		// Start receiving messages 
+		// 
+		// Receive blocks while attempting to connect to hub, then runs until listenerHandle.Close() is called 
+		// <- listenerHandle.Done() signals listener has died 
+		// listenerHandle.Err() provides the last error the receiver encountered 
+		listenerHandle, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
+		if err != nil {
+			// handle err
+		}
+    }
+
+	// Wait for a signal to quit:
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, os.Kill)
+	<-signalChan
+
+	hub.Close(context.Background())
+}
 ```
 
 ### Environment Variables
@@ -84,29 +101,28 @@ In the above example, the `Hub` instance was created using environment variables
 variables used in this project.
 
 #### Event Hub env vars
-- "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
-- "EVENTHUB_NAME" the name of the Event Hub instance
+- `EVENTHUB_NAMESPACE` the namespace of the Event Hub instance
+- `EVENTHUB_NAME` the name of the Event Hub instance
 
 #### SAS TokenProvider environment variables:
 There are two sets of environment variables which can produce a SAS TokenProvider
 1) Expected Environment Variables:
-    - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
-    - "EVENTHUB_KEY_NAME" the name of the Event Hub key
-    - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
+    - `EVENTHUB_KEY_NAME` the name of the Event Hub key
+    - `EVENTHUB_KEY_VALUE` the secret for the Event Hub key named in `EVENTHUB_KEY_NAME`
 
 2) Expected Environment Variable:
-    - "EVENTHUB_CONNECTION_STRING" connection string from the Azure portal like: `Endpoint=sb://foo.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fluffypuppy`
+    - `EVENTHUB_CONNECTION_STRING` connection string from the Azure portal like: `Endpoint=sb://foo.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=fluffypuppy`
 
 #### AAD TokenProvider environment variables:
 1) Client Credentials: attempt to authenticate with a [Service Principal](https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-group-create-service-principal-portal) via
-    - "AZURE_TENANT_ID" the Azure Tenant ID
-    - "AZURE_CLIENT_ID" the Azure Application ID
-    - "AZURE_CLIENT_SECRET" a key / secret for the corresponding application
+    - `AZURE_TENANT_ID` the Azure Tenant ID
+    - `AZURE_CLIENT_ID` the Azure Application ID
+    - `AZURE_CLIENT_SECRET` a key / secret for the corresponding application
 2) Client Certificate: attempt to authenticate with a Service Principal via 
-    - "AZURE_TENANT_ID" the Azure Tenant ID
-    - "AZURE_CLIENT_ID" the Azure Application ID
-    - "AZURE_CERTIFICATE_PATH" the path to the certificate file
-    - "AZURE_CERTIFICATE_PASSWORD" the password for the certificate
+    - `AZURE_TENANT_ID` the Azure Tenant ID
+    - `AZURE_CLIENT_ID` the Azure Application ID
+    - `AZURE_CERTIFICATE_PATH` the path to the certificate file
+    - `AZURE_CERTIFICATE_PASSWORD` the password for the certificate
 
 The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
 
@@ -127,10 +143,10 @@ the key to produce a token.
 You can create new Shared access policies through the Azure portal as shown below.
 ![SAS policies in the Azure portal](./_content/sas-policy.png)
 
-You can create a SAS token provider in a couple different ways. You can build one with a namespace, key name and key
-value like this.
+You can create a SAS token provider in a couple different ways. You can build one with a key name and key value like 
+this.
 ```go
-provider, err := sas.TokenProviderWithNamespaceAndKey("mynamespace", "myKeyName", "myKeyValue")
+provider := sas.TokenProviderWithKey("myKeyName", "myKeyValue")
 ```
 
 Or, you can create a token provider from environment variables like this.
@@ -140,7 +156,6 @@ Or, you can create a token provider from environment variables like this.
 // There are two sets of environment variables which can produce a SAS TokenProvider
 //
 // 1) Expected Environment Variables:
-//   - "EVENTHUB_NAMESPACE" the namespace of the Event Hub instance
 //   - "EVENTHUB_KEY_NAME" the name of the Event Hub key
 //   - "EVENTHUB_KEY_VALUE" the secret for the Event Hub key named in "EVENTHUB_KEY_NAME"
 //
@@ -265,16 +280,108 @@ hub, err := eventhub.NewHubFromEnvironment(eventhub.HubWithOffsetPersistence(per
 ```
 
 ## Event Processor Host
-The Event Processor Host is a collection of features which load balances partition receivers and ensures only one 
-receiver is consuming a given partition at a time. [This article](https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-dotnet-standard-getstarted-receive-eph)
-talks about the .NET version of the Event Processor Host. The `eph` package, once stable, will provide the equivalent
-feature set.
+The key to scale for Event Hubs is the idea of partitioned consumers. In contrast to the 
+[competing consumers pattern](https://docs.microsoft.com/en-us/previous-versions/msp-n-p/dn568101(v=pandp.10)), 
+the partitioned consumer pattern enables high scale by removing the contention bottleneck and facilitating end to end 
+parallelism.
 
-The `eph` package is experimental.
+The Event Processor Host (EPH) is an intelligent consumer agent that simplifies the management of checkpointing, 
+leasing, and parallel event readers. EPH is intended to be run across multiple processes and machines while load
+balancing message consumers. A message consumer in EPH will take a lease on a partition, begin processing messages and
+periodically write a check point to a persistent store. If at any time a new EPH process is added or lost, the remaining
+processors will balance the existing leases amongst the set of EPH processes.
+
+The default implementation of partition leasing and check pointing is based on Azure Storage. Below is an example using
+EPH to start listening to all of the partitions of an Event Hub and print the messages received.
+
+### Receiving Events
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"time"
+	
+	"github.com/Azure/go-autorest/autorest/azure"
+	"github.com/Azure/azure-amqp-common-go/conn"
+	"github.com/Azure/azure-amqp-common-go/sas"
+	"github.com/Azure/azure-event-hubs-go/eph"
+	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-event-hubs-go/storage"
+	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+)
+
+func main() {
+	// Azure Storage account information
+    storageAccountName := "mystorageaccount"
+    storageAccountKey := "Zm9vCg=="
+    // Azure Storage container to store leases and checkpoints
+    storageContainerName := "ephcontainer"
+    
+    // Azure Event Hub connection string
+    eventHubConnStr := "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName"
+    parsed, err := conn.ParsedConnectionFromStr(eventHubConnStr)
+    if err != nil {
+        // handle error
+    }
+    
+    // create a new Azure Storage Leaser / Checkpointer
+    cred := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
+    leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, storageAccountName, storageContainerName, azure.PublicCloud)
+    if err != nil {
+    	// handle error
+    }
+    
+    // SAS token provider for Azure Event Hubs
+    provider, err := sas.NewTokenProvider(sas.TokenProviderWithKey(parsed.KeyName, parsed.Key))
+    if err != nil {
+    	// handle error
+    }
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+    defer cancel()
+    // create a new EPH processor
+    processor, err := eph.New(ctx, parsed.Namespace, parsed.HubName, provider, leaserCheckpointer, leaserCheckpointer)
+    if err != nil {
+        // handle error
+    }
+    
+    // register a message handler -- many can be registered
+    handlerID, err := processor.RegisterHandler(ctx, 
+    	func(c context.Context, event *eventhub.Event) error {
+    		fmt.Println(string(event.Data))
+    		return nil
+    })
+    if err != nil {
+        // handle error
+    }
+    
+    // unregister a handler to stop that handler from receiving events
+    // processor.UnregisterHandler(ctx, handleID)
+    
+    // start handling messages from all of the partitions balancing across multiple consumers
+    processor.StartNonBlocking(ctx)
+    
+    // Wait for a signal to quit:
+    signalChan := make(chan os.Signal, 1)
+    signal.Notify(signalChan, os.Interrupt, os.Kill)
+    <-signalChan
+    
+    err = processor.Close(context.Background())
+    if err != nil {
+    	// handle error
+    }
+}
+```
 
 ## Examples
 - [HelloWorld: Producer and Consumer](./_examples/helloworld): an example of sending and receiving messages from an
 Event Hub instance.
+- [Batch Processing](./_examples/batchprocessing): an example of handling events in batches
 
 # Contributing
 
