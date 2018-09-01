@@ -1,5 +1,9 @@
 # Change Log
 
+## `head`
+- change from OpenTracing to OpenCensus
+- add more documentation for EPH
+
 ## `v0.4.0`
 - add partition key to received event [#43](https://github.com/Azure/azure-event-hubs-go/pull/43)
 - remove `Receive` in eph in favor of `RegisterHandler`, `UnregisterHandler` and `RegisteredHandlerIDs` [#45](https://github.com/Azure/azure-event-hubs-go/pull/45)

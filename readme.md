@@ -351,7 +351,7 @@ func main() {
     }
     
     // register a message handler -- many can be registered
-    _, err = processor.RegisterHandler(ctx, 
+    handlerID, err := processor.RegisterHandler(ctx, 
     	func(c context.Context, event *eventhub.Event) error {
     		fmt.Println(string(event.Data))
     		return nil
@@ -359,6 +359,9 @@ func main() {
     if err != nil {
         // handle error
     }
+    
+    // unregister a handler to stop that handler from receiving events
+    // processor.UnregisterHandler(ctx, handleID)
     
     // start handling messages from all of the partitions balancing across multiple consumers
     processor.StartNonBlocking(ctx)
