@@ -11,7 +11,7 @@
   source = "github.com/apache/thrift"
 
 [[projects]]
-  digest = "1:397a004d2e46fe0d060861eca797cc7bc735c2088ba8f829cac141233a3dad49"
+  digest = "1:640a77a7a1f61add469a366cbf6469d74df0a5d2355fd0b03cb4bacbf9eaf704"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -28,8 +28,8 @@
     "uuid",
   ]
   pruneopts = "UT"
-  revision = "3bea6075424a06a399b3b25dd59543fea4cea441"
-  version = "v1.0.0"
+  revision = "1f0fa230acfce331c18a804d061260622dcd0906"
+  version = "v1.0.1"
 
 [[projects]]
   digest = "1:d2ccb697dc13c8fbffafa37baae97594d5592ae8f7e113471084137315536e2b"
