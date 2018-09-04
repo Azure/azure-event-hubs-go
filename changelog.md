@@ -1,6 +1,8 @@
 # Change Log
 
 ## `head`
+
+## `v1.0.0`
 - change from OpenTracing to OpenCensus
 - add more documentation for EPH
 - variadic mgmt options
