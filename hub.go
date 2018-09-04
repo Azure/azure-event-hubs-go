@@ -51,7 +51,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "0.4.0"
+	Version = "1.0.0"
 )
 
 type (
@@ -88,7 +88,8 @@ type (
 		GetPartitionInformation(context.Context, string) (HubPartitionRuntimeInformation, error)
 	}
 
-	// HubOption provides structure for configuring new Event Hub instances
+	// HubOption provides structure for configuring new Event Hub clients. For building new Event Hubs, see
+	// HubManagementOption.
 	HubOption func(h *Hub) error
 
 	// HubManager provides CRUD functionality for Event Hubs
@@ -134,6 +135,9 @@ type (
 		EntityAvailabilityStatus *string                `xml:"EntityAvailabilityStatus,omitempty"`
 		BaseEntityDescription
 	}
+
+	// HubManagementOption provides structure for configuring new Event Hubs
+	HubManagementOption func(description *HubDescription) error
 )
 
 // NewHubManagerFromConnectionString builds a HubManager from an Event Hub connection string
@@ -171,10 +175,33 @@ func (hm *HubManager) Delete(ctx context.Context, name string) error {
 	return err
 }
 
+// HubWithMessageRetentionInDays configures an Event Hub to retain messages for that number of days
+func HubWithMessageRetentionInDays(days int32) HubManagementOption {
+	return func(hd *HubDescription) error {
+		hd.MessageRetentionInDays = &days
+		return nil
+	}
+}
+
+// HubWithPartitionCount configures an Event Hub to have the specified number of partitions. More partitions == more throughput
+func HubWithPartitionCount(count int32) HubManagementOption {
+	return func(hd *HubDescription) error {
+		hd.PartitionCount = &count
+		return nil
+	}
+}
+
 // Put creates or updates an Event Hubs Hub
-func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (*HubEntity, error) {
+func (hm *HubManager) Put(ctx context.Context, name string, opts ...HubManagementOption) (*HubEntity, error) {
 	span, ctx := hm.startSpanFromContext(ctx, "eh.HubManager.Put")
 	defer span.End()
+
+	hd := new(HubDescription)
+	for _, opt := range opts {
+		if err := opt(hd); err != nil {
+			return nil, err
+		}
+	}
 
 	hd.ServiceBusSchema = to.StringPtr(serviceBusSchema)
 
@@ -184,7 +211,7 @@ func (hm *HubManager) Put(ctx context.Context, name string, hd HubDescription) (
 		},
 		Content: &hubContent{
 			Type:           applicationXML,
-			HubDescription: hd,
+			HubDescription: *hd,
 		},
 	}
 

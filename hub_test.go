@@ -162,7 +162,7 @@ func (suite *eventHubSuite) TestHubManagementWrites() {
 }
 
 func testPutHub(ctx context.Context, t *testing.T, hm *HubManager, name string) {
-	hd, err := hm.Put(ctx, name, HubDescription{})
+	hd, err := hm.Put(ctx, name)
 	require.NoError(t, err)
 	require.NotNil(t, hd.PartitionCount)
 	assert.Equal(t, int32(4), *hd.PartitionCount)
@@ -186,7 +186,7 @@ func (suite *eventHubSuite) TestHubManagementReads() {
 
 	names := []string{suite.randEntityName(), suite.randEntityName()}
 	for _, name := range names {
-		if _, err := hm.Put(ctx, name, HubDescription{}); err != nil {
+		if _, err := hm.Put(ctx, name); err != nil {
 			suite.Require().NoError(err)
 		}
 	}
