@@ -11,7 +11,7 @@
   source = "github.com/apache/thrift"
 
 [[projects]]
-  digest = "1:82b7c19caeeb8fbf7e84e5ddd533ee2e7756f85f3fb99099a45cb586b22812e1"
+  digest = "1:397a004d2e46fe0d060861eca797cc7bc735c2088ba8f829cac141233a3dad49"
   name = "github.com/Azure/azure-amqp-common-go"
   packages = [
     ".",
@@ -28,7 +28,7 @@
     "uuid",
   ]
   pruneopts = "UT"
-  revision = "4ef725b0e9022fe47ba59961667d634c5b40431c"
+  revision = "3bea6075424a06a399b3b25dd59543fea4cea441"
   version = "v1.0.0"
 
 [[projects]]
@@ -119,18 +119,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:450b7623b185031f3a456801155c8320209f75d0d4c4e633c6b1e59d44d6e392"
-  name = "github.com/opentracing/opentracing-go"
-  packages = [
-    ".",
-    "ext",
-    "log",
-  ]
-  pruneopts = "UT"
-  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
-  version = "v1.0.2"
-
-[[projects]]
   digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
@@ -192,7 +180,7 @@
     "ssh/terminal",
   ]
   pruneopts = "UT"
-  revision = "182538f80094b6a8efaade63a8fd8e0d9d5843dd"
+  revision = "0709b304e793a5edb4a2c0145f281ecdc20838a4"
 
 [[projects]]
   branch = "master"
