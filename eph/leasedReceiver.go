@@ -64,7 +64,12 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 		lr.periodicallyRenewLease(ctx)
 	}()
 
-	handle, err := lr.processor.client.Receive(ctx, partitionID, lr.processor.compositeHandlers(), eventhub.ReceiveWithEpoch(epoch))
+	opts := []eventhub.ReceiveOption{
+		eventhub.ReceiveWithEpoch(epoch),
+		eventhub.ReceiveWithConsumerGroup(lr.processor.consumerGroup),
+	}
+
+	handle, err := lr.processor.client.Receive(ctx, partitionID, lr.processor.compositeHandlers(), opts...)
 	if err != nil {
 		return err
 	}
