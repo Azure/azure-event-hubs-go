@@ -63,6 +63,7 @@ type (
 		namespace     string
 		hubName       string
 		name          string
+		consumerGroup string
 		tokenProvider auth.TokenProvider
 		client        *eventhub.Hub
 		leaser        Leaser
@@ -96,6 +97,14 @@ type (
 func WithNoBanner() EventProcessorHostOption {
 	return func(host *EventProcessorHost) error {
 		host.noBanner = true
+		return nil
+	}
+}
+
+// WithConsumerGroup will configure an EventProcessorHost to a specific consumer group
+func WithConsumerGroup(consumerGroup string) EventProcessorHostOption {
+	return func(host *EventProcessorHost) error {
+		host.consumerGroup = consumerGroup
 		return nil
 	}
 }
