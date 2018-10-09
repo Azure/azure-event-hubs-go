@@ -75,6 +75,10 @@ func main() {
 
 	// listen to each partition of the Event Hub
 	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
+	if err != nil {
+		// handle err
+	}
+	
 	for _, partitionID := range runtimeInfo.PartitionIDs { 
 		// Start receiving messages 
 		// 
