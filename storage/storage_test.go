@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,7 +39,8 @@ const (
 )
 
 func (ts *testSuite) TestSharedKeyCredential() {
-	cred := azblob.NewSharedKeyCredential("foo", "Zm9vCg==")
+	cred, err := azblob.NewSharedKeyCredential("foo", "Zm9vCg==")
+	ts.Require().NoError(err)
 	leaser, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, "someContainer", ts.Env)
 	ts.NoError(err)
 	ts.NotNil(leaser)

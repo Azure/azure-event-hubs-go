@@ -18,7 +18,7 @@ M = $(shell printf "\033[34;1m▶\033[0m")
 TIMEOUT = 360
 
 .PHONY: all
-all: fmt lint vet staticcheck build ; $(info $(M) running default…) @ ## default
+all: fmt lint vet tidy build
 
 .PHONY: build
 build: | ; $(info $(M) building library…) @ ## Build program
@@ -35,12 +35,16 @@ test-race:    ARGS=-race         							## Run tests with race detector
 test-cover:   ARGS=-cover -coverprofile=cover.out -v     	## Run tests in verbose mode with coverage
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
-check test tests: cyclo lint vet staticcheck ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
+check test tests: cyclo lint vet ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
 	$Q $(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
 
 .PHONY: vet
 vet: ; $(info $(M) running vet…) @ ## Run vet
 	$Q $(GO) vet ./...
+
+.PHONY: tidy
+tidy: ; $(info $(M) running go mod tidy…) @ ## Run tidy
+	$Q $(GO) mod tidy
 
 .PHONY: lint
 lint: ; $(info $(M) running golint…) @ ## Run golint

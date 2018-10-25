@@ -33,7 +33,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
-	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/stretchr/testify/suite"
@@ -91,7 +91,7 @@ func (ts *testSuite) TestCredential() {
 	}
 
 	blobURL := containerURL.NewBlobURL(blobName).ToBlockBlobURL()
-	_, err = blobURL.PutBlob(ctx, strings.NewReader(message), azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
+	_, err = blobURL.Upload(ctx, strings.NewReader(message), azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
 	if err != nil {
 		ts.T().Error(err)
 	}

@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +36,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 const (
@@ -192,11 +191,6 @@ func (ts *testSuite) newTestContainerByName(containerName string) func() {
 		defer cancel()
 		containerURL.Delete(ctx, azblob.ContainerAccessConditions{})
 	}
-}
-
-func (ts *testSuite) newTestContainer(prefix string, length int) (string, func()) {
-	name := strings.ToLower(ts.RandomName(prefix, length))
-	return name, ts.newTestContainerByName(name)
 }
 
 func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) {
