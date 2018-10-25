@@ -29,7 +29,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/url"
 	"sync"
 	"time"
@@ -41,7 +40,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"go.opencensus.io/trace"
 
-	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
@@ -59,7 +58,6 @@ type (
 		env             azure.Environment
 		dirtyPartitions map[string]uuid.UUID
 		leasesMu        sync.Mutex
-		dirtyMu         sync.Mutex
 		done            func()
 	}
 
@@ -124,15 +122,15 @@ func (sl *LeaserCheckpointer) StoreExists(ctx context.Context) (bool, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.StoreExists")
 	defer span.End()
 
-	opts := azblob.ListContainersOptions{
+	opts := azblob.ListContainersSegmentOptions{
 		Prefix: sl.containerName,
 	}
-	res, err := sl.serviceURL.ListContainers(ctx, azblob.Marker{}, opts)
+	res, err := sl.serviceURL.ListContainersSegment(ctx, azblob.Marker{}, opts)
 	if err != nil {
 		return false, err
 	}
 
-	for _, container := range res.Containers {
+	for _, container := range res.ContainerItems {
 		if container.Name == sl.containerName {
 			return true, nil
 		}
@@ -248,7 +246,7 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 		return nil, false, nil
 	}
 
-	res, err := blobURL.GetPropertiesAndMetadata(ctx, azblob.BlobAccessConditions{})
+	res, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
 	if err != nil {
 		log.For(ctx).Error(err)
 		return nil, false, err
@@ -263,13 +261,13 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 	newToken := uuidToken.String()
 	if res.LeaseState() == azblob.LeaseStateLeased {
 		// is leased by someone else due to a race to acquire
-		_, err := blobURL.ChangeLease(ctx, lease.Token, newToken, azblob.HTTPAccessConditions{})
+		_, err := blobURL.ChangeLease(ctx, lease.Token, newToken, azblob.ModifiedAccessConditions{})
 		if err != nil {
 			log.For(ctx).Error(err)
 			return nil, false, err
 		}
 	} else {
-		_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.HTTPAccessConditions{})
+		_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.ModifiedAccessConditions{})
 		if err != nil {
 			log.For(ctx).Error(err)
 			return nil, false, err
@@ -301,7 +299,7 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 		return nil, false, errors.New("lease was not found")
 	}
 
-	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
+	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.ModifiedAccessConditions{})
 	if err != nil {
 		log.For(ctx).Error(err)
 		return nil, false, err
@@ -323,7 +321,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 		return false, errors.New("lease was not found")
 	}
 
-	_, err := blobURL.ReleaseLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
+	_, err := blobURL.ReleaseLease(ctx, lease.Token, azblob.ModifiedAccessConditions{})
 	if err != nil {
 		log.For(ctx).Error(err)
 		return false, err
@@ -354,7 +352,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 		return nil, false, errors.New("lease was not found")
 	}
 
-	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.HTTPAccessConditions{})
+	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.ModifiedAccessConditions{})
 	if err != nil {
 		log.For(ctx).Error(err)
 		return nil, false, err
@@ -378,7 +376,7 @@ func (sl *LeaserCheckpointer) GetCheckpoint(ctx context.Context, partitionID str
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.GetCheckpoint")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.GetCheckpoint")
 	defer span.End()
 
 	lease, ok := sl.leases[partitionID]
@@ -393,7 +391,7 @@ func (sl *LeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.EnsureCheckpoint")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.EnsureCheckpoint")
 	defer span.End()
 
 	lease, ok := sl.leases[partitionID]
@@ -412,7 +410,7 @@ func (sl *LeaserCheckpointer) UpdateCheckpoint(ctx context.Context, partitionID 
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.UpdateCheckpoint")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.UpdateCheckpoint")
 	defer span.End()
 
 	lease, ok := sl.leases[partitionID]
@@ -518,7 +516,7 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 }
 
 func (sl *LeaserCheckpointer) persistLease(ctx context.Context, partitionID string) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLease")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLease")
 	defer span.End()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -545,7 +543,7 @@ func (sl *LeaserCheckpointer) uploadLease(ctx context.Context, lease *storageLea
 		return err
 	}
 	reader := bytes.NewReader(jsonLease)
-	_, err = blobURL.ToBlockBlobURL().PutBlob(ctx, reader, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{
+	_, err = blobURL.ToBlockBlobURL().Upload(ctx, reader, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{
 		LeaseAccessConditions: azblob.LeaseAccessConditions{
 			LeaseID: lease.Token,
 		},
@@ -569,8 +567,8 @@ func (sl *LeaserCheckpointer) createOrGetLease(ctx context.Context, partitionID 
 		return nil, err
 	}
 	reader := bytes.NewReader(jsonLease)
-	res, err := blobURL.ToBlockBlobURL().PutBlob(ctx, reader, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{
-		HTTPAccessConditions: azblob.HTTPAccessConditions{
+	res, err := blobURL.ToBlockBlobURL().Upload(ctx, reader, azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{
+		ModifiedAccessConditions: azblob.ModifiedAccessConditions{
 			IfNoneMatch: "*",
 		},
 	})
@@ -590,14 +588,14 @@ func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) 
 	defer span.End()
 
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
-	res, err := blobURL.GetBlob(ctx, azblob.BlobRange{}, azblob.BlobAccessConditions{}, false)
+	res, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		return nil, err
 	}
 	return sl.leaseFromResponse(res)
 }
 
-func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.GetResponse) (*storageLease, error) {
+func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.DownloadResponse) (*storageLease, error) {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Response().Body)
 	var lease storageLease
@@ -607,11 +605,6 @@ func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.GetResponse) (*stora
 	lease.leaser = sl
 	lease.State = res.LeaseState()
 	return &lease, nil
-}
-
-func (sl *LeaserCheckpointer) dlog(ctx context.Context, msg string) {
-	name := sl.processor.GetName()
-	log.For(ctx).Debug(fmt.Sprintf("storage leaser eph %q: "+msg, name))
 }
 
 // IsExpired checks to see if the blob is not still leased

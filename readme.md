@@ -15,19 +15,13 @@ general.
 This library is a pure Golang implementation of Azure Event Hubs over AMQP.
 
 ## Installing the library
-To more reliably manage dependencies in your application we recommend [golang/dep](https://github.com/golang/dep).
+Use `go get` to acquire and install from source. Versions of the project after 1.0.1 use Go modules exclusively, which 
+means you'll need Go 1.11 or later to ensure all of the dependencies are properly versioned.
 
-With dep:
-```
-dep ensure -add github.com/Azure/azure-event-hubs-go
-```
-
-With go get:
+For more information on modules, see the [Go modules wiki](https://github.com/golang/go/wiki/Modules).
 ```
 go get -u github.com/Azure/azure-event-hubs-go/...
 ```
-
-If you need to install Go, follow [the official instructions](https://golang.org/dl/)
 
 ## Using Event Hubs
 In this section we'll cover some basics of the library to help you get started.

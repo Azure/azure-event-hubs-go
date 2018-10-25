@@ -248,7 +248,7 @@ func (h *EventProcessorHost) RegisteredHandlerIDs() []HandlerID {
 
 // RegisterHandler will register an event handler which will receive events after Start or StartNonBlocking is called
 func (h *EventProcessorHost) RegisterHandler(ctx context.Context, handler eventhub.Handler) (HandlerID, error) {
-	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.RegisterHandler")
+	span, _ := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.RegisterHandler")
 	defer span.End()
 
 	h.handlersMu.Lock()
@@ -305,7 +305,7 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 
 	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, os.Kill)
+	signal.Notify(signalChan, os.Interrupt)
 	<-signalChan
 	return h.Close(ctx)
 }

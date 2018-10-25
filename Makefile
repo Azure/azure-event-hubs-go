@@ -3,16 +3,14 @@ DATE    ?= $(shell date +%FT%T%z)
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* 2> /dev/null || \
 			cat $(CURDIR)/.version 2> /dev/null || echo v0)
 BIN      = $(GOPATH)/bin
-BASE     = $(GOPATH)/src/$(PACKAGE)
-PKGS     = $(or $(PKG),$(shell cd $(BASE) && env GOPATH=$(GOPATH) $(GO) list ./... | grep -vE "^$(PACKAGE)/vendor|_examples|templates/"))
-TESTPKGS = $(shell env GOPATH=$(GOPATH) $(GO) list -f '{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' $(PKGS))
 GO_FILES = find . -iname '*.go' -type f | grep -v /vendor/
 
 GO      = go
 GODOC   = godoc
 GOFMT   = gofmt
 GOCYCLO = gocyclo
-DEP   	= dep
+GOLINT  = $(BIN)/golint
+GOSTATICCHECK = $(BIN)/staticcheck
 
 V = 0
 Q = $(if $(filter 1,$V),,@)
@@ -20,26 +18,11 @@ M = $(shell printf "\033[34;1m▶\033[0m")
 TIMEOUT = 360
 
 .PHONY: all
-all: fmt vendor lint vet megacheck | $(BASE) ; $(info $(M) building library…) @ ## Build program
-	$Q cd $(BASE) && $(GO) build \
-		-tags release \
-		-ldflags '-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.BuildDate=$(DATE)'
+all: fmt lint vet tidy build
 
-.PHONY: prod
-prod: vendor | $(BASE) ; $(info $(M) building library…) @ ## Build program
-	$Q cd $(BASE) && CGO_ENABLED=0 GOOS=linux $(GO) build \
-		-tags release \
-		-ldflags '-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.BuildDate=$(DATE)'
-
-$(BASE): ; $(info $(M) setting GOPATH…)
-	@mkdir -p $(dir $@)
-	@ln -sf $(CURDIR) $@
-
-# Tools
-
-GOLINT = $(BIN)/golint
-$(BIN)/golint: | $(BASE) ; $(info $(M) building golint…)
-	$Q go get github.com/golang/lint/golint
+.PHONY: build
+build: | ; $(info $(M) building library…) @ ## Build program
+	$Q $(GO) build all
 
 # Tests
 
@@ -52,22 +35,24 @@ test-race:    ARGS=-race         							## Run tests with race detector
 test-cover:   ARGS=-cover -coverprofile=cover.out -v     	## Run tests in verbose mode with coverage
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
-check test tests: cyclo lint vet vendor megacheck | $(BASE) ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
-	$Q cd $(BASE) && $(GO) test -timeout $(TIMEOUT)s $(ARGS) $(TESTPKGS)
+check test tests: cyclo lint vet ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
+	$Q $(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
 
 .PHONY: vet
-vet: vendor | $(BASE) $(GOLINT) ; $(info $(M) running vet…) @ ## Run vet
-	$Q cd $(BASE) && $(GO) vet ./...
+vet: ; $(info $(M) running vet…) @ ## Run vet
+	$Q $(GO) vet ./...
+
+.PHONY: tidy
+tidy: ; $(info $(M) running go mod tidy…) @ ## Run tidy
+	$Q $(GO) mod tidy
 
 .PHONY: lint
-lint: vendor | $(BASE) $(GOLINT) ; $(info $(M) running golint…) @ ## Run golint
-	$Q cd $(BASE) && ret=0 && for pkg in $(PKGS); do \
-		test -z "$$($(GOLINT) $$pkg | tee /dev/stderr)" || ret=1 ; \
-	 done ; exit $$ret
+lint: ; $(info $(M) running golint…) @ ## Run golint
+	$Q $(GOLINT) ./...
 
-.PHONY: megacheck
-megacheck: vendor | $(BASE) ; $(info $(M) running megacheck…) @ ## Run megacheck
-	$Q cd $(BASE) && megacheck
+.PHONY: staticcheck
+staticcheck: ; $(info $(M) running staticcheck…) @ ## Run staticcheck
+	$Q $(GOSTATICCHECK) ./...
 
 .PHONY: fmt
 fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files
@@ -77,16 +62,7 @@ fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files
 
 .PHONY: cyclo
 cyclo: ; $(info $(M) running gocyclo...) @ ## Run gocyclo on all source files
-	$Q cd $(BASE) && $(GOCYCLO) -over 19 $$($(GO_FILES))
-
-# Dependency management
-
-Gopkg.lock: Gopkg.toml | $(BASE) ; $(info $(M) updating dependencies…)
-	$Q cd $(BASE) && $(DEP) ensure
-	@touch $@
-vendor: Gopkg.lock | $(BASE) ; $(info $(M) retrieving dependencies…)
-	$Q cd $(BASE) && $(DEP) ensure
-	@touch $@
+	$Q $(GOCYCLO) -over 19 $$($(GO_FILES))
 
 # Misc
 

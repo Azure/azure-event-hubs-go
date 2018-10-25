@@ -2,6 +2,10 @@
 
 ## `head`
 
+## `v1.0.1`
+- fix the breaking change from storage; this is not a breaking change for this library
+- move from dep to go modules
+
 ## `v1.0.0`
 - change from OpenTracing to OpenCensus
 - add more documentation for EPH

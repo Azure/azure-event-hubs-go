@@ -1,3 +1,4 @@
+// Package test is an internal package to handle common test setup
 package test
 
 //	MIT License

@@ -64,11 +64,11 @@ func (s *testSuite) TestRegisterUnRegisterHandler() {
 	defer cancel()
 
 	s.Len(p.RegisteredHandlerIDs(), 0, "should have no registered handlers")
-	handlerID1, err := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
+	handlerID1, _ := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
 		return nil
 	})
 
-	handlerID2, err := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
+	handlerID2, _ := p.RegisterHandler(ctx, func(ctx context.Context, evt *eventhub.Event) error {
 		return nil
 	})
 

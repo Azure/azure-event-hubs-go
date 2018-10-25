@@ -161,10 +161,8 @@ func (s *scheduler) scan(ctx context.Context) {
 		switch {
 		case err != nil:
 			log.For(ctx).Error(err)
-			break
 		case !ok:
 			s.dlog(ctx, fmt.Sprintf("failed to steal: %v", candidate))
-			break
 		default:
 			s.dlog(ctx, fmt.Sprintf("stole: %v", stolen))
 			if err := s.startReceiver(ctx, stolen); err != nil {
