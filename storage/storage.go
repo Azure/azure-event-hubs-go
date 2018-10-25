@@ -378,7 +378,7 @@ func (sl *LeaserCheckpointer) GetCheckpoint(ctx context.Context, partitionID str
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.GetCheckpoint")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.GetCheckpoint")
 	defer span.End()
 
 	lease, ok := sl.leases[partitionID]
@@ -393,7 +393,7 @@ func (sl *LeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.EnsureCheckpoint")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.EnsureCheckpoint")
 	defer span.End()
 
 	lease, ok := sl.leases[partitionID]
@@ -412,7 +412,7 @@ func (sl *LeaserCheckpointer) UpdateCheckpoint(ctx context.Context, partitionID 
 	sl.leasesMu.Lock()
 	defer sl.leasesMu.Unlock()
 
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.UpdateCheckpoint")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.UpdateCheckpoint")
 	defer span.End()
 
 	lease, ok := sl.leases[partitionID]
@@ -518,7 +518,7 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 }
 
 func (sl *LeaserCheckpointer) persistLease(ctx context.Context, partitionID string) error {
-	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLease")
+	span, _ := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.persistLease")
 	defer span.End()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

@@ -8,7 +8,7 @@ before_install:
 - go get golang.org/x/tools/cmd/cover
 - go get github.com/fzipp/gocyclo
 - go get github.com/golang/dep/cmd/dep
-- go get honnef.co/go/tools/cmd/megacheck
+- go get honnef.co/go/tools/cmd/
 - go get -u golang.org/x/lint/golint
 jobs:
   include:
