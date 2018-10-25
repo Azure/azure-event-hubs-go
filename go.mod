@@ -1,7 +1,6 @@
 module github.com/Azure/azure-event-hubs-go
 
 require (
-	git.apache.org/thrift.git v0.0.0-20181017231345-8a130f63e5bd // indirect
 	github.com/Azure/azure-amqp-common-go v1.1.0
 	github.com/Azure/azure-pipeline-go v0.1.8
 	github.com/Azure/azure-sdk-for-go v21.2.0+incompatible
