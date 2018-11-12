@@ -270,7 +270,7 @@ CheckpointPersister interface {
 
 For example, you could use the persist.FilePersister to save your checkpoints to a directory.
 ```go
-persister, err := persist.NewFilePersiter(directoryPath)
+persister, err := persist.NewFilePersister(directoryPath)
 if err != nil {
 	// handle err
 }
