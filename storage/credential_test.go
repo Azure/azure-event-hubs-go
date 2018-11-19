@@ -131,7 +131,7 @@ func (ts *testSuite) ensureStorageAccount() error {
 		}
 	}
 
-	_, err = client.Create(ctx, test.ResourceGroupName, ts.AccountName, storage.AccountCreateParameters{
+	res, err := client.Create(ctx, test.ResourceGroupName, ts.AccountName, storage.AccountCreateParameters{
 		Sku: &storage.Sku{
 			Name: storage.StandardLRS,
 			Tier: storage.Standard,
@@ -143,7 +143,11 @@ func (ts *testSuite) ensureStorageAccount() error {
 		},
 	})
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	return res.WaitForCompletionRef(ctx, client.Client)
 }
 
 func getStorageAccountMgmtClient(subscriptionID string, env azure.Environment) *storage.AccountsClient {

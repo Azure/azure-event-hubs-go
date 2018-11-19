@@ -105,7 +105,16 @@ func ReceiveWithPrefetchCount(prefetch uint32) ReceiveOption {
 	}
 }
 
-// ReceiveWithEpoch configures the receiver to use an epoch -- see https://blogs.msdn.microsoft.com/gyan/2014/09/02/event-hubs-receiver-epoch/
+// ReceiveWithEpoch configures the receiver to use an epoch. Specifying an epoch for a receiver will cause any receiver
+// with a lower epoch value to be disconnected from the message broker. If a receiver attempts to start with a lower
+// epoch than the broker currently knows for a given partition, the broker will respond with an error on initiation of
+// the receive request.
+//
+// Ownership enforcement: Once you created an epoch based receiver, you cannot create a non-epoch receiver to the same
+// consumer group / partition combo until all receivers to the combo are closed.
+//
+// Ownership stealing: If a receiver with higher epoch value is created for a consumer group / partition combo, any
+// older epoch receiver to that combo will be force closed.
 func ReceiveWithEpoch(epoch int64) ReceiveOption {
 	return func(receiver *receiver) error {
 		receiver.epoch = &epoch
