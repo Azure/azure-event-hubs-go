@@ -98,6 +98,7 @@ func ReceiveWithLatestOffset() ReceiveOption {
 	}
 }
 
+// ReceiveFromTimestamp configures the receiver to start receiving from a specific point in time in the event stream
 func ReceiveFromTimestamp(t time.Time) ReceiveOption {
 	return func(receiver *receiver) error {
 		receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint("", 0, t))
