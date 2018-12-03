@@ -1,6 +1,7 @@
 # Change Log
 
 ## `head`
+- add receive option to receive from a timestamp
 
 ## `v1.0.1`
 - fix the breaking change from storage; this is not a breaking change for this library
