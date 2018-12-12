@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 	"go.opencensus.io/exporter/jaeger"
@@ -54,23 +55,17 @@ const (
 	defaultTimeout = 1 * time.Minute
 )
 
-const (
-	// Location is the Azure geographic location the test suite will use for provisioning
-	Location = "eastus"
-
-	// ResourceGroupName is the name of the resource group the test suite will use for provisioning
-	ResourceGroupName = "ehtest"
-)
-
 type (
 	// BaseSuite encapsulates a end to end test of Event Hubs with build up and tear down of all EH resources
 	BaseSuite struct {
 		suite.Suite
-		SubscriptionID string
-		Namespace      string
-		Env            azure.Environment
-		TagID          string
-		closer         io.Closer
+		SubscriptionID    string
+		Namespace         string
+		ResourceGroupName string
+		Location          string
+		Env               azure.Environment
+		TagID             string
+		closer            io.Closer
 	}
 
 	// HubMgmtOption represents an option for configuring an Event Hub.
@@ -81,6 +76,7 @@ type (
 
 func init() {
 	rand.Seed(time.Now().Unix())
+	loadEnv()
 }
 
 // SetupSuite constructs the test suite from the environment and
@@ -90,8 +86,10 @@ func (suite *BaseSuite) SetupSuite() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	suite.SubscriptionID = mustGetEnv("AZURE_SUBSCRIPTION_ID")
-	suite.Namespace = mustGetEnv("EVENTHUB_NAMESPACE")
+	suite.SubscriptionID = MustGetEnv("AZURE_SUBSCRIPTION_ID")
+	suite.Namespace = MustGetEnv("EVENTHUB_NAMESPACE")
+	suite.ResourceGroupName = MustGetEnv("TEST_EVENTHUB_RESOURCE_GROUP")
+	suite.Location = MustGetEnv("TEST_EVENTHUB_LOCATION")
 	envName := os.Getenv("AZURE_ENVIRONMENT")
 	suite.TagID = RandomString("tag", 5)
 
@@ -122,7 +120,7 @@ func (suite *BaseSuite) TearDownSuite() {
 	defer cancel()
 	suite.deleteAllTaggedEventHubs(ctx)
 	if suite.closer != nil {
-		suite.closer.Close()
+		suite.NoError(suite.closer.Close())
 	}
 }
 
@@ -139,10 +137,7 @@ func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
 	suite.Require().Len(*model.PartitionIds, 4)
 	return model, func() {
 		if model != nil {
-			err := suite.DeleteEventHub(*model.Name)
-			if err != nil {
-				suite.T().Log(err)
-			}
+			suite.DeleteEventHub(*model.Name)
 		}
 	}
 }
@@ -150,7 +145,7 @@ func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
 // EnsureEventHub creates an Event Hub if it doesn't exist
 func (suite *BaseSuite) ensureEventHub(ctx context.Context, name string, opts ...HubMgmtOption) (*mgmt.Model, error) {
 	client := suite.getEventHubMgmtClient()
-	hub, err := client.Get(ctx, ResourceGroupName, suite.Namespace, name)
+	hub, err := client.Get(ctx, suite.ResourceGroupName, suite.Namespace, name)
 
 	if err != nil {
 		newHub := &mgmt.Model{
@@ -189,26 +184,26 @@ func (suite *BaseSuite) tryHubCreate(ctx context.Context, client *mgmt.EventHubs
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	_, err := client.CreateOrUpdate(ctx, ResourceGroupName, suite.Namespace, name, *hub)
+	_, err := client.CreateOrUpdate(ctx, suite.ResourceGroupName, suite.Namespace, name, *hub)
 	if err != nil {
 		return mgmt.Model{}, err
 	}
 
-	return client.Get(ctx, ResourceGroupName, suite.Namespace, name)
+	return client.Get(ctx, suite.ResourceGroupName, suite.Namespace, name)
 }
 
 // DeleteEventHub deletes an Event Hub within the given Namespace
-func (suite *BaseSuite) DeleteEventHub(name string) error {
+func (suite *BaseSuite) DeleteEventHub(name string) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	client := suite.getEventHubMgmtClient()
-	_, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, name)
-	return err
+	_, err := client.Delete(ctx, suite.ResourceGroupName, suite.Namespace, name)
+	suite.NoError(err)
 }
 
 func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
 	client := suite.getEventHubMgmtClient()
-	res, err := client.ListByNamespace(ctx, ResourceGroupName, suite.Namespace, to.Int32Ptr(0), to.Int32Ptr(20))
+	res, err := client.ListByNamespace(ctx, suite.ResourceGroupName, suite.Namespace, to.Int32Ptr(0), to.Int32Ptr(20))
 	if err != nil {
 		suite.T().Log("error listing namespaces")
 		suite.T().Error(err)
@@ -218,7 +213,7 @@ func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
 		for _, val := range res.Values() {
 			if strings.Contains(*val.Name, suite.TagID) {
 				for i := 0; i < 5; i++ {
-					if _, err := client.Delete(ctx, ResourceGroupName, suite.Namespace, *val.Name); err != nil {
+					if _, err := client.Delete(ctx, suite.ResourceGroupName, suite.Namespace, *val.Name); err != nil {
 						suite.T().Logf("error deleting %q", *val.Name)
 						suite.T().Error(err)
 						time.Sleep(3 * time.Second)
@@ -230,12 +225,12 @@ func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
 				suite.T().Logf("%q does not contain %q", *val.Name, suite.TagID)
 			}
 		}
-		res.Next()
+		suite.NoError(res.Next())
 	}
 }
 
 func (suite *BaseSuite) ensureProvisioned(tier mgmt.SkuTier) error {
-	_, err := ensureResourceGroup(context.Background(), suite.SubscriptionID, ResourceGroupName, Location, suite.Env)
+	_, err := ensureResourceGroup(context.Background(), suite.SubscriptionID, suite.ResourceGroupName, suite.Location, suite.Env)
 	if err != nil {
 		return err
 	}
@@ -332,7 +327,7 @@ func (suite *BaseSuite) getEventHubMgmtClient() *mgmt.EventHubsClient {
 }
 
 func (suite *BaseSuite) ensureNamespace() (*mgmt.EHNamespace, error) {
-	ns, err := ensureNamespace(context.Background(), suite.SubscriptionID, ResourceGroupName, suite.Namespace, Location, suite.Env)
+	ns, err := ensureNamespace(context.Background(), suite.SubscriptionID, suite.ResourceGroupName, suite.Namespace, suite.Location, suite.Env)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +360,9 @@ func (suite *BaseSuite) setupTracing() error {
 	}
 	exporter, err := jaeger.NewExporter(jaeger.Options{
 		AgentEndpoint: "localhost:6831",
-		ServiceName:   "eh-trace",
+		Process: jaeger.Process{
+			ServiceName: "eh-tests",
+		},
 	})
 	if err != nil {
 		return err
@@ -374,7 +371,8 @@ func (suite *BaseSuite) setupTracing() error {
 	return nil
 }
 
-func mustGetEnv(key string) string {
+// MustGetEnv will panic or return the env var for a given string key
+func MustGetEnv(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
 		panic("Env variable '" + key + "' required for integration tests.")
@@ -394,4 +392,37 @@ func RandomString(prefix string, length int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return prefix + string(b)
+}
+
+func loadEnv() {
+	lookForMe := []string{".env", "../.env", "../../.env"}
+	var reader io.ReadCloser
+	for _, env := range lookForMe {
+		r, err := os.Open(env)
+		if err == nil {
+			reader = r
+			break
+		}
+	}
+
+	if reader == nil {
+		log.Fatalf("no .env files were found in %v", lookForMe)
+	}
+
+	defer func() {
+		if err := reader.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	envMap, err := godotenv.Parse(reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for key, val := range envMap {
+		if err := os.Setenv(key, val); err != nil {
+			log.Fatal(err)
+		}
+	}
 }

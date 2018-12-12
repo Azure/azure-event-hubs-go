@@ -283,11 +283,11 @@ func testBasicSend(ctx context.Context, t *testing.T, client *Hub, _ string) {
 }
 
 func testSendTooBig(ctx context.Context, t *testing.T, client *Hub, _ string) {
-	data := make([]byte, 256*1024)
+	data := make([]byte, 2600*1024)
 	_, _ = rand.Read(data)
 	event := NewEvent(data)
 	err := client.Send(ctx, event)
-	assert.Error(t, err)
+	assert.Error(t, err, "encoded message size exceeds max of 1048576")
 }
 
 func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
@@ -448,9 +448,7 @@ func testMultiSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	}
 
 	for idx, message := range messages {
-		if !assert.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))) {
-			assert.FailNow(t, "unable to send message")
-		}
+		require.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx))))
 	}
 
 	for _, partitionID := range partitionIDs {
@@ -562,14 +560,17 @@ func testHubPartitionRuntimeInformation(ctx context.Context, t *testing.T, clien
 }
 
 func TestEnvironmentalCreation(t *testing.T) {
-	os.Setenv("EVENTHUB_NAME", "foo")
+	require.NoError(t, os.Setenv("EVENTHUB_NAME", "foo"))
 	_, err := NewHubFromEnvironment()
 	assert.Nil(t, err)
-	os.Unsetenv("EVENTHUB_NAME")
+	require.NoError(t, os.Unsetenv("EVENTHUB_NAME"))
 }
 
 func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) (*Hub, func()) {
-	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&suite.Env))
+	provider, err := aad.NewJWTProvider(
+		aad.JWTProviderWithEnvironmentVars(),
+		aad.JWTProviderWithAzureEnvironment(&suite.Env),
+	)
 	if !suite.NoError(err) {
 		suite.FailNow("unable to make a new JWT provider")
 	}

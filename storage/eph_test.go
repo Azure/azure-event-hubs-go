@@ -35,7 +35,6 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/eph"
-	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
@@ -55,7 +54,9 @@ func (ts *testSuite) TestSingle() {
 	ts.Require().NoError(err)
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		processor.Close(closeContext)
+		if err := processor.Close(closeContext); err != nil {
+			ts.Error(err)
+		}
 		cancel()
 		delHub()
 	}()
@@ -66,12 +67,13 @@ func (ts *testSuite) TestSingle() {
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
 
-	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
+	_, err = processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
 	})
+	ts.Require().NoError(err)
 
-	processor.StartNonBlocking(ctx)
+	ts.Require().NoError(processor.StartNonBlocking(ctx))
 	end, _ := ctx.Deadline()
 	waitUntil(ts.T(), &wg, time.Until(end))
 }
@@ -85,7 +87,7 @@ func (ts *testSuite) TestMultiple() {
 	delContainer := ts.newTestContainerByName(*hub.Name)
 	defer delContainer()
 
-	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, *hub.Name, AADSASCredentialWithEnvironmentVars())
+	cred, err := NewAADSASCredential(ts.SubscriptionID, ts.ResourceGroupName, ts.AccountName, *hub.Name, AADSASCredentialWithEnvironmentVars())
 	ts.Require().NoError(err)
 	numPartitions := len(*hub.PartitionIds)
 	processors := make(map[string]*eph.EventProcessorHost, numPartitions)
@@ -105,7 +107,9 @@ func (ts *testSuite) TestMultiple() {
 	defer func() {
 		for _, processor := range processors {
 			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			processor.Close(closeContext)
+			if err := processor.Close(closeContext); err != nil {
+				ts.Error(err)
+			}
 			cancel()
 		}
 		delHub()
@@ -140,7 +144,7 @@ func (ts *testSuite) TestMultiple() {
 	}
 
 	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	processors[processorNames[numPartitions-1]].Close(closeContext) // close the last partition
+	ts.Require().NoError(processors[processorNames[numPartitions-1]].Close(closeContext)) // close the last partition
 	delete(processors, processorNames[numPartitions-1])
 	cancel()
 
@@ -175,7 +179,7 @@ func (ts *testSuite) newTestContainerByName(containerName string) func() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
+	cred, err := NewAADSASCredential(ts.SubscriptionID, ts.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	ts.Require().NoError(err)
 
 	pipeline := azblob.NewPipeline(cred, azblob.PipelineOptions{})
@@ -189,7 +193,9 @@ func (ts *testSuite) newTestContainerByName(containerName string) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		containerURL.Delete(ctx, azblob.ContainerAccessConditions{})
+		if res, err := containerURL.Delete(ctx, azblob.ContainerAccessConditions{}); err != nil {
+			ts.NoError(err, res)
+		}
 	}
 }
 
@@ -197,7 +203,7 @@ func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) 
 	client := ts.newClient(ts.T(), hubName)
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		client.Close(closeContext)
+		ts.NoError(client.Close(closeContext))
 		cancel()
 	}()
 
@@ -213,13 +219,13 @@ func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client.SendBatch(ctx, eventhub.NewEventBatch(events))
+	ts.NoError(client.SendBatch(ctx, eventhub.NewEventBatch(events)))
 
 	return messages, ctx.Err()
 }
 
 func (ts *testSuite) newStorageBackedEPH(hubName, containerName string) (*eph.EventProcessorHost, error) {
-	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
+	cred, err := NewAADSASCredential(ts.SubscriptionID, ts.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	ts.Require().NoError(err)
 	leaserCheckpointer, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, containerName, ts.Env)
 	ts.Require().NoError(err)

@@ -29,7 +29,6 @@ import (
 
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-event-hubs-go/eph"
-	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/stretchr/testify/assert"
 )
@@ -189,7 +188,7 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 
 func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	containerName := strings.ToLower(ts.RandomName("stortest", 4))
-	cred, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
+	cred, err := NewAADSASCredential(ts.SubscriptionID, ts.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	ts.Require().NoError(err)
 	leaser, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, containerName, ts.Env)
 	ts.Require().NoError(err)

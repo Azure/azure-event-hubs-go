@@ -15,7 +15,7 @@ GOSTATICCHECK = $(BIN)/staticcheck
 V = 0
 Q = $(if $(filter 1,$V),,@)
 M = $(shell printf "\033[34;1m▶\033[0m")
-TIMEOUT = 360
+TIMEOUT = 720
 
 .PHONY: all
 all: fmt lint vet tidy build
@@ -35,8 +35,8 @@ test-race:    ARGS=-race         							## Run tests with race detector
 test-cover:   ARGS=-cover -coverprofile=cover.out -v     	## Run tests in verbose mode with coverage
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
-check test tests: cyclo lint vet ; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
-	$Q $(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
+check test tests: cyclo lint vet terraform.tfstate; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
+	$(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
 
 .PHONY: vet
 vet: ; $(info $(M) running vet…) @ ## Run vet
@@ -63,6 +63,17 @@ fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files
 .PHONY: cyclo
 cyclo: ; $(info $(M) running gocyclo...) @ ## Run gocyclo on all source files
 	$Q $(GOCYCLO) -over 19 $$($(GO_FILES))
+
+terraform.tfstate: azuredeploy.tf $(wildcard terraform.tfvars) .terraform ; $(info $(M) running terraform...) @ ## Run terraform to provision infrastructure needed for testing
+	$Q TF_VAR_azure_client_secret="$${ARM_CLIENT_SECRET}" terraform apply -auto-approve
+	$Q terraform output > .env
+
+.terraform:
+	$Q terraform init
+
+.Phony: destroy
+destroy: ; $(info $(M) running terraform destroy...)
+	$(Q) terraform destroy --auto-approve
 
 # Misc
 

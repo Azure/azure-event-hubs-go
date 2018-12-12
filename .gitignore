@@ -17,3 +17,13 @@ vendor
 .idea
 
 .DS_Store
+
+.env
+
+# Test Infrastructure
+terraform.tfvars
+*.auto.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.tfstate.lock.info

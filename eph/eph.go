@@ -275,7 +275,9 @@ func (h *EventProcessorHost) UnregisterHandler(ctx context.Context, id HandlerID
 	delete(h.handlers, string(id))
 
 	if len(h.handlers) == 0 {
-		h.Close(ctx)
+		if err := h.Close(ctx); err != nil {
+			log.For(ctx).Error(err)
+		}
 	}
 }
 

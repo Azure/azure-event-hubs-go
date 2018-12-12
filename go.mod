@@ -9,6 +9,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dimchansky/utfbom v1.0.0 // indirect
 	github.com/fortytw2/leaktest v1.2.0 // indirect
+	github.com/joho/godotenv v1.3.0
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mitchellh/go-homedir v1.0.0 // indirect
@@ -21,5 +22,5 @@ require (
 	golang.org/x/sys v0.0.0-20181011152604-fa43e7bc11ba // indirect
 	google.golang.org/api v0.0.0-20181018171847-1ee037c97071 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
-	pack.ag/amqp v0.7.4
+	pack.ag/amqp v0.10.2
 )
