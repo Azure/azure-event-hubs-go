@@ -32,7 +32,7 @@ resource "random_string" "name" {
 
 # Create resource group for all of the things
 resource "azurerm_resource_group" "test" {
-  name      = "${var.resource_group_name_prefix}-${random_string}"
+  name      = "${var.resource_group_name_prefix}-${random_string.name.result}"
   location  = "${var.location}"
 }
 
