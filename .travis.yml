@@ -24,6 +24,15 @@ jobs:
       - secure: XQnN/O10kWHr6Z3Ixp2zlBmbR8hZ058X7oV5CKBnyeQYsY4/KTJnotwOGkHbfOZT2BCfgQvf8YqwNOoALwm5aWS2Mwzo5yJTHkthK7rP5/zRgNGczavNGAoN6sJcHnuChdaTNsHfNRa+Oo7OwoQitb0drFTE2oLUC6UbsXhf/0Gqew+YtCjh9SDDupRDiM6OqZKExenIFMeFGyST42br2xYyGZkyNtzY1WRV0mdznmBe+MFRU72HlvIF+82nODcFtonjQjwHnWaXinrb2tGQZGX0NwFJU5fap/VWYMa2D5nXmPloitpkIOTq/p5CoHKVEi605fIy0Xd/j2iiSpOYX5se6ctXInub+x/ZlVpuLp15bplfGDhxSRWi1gaiAIPSuZVMx8lo9hivJ0c2VVQT3aNy+AuyURAwFCY8E9jXfy9SLfmsV1wCEqaUARyT1Cg/E1U0qFOBUxnKG5d262VaPk/tmd1lGih0HslNKicPlNSUlAVIe77+cGEbxCvts2Ayl6s34xJGvecGOk+crXdLCof0YMkRW4vZbqr8xGJVu+CRSyjtkBla13vgp6xxXASw61/6XBT5+6kEtUSbsy/JSNaHh9RxVd9qgizasU2xOhGVOHb6csVz0pqNXqE5SRDEqbYIkS2X+YTRFGcEnukLGzPwLZqT64a7MFwA02DoWJM=
       - secure: JiNM+YXuuTKYKvSL2kvsNLngFxxYaHD7Nr4K7SBDrrbP5+ILzs74OQoNdLCr14sm5qGcA1OizGEaxwWKJXqeXZ+BQ4eJPuTp2CAXa6PFmrv/TimWV9XwmhOeVsEoq5RjScPJh5VZ8bfMsEM3bEUNIU+8Jesyz7GoiK4F4hfgy1E5uhqPq1ZIG3NfCNOgo27te+0CO1vnmUs0wEIdQWCafO/Y2T5lqrVlUaGI+eQzL0d8ohK1Y+Y5ZisePz4qgQ3umDXF/9AKl5HqHosCUY4pEXYgBSmnbldIjkabB/0983MetFcsvtGWEYoQD8EvHw+i43ppd2bIm9Q1Mep2mtp8aZsF5Tg2WOcWM9zekiJ/QipHMBMkpTGK15Tbjw/7YGLcyUVTK7aaK7KbrTl504wO+J6g77KFBEDYhDChAMpRaNfCIDnlkwNpsGNQSDLOaVgDS2b+UT4OwvFGwnB8/ytJSFHmyWMN7atB/6hCpLTUm60Foip0buXQmONCDUsj3RNy4X9DjrMHOkcQMXDjtu6HDRP+zkcbWBadUJfM7fxw8LZtBY0luyUzLCm67fuD1jYiJHrt5zwg4A4XsmzPinfUsu1jIOizQv81ww2+OM3j/bxGC1/oj5kbhyD8n57Ltdt7YzzRevXGowaiYWm6ySqrRKNxRX4y2sISvNM7IWmrqcs=
     script:
+      - curl -sLo /tmp/terraform.zip https://releases.hashicorp.com/terraform/0.11.10/terraform_0.11.10_linux_amd64.zip
+      - unzip /tmp/terraform.zip -d /tmp
+      - mkdir -p ~/bin
+      - mv /tmp/terraform ~/bin
+      - export PATH="~/bin:$PATH"
+      - export ARM_SUBSCRIPTION_ID=$(echo $AZURE_SUBSCRIPTION_ID)
+      - export ARM_CLIENT_ID=$(echo $AZURE_CLIENT_ID)
+      - export ARM_CLIENT_SECRET=$(echo $AZURE_CLIENT_SECRET)
+      - export ARM_TENANT_ID=$(echo $AZURE_TENANT_ID)
       - export GO111MODULE=on
       - make test-cover
       - goveralls -coverprofile=cover.out -service=travis-ci

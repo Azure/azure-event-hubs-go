@@ -2,6 +2,9 @@
 
 ## `head`
 - add receive option to receive from a timestamp
+- fix sender recovery on temporary network failures
+- add LeasePersistenceInterval to Azure Storage LeaserCheckpointer to allow for customization of persistence interval
+  duration
 
 ## `v1.0.1`
 - fix the breaking change from storage; this is not a breaking change for this library
