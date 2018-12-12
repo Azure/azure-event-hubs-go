@@ -72,7 +72,7 @@ terraform.tfstate: azuredeploy.tf $(wildcard terraform.tfvars) .terraform ; $(in
 	$Q terraform init
 
 .Phony: destroy
-destroy-sb: ; $(info $(M) running terraform destroy of the eventhub namespace...)
+destroy: ; $(info $(M) running terraform destroy...)
 	$(Q) terraform destroy --auto-approve
 
 # Misc
