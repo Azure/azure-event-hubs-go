@@ -65,7 +65,7 @@ cyclo: ; $(info $(M) running gocyclo...) @ ## Run gocyclo on all source files
 	$Q $(GOCYCLO) -over 19 $$($(GO_FILES))
 
 terraform.tfstate: azuredeploy.tf $(wildcard terraform.tfvars) .terraform ; $(info $(M) running terraform...) @ ## Run terraform to provision infrastructure needed for testing
-	$Q TF_VAR_azure_client_secret="$${AZURE_CLIENT_SECRET}" terraform apply -auto-approve
+	$Q TF_VAR_azure_client_secret="$${ARM_CLIENT_SECRET}" terraform apply -auto-approve
 	$Q terraform output > .env
 
 .terraform:
