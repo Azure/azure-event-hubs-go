@@ -10,7 +10,7 @@ variable "eventhub_name_prefix" {
   default     = "azureehtests"
 }
 
-variable "resource_group_name" {
+variable "resource_group_name_prefix" {
   description = "Resource group to provision test infrastructure in."
   default     = "eventhub-go-tests"
 }
@@ -24,11 +24,6 @@ variable "azure_client_secret" {
 data "azurerm_client_config" "current" {}
 
 resource "random_string" "name" {
-  keepers = {
-    # Generate a new id each time we switch to a new resource group
-    group_name = "${var.resource_group_name}"
-  }
-
   length  = 8
   upper   = false
   special = false
@@ -37,7 +32,7 @@ resource "random_string" "name" {
 
 # Create resource group for all of the things
 resource "azurerm_resource_group" "test" {
-  name      = "${var.resource_group_name}"
+  name      = "${var.resource_group_name_prefix}-${random_string}"
   location  = "${var.location}"
 }
 
@@ -51,7 +46,7 @@ resource "azurerm_eventhub_namespace" "test" {
 
 resource "azurerm_storage_account" "test" {
   name                      = "${var.eventhub_name_prefix}${random_string.name.result}"
-  resource_group_name       = "${var.resource_group_name}"
+  resource_group_name       = "${azurerm_resource_group.test.name}"
   location                  = "${azurerm_resource_group.test.location}"
   account_replication_type  = "LRS"
   account_tier              = "Standard"
@@ -108,7 +103,7 @@ resource "azurerm_role_assignment" "service_principal_rg" {
 }
 
 output "TEST_EVENTHUB_RESOURCE_GROUP" {
-  value = "${var.resource_group_name}"
+  value = "${azurerm_resource_group.test.name}"
 }
 
 output "EVENTHUB_CONNECTION_STRING" {
