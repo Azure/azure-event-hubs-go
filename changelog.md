@@ -1,6 +1,8 @@
 # Change Log
 
 ## `head`
+
+## `v1.1.0`
 - add receive option to receive from a timestamp
 - fix sender recovery on temporary network failures
 - add LeasePersistenceInterval to Azure Storage LeaserCheckpointer to allow for customization of persistence interval
@@ -20,7 +22,7 @@
 - remove `Receive` in eph in favor of `RegisterHandler`, `UnregisterHandler` and `RegisteredHandlerIDs` [#45](https://github.com/Azure/azure-event-hubs-go/pull/45)
 
 ## `v0.3.1`
-- simplify environmental construction by prefering SAS
+- simplify environmental construction by preferring SAS
 
 ## `v0.3.0`
 - pin version of amqp
