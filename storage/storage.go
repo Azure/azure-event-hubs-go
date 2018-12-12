@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"net/url"
 	"sync"
 	"time"
@@ -47,18 +48,20 @@ import (
 type (
 	// LeaserCheckpointer implements the eph.LeaserCheckpointer interface for Azure Storage
 	LeaserCheckpointer struct {
-		leases          map[string]*storageLease
-		processor       *eph.EventProcessorHost
-		leaseDuration   time.Duration
-		credential      Credential
-		containerURL    *azblob.ContainerURL
-		serviceURL      *azblob.ServiceURL
-		containerName   string
-		accountName     string
-		env             azure.Environment
-		dirtyPartitions map[string]uuid.UUID
-		leasesMu        sync.Mutex
-		done            func()
+		// LeasePersistenceInterval is the default period of time which dirty leases will be persisted to Azure Storage
+		LeasePersistenceInterval time.Duration
+		leases                   map[string]*storageLease
+		processor                *eph.EventProcessorHost
+		leaseDuration            time.Duration
+		credential               Credential
+		containerURL             *azblob.ContainerURL
+		serviceURL               *azblob.ServiceURL
+		containerName            string
+		accountName              string
+		env                      azure.Environment
+		dirtyPartitions          map[string]uuid.UUID
+		leasesMu                 sync.Mutex
+		done                     func()
 	}
 
 	storageLease struct {
@@ -85,6 +88,10 @@ type (
 	}
 )
 
+const (
+	defaultLeasePersistenceInterval = 5 * time.Second
+)
+
 // NewStorageLeaserCheckpointer builds an Azure Storage Leaser Checkpointer which handles leasing and checkpointing for
 // the EventProcessorHost
 func NewStorageLeaserCheckpointer(credential Credential, accountName, containerName string, env azure.Environment) (*LeaserCheckpointer, error) {
@@ -97,15 +104,16 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 	containerURL := svURL.NewContainerURL(containerName)
 
 	return &LeaserCheckpointer{
-		credential:      credential,
-		containerName:   containerName,
-		accountName:     accountName,
-		leaseDuration:   eph.DefaultLeaseDuration,
-		env:             env,
-		serviceURL:      &svURL,
-		containerURL:    &containerURL,
-		leases:          make(map[string]*storageLease),
-		dirtyPartitions: make(map[string]uuid.UUID),
+		credential:               credential,
+		containerName:            containerName,
+		accountName:              accountName,
+		leaseDuration:            eph.DefaultLeaseDuration,
+		env:                      env,
+		serviceURL:               &svURL,
+		containerURL:             &containerURL,
+		leases:                   make(map[string]*storageLease),
+		dirtyPartitions:          make(map[string]uuid.UUID),
+		LeasePersistenceInterval: defaultLeasePersistenceInterval,
 	}, nil
 }
 
@@ -477,7 +485,7 @@ func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 			if err != nil {
 				log.For(ctx).Error(err)
 			}
-			<-time.After(1 * time.Second)
+			<-time.After(sl.LeasePersistenceInterval)
 		}
 	}
 }
@@ -596,10 +604,13 @@ func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) 
 }
 
 func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.DownloadResponse) (*storageLease, error) {
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(res.Response().Body)
+	b, err := ioutil.ReadAll(res.Response().Body)
+	if err != nil {
+		return nil, err
+	}
+
 	var lease storageLease
-	if err := json.Unmarshal(buf.Bytes(), &lease); err != nil {
+	if err := json.Unmarshal(b, &lease); err != nil {
 		return nil, err
 	}
 	lease.leaser = sl

@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-amqp-common-go/aad"
+	"github.com/Azure/azure-event-hubs-go"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
@@ -29,7 +29,10 @@ func main() {
 		fmt.Print("Enter text: ")
 		text, _ := reader.ReadString('\n')
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		hub.Send(ctx, eventhub.NewEventFromString(text))
+		err := hub.Send(ctx, eventhub.NewEventFromString(text))
+		if err != nil {
+			log.Fatal(err)
+		}
 		if text == "exit\n" {
 			break
 		}
@@ -95,4 +98,3 @@ func getEventHubMgmtClient() *mgmt.EventHubsClient {
 	client.Authorizer = a
 	return &client
 }
-

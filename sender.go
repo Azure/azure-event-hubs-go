@@ -25,6 +25,7 @@ package eventhub
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/log"
@@ -144,7 +145,13 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				return err
 			}
 			switch err.(type) {
-			case *amqp.Error, *amqp.DetachError:
+			case *amqp.Error, *amqp.DetachError, net.Error:
+				if netErr, ok := err.(net.Error); ok {
+					if !netErr.Temporary(){
+						return netErr
+					}
+				}
+
 				duration := s.recoveryBackoff.Duration()
 				log.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
 				time.Sleep(duration)
@@ -202,6 +209,7 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 	}
 
 	amqpSender, err := amqpSession.NewSender(
+		amqp.LinkReceiverSettle(amqp.ModeSecond),
 		amqp.LinkTargetAddress(s.getAddress()),
 	)
 	if err != nil {

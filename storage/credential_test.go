@@ -24,18 +24,13 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"log"
 	"net/url"
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-event-hubs-go/internal/test"
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/Azure/go-autorest/autorest/azure"
-	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -54,23 +49,18 @@ func TestStorage(t *testing.T) {
 
 func (ts *testSuite) SetupSuite() {
 	ts.BaseSuite.SetupSuite()
-	ts.AccountName = strings.ToLower(test.RandomString("ehtest", 6))
-	ts.Require().NoError(ts.ensureStorageAccount())
+	ts.AccountName = test.MustGetEnv("STORAGE_ACCOUNT_NAME")
 }
 
 func (ts *testSuite) TearDownSuite() {
 	ts.BaseSuite.TearDownSuite()
-	err := ts.deleteStorageAccount()
-	if err != nil {
-		ts.T().Error(err)
-	}
 }
 
 func (ts *testSuite) TestCredential() {
 	containerName := "foo"
 	blobName := "bar"
 	message := "Hello World!!"
-	tokenProvider, err := NewAADSASCredential(ts.SubscriptionID, test.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
+	tokenProvider, err := NewAADSASCredential(ts.SubscriptionID, ts.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	if err != nil {
 		ts.T().Fatal(err)
 	}
@@ -84,7 +74,11 @@ func (ts *testSuite) TestCredential() {
 	}
 
 	containerURL := azblob.NewContainerURL(*fooURL, pipeline)
-	defer containerURL.Delete(ctx, azblob.ContainerAccessConditions{})
+	defer func(){
+		if res, err := containerURL.Delete(ctx, azblob.ContainerAccessConditions{}); err != nil {
+			log.Fatal(err, res)
+		}
+	}()
 	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
 	if err != nil {
 		ts.T().Error(err)
@@ -95,67 +89,4 @@ func (ts *testSuite) TestCredential() {
 	if err != nil {
 		ts.T().Error(err)
 	}
-}
-
-func (ts *testSuite) deleteStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
-	defer cancel()
-
-	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
-	_, err := client.Delete(ctx, test.ResourceGroupName, ts.AccountName)
-	return err
-}
-
-func (ts *testSuite) ensureStorageAccount() error {
-	ctx, cancel := context.WithTimeout(context.Background(), shortTimeout)
-	defer cancel()
-
-	client := getStorageAccountMgmtClient(ts.SubscriptionID, ts.Env)
-	accounts, err := client.ListByResourceGroup(ctx, test.ResourceGroupName)
-	if err != nil {
-		return err
-	}
-
-	if accounts.Response.Response == nil {
-		return errors.New("response is nil and error is not nil")
-	}
-
-	if accounts.Response.Response != nil && accounts.StatusCode == 404 {
-		return errors.New("resource group does not exist")
-	}
-
-	for _, account := range *accounts.Value {
-		if ts.AccountName == *account.Name {
-			// provisioned, so return
-			return nil
-		}
-	}
-
-	res, err := client.Create(ctx, test.ResourceGroupName, ts.AccountName, storage.AccountCreateParameters{
-		Sku: &storage.Sku{
-			Name: storage.StandardLRS,
-			Tier: storage.Standard,
-		},
-		Kind:     storage.BlobStorage,
-		Location: common.PtrString(test.Location),
-		AccountPropertiesCreateParameters: &storage.AccountPropertiesCreateParameters{
-			AccessTier: storage.Hot,
-		},
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return res.WaitForCompletionRef(ctx, client.Client)
-}
-
-func getStorageAccountMgmtClient(subscriptionID string, env azure.Environment) *storage.AccountsClient {
-	client := storage.NewAccountsClientWithBaseURI(env.ResourceManagerEndpoint, subscriptionID)
-	a, err := azauth.NewAuthorizerFromEnvironment()
-	if err != nil {
-		log.Fatal(err)
-	}
-	client.Authorizer = a
-	return &client
 }
