@@ -1,6 +1,8 @@
 # Change Log
 
 ## `head`
+
+## `v1.1.0`
 - add receive option to receive from a timestamp
 - fix sender recovery on temporary network failures
 - add LeasePersistenceInterval to Azure Storage LeaserCheckpointer to allow for customization of persistence interval
