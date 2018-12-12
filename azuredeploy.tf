@@ -150,14 +150,15 @@ output "AZURE_TENANT_ID" {
 }
 
 output "AZURE_CLIENT_ID" {
-  value = "${azurerm_azuread_application.test.0.application_id == "" ? data.azurerm_client_config.current.client_id : azurerm_azuread_application.test.0.application_id}"
+  value = "${data.azurerm_client_config.current.service_principal_application_id == "" ? azurerm_azuread_application.test.0.application_id : data.azurerm_client_config.current.client_id}"
 }
 
 output "AZURE_CLIENT_SECRET" {
-  value     = "${azurerm_azuread_service_principal_password.test.0.value == "" ? var.azure_client_secret : azurerm_azuread_service_principal_password.test.0.value}"
+  value     = "${data.azurerm_client_config.current.service_principal_application_id == "" ? azurerm_azuread_service_principal_password.test.0.value : var.azure_client_secret}"
   sensitive = true
 }
 
 output "STORAGE_ACCOUNT_NAME" {
   value = "${azurerm_storage_account.test.name}"
 }
+
