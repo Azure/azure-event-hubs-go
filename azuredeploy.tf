@@ -92,37 +92,20 @@ resource "azurerm_azuread_service_principal_password" "test" {
 }
 
 # This provides the new AAD application the rights to managed, send and receive from the Event Hubs instance
-resource "azurerm_role_assignment" "created_service_principal_eh" {
+resource "azurerm_role_assignment" "service_principal_eh" {
   count                 = "${data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0}"
   scope                 = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}/providers/Microsoft.EventHub/namespaces/${azurerm_eventhub_namespace.test.name}"
   role_definition_name  = "Owner"
   principal_id          = "${azurerm_azuread_service_principal.test.id}"
-}
-
-# This provides the existing AAD application the rights to managed, send and receive from the Event Hubs instance
-resource "azurerm_role_assignment" "existing_service_principal_eh" {
-  count                 = "${data.azurerm_client_config.current.service_principal_object_id != "" ? 1 : 0}"
-  scope                 = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}/providers/Microsoft.EventHub/namespaces/${azurerm_eventhub_namespace.test.name}"
-  role_definition_name  = "Owner"
-  principal_id          = "${data.azurerm_client_config.current.service_principal_object_id}"
 }
 
 # This provides the new AAD application the rights to managed the resource group
-resource "azurerm_role_assignment" "created_service_principal_rg" {
+resource "azurerm_role_assignment" "service_principal_rg" {
   count                 = "${data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0}"
   scope                 = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}"
   role_definition_name  = "Owner"
   principal_id          = "${azurerm_azuread_service_principal.test.id}"
 }
-
-# This provides the existing AAD application the rights to managed the resource group
-resource "azurerm_role_assignment" "existing_service_principal_rg" {
-  count                 = "${data.azurerm_client_config.current.service_principal_object_id != "" ? 1 : 0}"
-  scope                 = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}"
-  role_definition_name  = "Owner"
-  principal_id          = "${data.azurerm_client_config.current.service_principal_object_id}"
-}
-
 
 output "TEST_EVENTHUB_RESOURCE_GROUP" {
   value = "${var.resource_group_name}"
