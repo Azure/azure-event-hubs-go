@@ -51,7 +51,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "1.1.0"
+	Version = "1.1.1"
 )
 
 type (
@@ -488,16 +488,18 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
 	defer span.End()
 	client := newClient(h.namespace, h.name)
-	conn, err := h.namespace.newConnection()
+	c, err := h.namespace.newConnection()
 	if err != nil {
 		log.For(ctx).Error(err)
 		return nil, err
 	}
-	info, err := client.GetHubRuntimeInformation(ctx, conn)
+
+	info, err := client.GetHubRuntimeInformation(ctx, c)
 	if err != nil {
 		log.For(ctx).Error(err)
 		return nil, err
 	}
+
 	return info, nil
 }
 
@@ -506,20 +508,43 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
 	defer span.End()
 	client := newClient(h.namespace, h.name)
-	conn, err := h.namespace.newConnection()
+	c, err := h.namespace.newConnection()
 	if err != nil {
 		return nil, err
 	}
-	info, err := client.GetHubPartitionRuntimeInformation(ctx, conn, partitionID)
+
+	info, err := client.GetHubPartitionRuntimeInformation(ctx, c, partitionID)
 	if err != nil {
 		return nil, err
 	}
+
 	return info, nil
 }
 
 // Close drains and closes all of the existing senders, receivers and connections
 func (h *Hub) Close(ctx context.Context) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.Close")
+	defer span.End()
+
+	if h.sender != nil {
+		if err := h.sender.Close(ctx); err != nil {
+			log.For(ctx).Error(err)
+			if rErr := h.closeReceivers(ctx); rErr != nil {
+				log.For(ctx).Error(rErr)
+			}
+
+			// return originating error
+			return err
+		}
+	}
+
+	// close receivers and return error
+	return h.closeReceivers(ctx)
+}
+
+// closeReceivers will close the receivers on the hub and return the last error
+func (h *Hub) closeReceivers(ctx context.Context) error {
+	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.closeReceivers")
 	defer span.End()
 
 	var lastErr error

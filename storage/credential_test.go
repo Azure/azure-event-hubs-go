@@ -74,7 +74,7 @@ func (ts *testSuite) TestCredential() {
 	}
 
 	containerURL := azblob.NewContainerURL(*fooURL, pipeline)
-	defer func(){
+	defer func() {
 		if res, err := containerURL.Delete(ctx, azblob.ContainerAccessConditions{}); err != nil {
 			log.Fatal(err, res)
 		}
