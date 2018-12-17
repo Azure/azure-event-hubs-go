@@ -163,6 +163,30 @@ func (r *receiver) Close(ctx context.Context) error {
 		r.done()
 	}
 
+	err := r.receiver.Close(ctx)
+	if err != nil {
+		log.For(ctx).Error(err)
+		if sessionErr := r.session.Close(ctx); sessionErr != nil {
+			log.For(ctx).Error(sessionErr)
+		}
+
+		if connErr := r.connection.Close(); connErr != nil {
+			log.For(ctx).Error(connErr)
+		}
+
+		return err
+	}
+
+	if sessionErr := r.session.Close(ctx); sessionErr != nil {
+		log.For(ctx).Error(sessionErr)
+
+		if connErr := r.connection.Close(); connErr != nil {
+			log.For(ctx).Error(connErr)
+		}
+
+		return sessionErr
+	}
+
 	return r.connection.Close()
 }
 

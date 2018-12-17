@@ -95,6 +95,30 @@ func (s *sender) Close(ctx context.Context) error {
 	span, _ := s.startProducerSpanFromContext(ctx, "eh.sender.Close")
 	defer span.End()
 
+	err := s.sender.Close(ctx)
+	if err != nil {
+		log.For(ctx).Error(err)
+		if sessionErr := s.session.Close(ctx); sessionErr != nil {
+			log.For(ctx).Error(sessionErr)
+		}
+
+		if connErr := s.connection.Close(); connErr != nil {
+			log.For(ctx).Error(connErr)
+		}
+
+		return err
+	}
+
+	if sessionErr := s.session.Close(ctx); sessionErr != nil {
+		log.For(ctx).Error(sessionErr)
+
+		if connErr := s.connection.Close(); connErr != nil {
+			log.For(ctx).Error(connErr)
+		}
+
+		return sessionErr
+	}
+
 	return s.connection.Close()
 }
 
@@ -147,7 +171,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			switch err.(type) {
 			case *amqp.Error, *amqp.DetachError, net.Error:
 				if netErr, ok := err.(net.Error); ok {
-					if !netErr.Temporary(){
+					if !netErr.Temporary() {
 						return netErr
 					}
 				}

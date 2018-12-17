@@ -2,6 +2,10 @@
 
 ## `head`
 
+## `v1.1.1`
+- close sender when hub is closed
+- ensure links, session and connections are closed gracefully
+
 ## `v1.1.0`
 - add receive option to receive from a timestamp
 - fix sender recovery on temporary network failures
