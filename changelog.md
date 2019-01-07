@@ -2,6 +2,9 @@
 
 ## `head`
 
+## `v1.1.2`
+- take dep on updated amqp common which has more permissive RPC status description parsing 
+
 ## `v1.1.1`
 - close sender when hub is closed
 - ensure links, session and connections are closed gracefully
