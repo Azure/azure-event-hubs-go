@@ -1,6 +1,7 @@
 # Change Log
 
 ## `head`
+- fix discarding event properties on batch sending
 
 ## `v1.1.2`
 - take dep on updated amqp common which has more permissive RPC status description parsing 
