@@ -5,6 +5,7 @@ go:
   - 1.11.x
 before_install:
   - cd ${TRAVIS_HOME}
+  - export GO111MODULE=auto
   - go get -u github.com/mattn/goveralls
   - go get -u golang.org/x/tools/cmd/cover
   - go get -u github.com/fzipp/gocyclo
