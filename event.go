@@ -153,7 +153,7 @@ func (b *EventBatch) toEvent() (*Event, error) {
 	}
 
 	for idx, event := range b.Events {
-		innerMsg := amqp.NewMessage(event.Data)
+		innerMsg := event.toMsg()
 		bin, err := innerMsg.MarshalBinary()
 		if err != nil {
 			return nil, err
