@@ -147,6 +147,11 @@ func (b *EventBatch) toEvent() (*Event, error) {
 		Format: batchMessageFormat,
 	}
 
+	if b.PartitionKey != nil {
+		msg.Annotations = make(amqp.Annotations)
+		msg.Annotations[partitionKeyAnnotationName] = b.PartitionKey
+	}
+
 	for idx, event := range b.Events {
 		innerMsg := event.toMsg()
 		bin, err := innerMsg.MarshalBinary()
