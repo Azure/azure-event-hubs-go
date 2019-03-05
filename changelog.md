@@ -1,6 +1,9 @@
 # Change Log
 
 ## `head`
+
+## `v1.1.3`
+- fix leak in partition persistence 
 - fix discarding event properties on batch sending
 
 ## `v1.1.2`
