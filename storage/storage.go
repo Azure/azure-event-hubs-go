@@ -498,18 +498,31 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 	defer span.End()
 
 	resCh := make(chan dirtyResult)
-	for partitionID := range sl.dirtyPartitions {
+	defer close(resCh)
+
+	// gather all of the dirty partition ids
+	pids := make([]string, len(sl.dirtyPartitions))
+	count := 0
+	for pid := range sl.dirtyPartitions {
+		pids[count] = pid
+		count++
+	}
+
+	// send each partition data to storage concurrently capturing errors
+	for _, pid := range pids {
 		go func(id string) {
 			err := sl.persistLease(ctx, id)
 			resCh <- dirtyResult{
 				Err:         err,
 				PartitionID: id,
 			}
-		}(partitionID)
+		}(pid)
 	}
 
+	// collect all of the results as they complete
+	// don't return until each partition has had a chance to persist or the context has expired
 	var lastErr error
-	for i := 0; i < len(sl.dirtyPartitions); i++ {
+	for i := 0; i < len(pids); i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -520,6 +533,7 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 			delete(sl.dirtyPartitions, res.PartitionID)
 		}
 	}
+
 	return lastErr
 }
 
