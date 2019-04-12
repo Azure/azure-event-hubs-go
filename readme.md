@@ -41,56 +41,45 @@ import (
 	"os"
 	"os/signal"
 	"time"
-	
-	"github.com/Azure/azure-event-hubs-go"
+
+	eventhub "github.com/Azure/azure-event-hubs-go"
 )
 
 func main() {
-	connStr := "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=superSecret1234=;EntityPath=hubName"
-	hub, err := eventhub.NewHubFromConnectionString(connStr)
 
-	if err != nil {
-		// handle err
-	}
+	// construct hub with connection string
+	// (https://docs.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string)
+	// and partition key
+	partitionKey := "1"
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
+	hub, _ := eventhub.NewHubFromConnectionString(
+		"Endpoint=sb://namespace.servicebus.windows.net/;"+
+			"SharedAccessKeyName=RootManageSharedAccessKey;"+
+			"SharedAccessKey=superSecret1234=;"+
+			"EntityPath=hubName",
+		eventhub.HubWithPartitionedSender(partitionKey))
 
-	// send a single message into a random partition
-	err = hub.Send(ctx, eventhub.NewEventFromString("hello, world!"))
-	if err != nil {
-		// handle error
-	}
+	// send events every five seconds
+	go func() {
+		for {
+			hub.Send(context.TODO(), &eventhub.Event{
+				Data: []byte("hello, world"),
+			})
+			time.Sleep(5 * time.Second)
+		}
+	}()
 
-	handler := func(c context.Context, event *eventhub.Event) error {
+	// receive events with consumer group
+	consumerGroup := "foo"
+
+	hub.Receive(context.TODO(), partitionKey, func(ctx context.Context, event *eventhub.Event) error {
 		fmt.Println(string(event.Data))
 		return nil
-	}
+	}, eventhub.ReceiveWithConsumerGroup(consumerGroup))
 
-	// listen to each partition of the Event Hub
-	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
-	if err != nil {
-		// handle err
-	}
-	
-	for _, partitionID := range runtimeInfo.PartitionIDs { 
-		// Start receiving messages 
-		// 
-		// Receive blocks while attempting to connect to hub, then runs until listenerHandle.Close() is called 
-		// <- listenerHandle.Done() signals listener has died 
-		// listenerHandle.Err() provides the last error the receiver encountered 
-		listenerHandle, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
-		if err != nil {
-			// handle err
-		}
-    }
-
-	// Wait for a signal to quit:
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
-
-	hub.Close(context.Background())
 }
 ```
 
