@@ -1,5 +1,8 @@
 # Change Log
 
+## `head`
+- update quickstart in readme
+
 ## `v1.1.4`
 - update to amqp 0.11.0 and change sender to use unsettled rather than receiver second mode
 
