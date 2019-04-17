@@ -133,6 +133,7 @@ func (suite *BaseSuite) RandomHub(opts ...HubMgmtOption) (*mgmt.Model, func()) {
 	suite.Require().NotNil(model)
 	suite.Require().NotNil(model.PartitionIds)
 	suite.Require().Len(*model.PartitionIds, 4)
+	time.Sleep(250 * time.Millisecond) // introduce a bit of a delay before using the hub
 	return model, func() {
 		if model != nil {
 			suite.DeleteEventHub(*model.Name)
