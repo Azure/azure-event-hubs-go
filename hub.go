@@ -51,7 +51,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "1.1.3"
+	Version = "1.1.4"
 )
 
 type (
@@ -528,18 +528,29 @@ func (h *Hub) Close(ctx context.Context) error {
 
 	if h.sender != nil {
 		if err := h.sender.Close(ctx); err != nil {
-			log.For(ctx).Error(err)
 			if rErr := h.closeReceivers(ctx); rErr != nil {
-				log.For(ctx).Error(rErr)
+				if !isConnectionClosed(rErr) {
+					log.For(ctx).Error(rErr)
+				}
 			}
 
-			// return originating error
-			return err
+			if !isConnectionClosed(err) {
+				log.For(ctx).Error(err)
+				return err
+			}
+
+			return nil
 		}
 	}
 
 	// close receivers and return error
-	return h.closeReceivers(ctx)
+	err := h.closeReceivers(ctx)
+	if err != nil && !isConnectionClosed(err) {
+		log.For(ctx).Error(err)
+		return err
+	}
+
+	return nil
 }
 
 // closeReceivers will close the receivers on the hub and return the last error
@@ -695,4 +706,8 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 		h.sender = s
 	}
 	return h.sender, nil
+}
+
+func isConnectionClosed(err error) bool {
+	return err.Error() == "amqp: connection closed"
 }
