@@ -1,6 +1,7 @@
 # Change Log
 
-## `head`
+## `v1.1.4`
+- update to amqp 0.11.0 and change sender to use unsettled rather than receiver second mode
 
 ## `v1.1.3`
 - fix leak in partition persistence 
