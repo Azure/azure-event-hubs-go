@@ -40,10 +40,11 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-amqp-common-go/uuid"
-	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/Azure/azure-event-hubs-go/internal/test"
 )
 
 type (
@@ -259,6 +260,7 @@ func (suite *eventHubSuite) TestPartitioned() {
 		"TestSendTooBig":          testSendTooBig,
 		"TestSendAndReceive":      testBasicSendAndReceive,
 		"TestBatchSendAndReceive": testBatchSendAndReceive,
+		"TestBatchSendTooLarge":   testBatchSendTooLarge,
 	}
 
 	for name, testFunc := range tests {
@@ -316,6 +318,22 @@ func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 			waitUntil(t, &wg, time.Until(end))
 		}
 	}
+}
+
+func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ string) {
+	events := make([]*Event, 200000)
+
+	var wg sync.WaitGroup
+	wg.Add(len(events))
+
+	for idx := range events {
+		events[idx] = NewEventFromString(test.RandomString("foo", 10))
+	}
+	batch := &EventBatch{
+		Events: events,
+	}
+
+	assert.EqualError(t, client.SendBatch(ctx, batch), "encoded message size exceeds max of 1046528")
 }
 
 func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {

@@ -17,7 +17,7 @@ func init() {
 	}
 }
 
-func ExampleHub_helloWorld(){
+func ExampleHub_helloWorld() {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
