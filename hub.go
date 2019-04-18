@@ -683,6 +683,14 @@ func HubWithEnvironment(env azure.Environment) HubOption {
 	}
 }
 
+// HubWithWebSocketConnection configures the Hub to use a WebSocket connection wss:// rather than amqps://
+func HubWithWebSocketConnection() HubOption {
+	return func(h *Hub) error {
+		h.namespace.useWebSocket = true
+		return nil
+	}
+}
+
 func (h *Hub) appendAgent(userAgent string) error {
 	ua := path.Join(h.userAgent, userAgent)
 	if len(ua) > maxUserAgentLen {
