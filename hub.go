@@ -53,7 +53,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "1.1.5"
+	Version = "1.2.0"
 )
 
 type (
@@ -679,6 +679,14 @@ func HubWithUserAgent(userAgent string) HubOption {
 func HubWithEnvironment(env azure.Environment) HubOption {
 	return func(h *Hub) error {
 		h.namespace.host = "amqps://" + h.namespace.name + "." + env.ServiceBusEndpointSuffix
+		return nil
+	}
+}
+
+// HubWithWebSocketConnection configures the Hub to use a WebSocket connection wss:// rather than amqps://
+func HubWithWebSocketConnection() HubOption {
+	return func(h *Hub) error {
+		h.namespace.useWebSocket = true
 		return nil
 	}
 }

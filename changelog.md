@@ -1,5 +1,8 @@
 # Change Log
 
+## `v1.2.0`
+- add websocket support
+
 ## `v1.1.5`
 - add sender recovery handling for `amqp.ErrLinkClose`, `amqp.ErrConnClosed` and `amqp.ErrSessionClosed`
 
