@@ -53,7 +53,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "1.1.5"
+	Version = "1.2.0"
 )
 
 type (
