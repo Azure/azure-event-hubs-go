@@ -3,6 +3,12 @@
 ## `head`
 - update quickstart in readme
 
+## `v1.2.0`
+- add websocket support
+
+## `v1.1.5`
+- add sender recovery handling for `amqp.ErrLinkClose`, `amqp.ErrConnClosed` and `amqp.ErrSessionClosed`
+
 ## `v1.1.4`
 - update to amqp 0.11.0 and change sender to use unsettled rather than receiver second mode
 

@@ -40,10 +40,11 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-amqp-common-go/uuid"
-	"github.com/Azure/azure-event-hubs-go/internal/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/Azure/azure-event-hubs-go/internal/test"
 )
 
 type (
@@ -259,6 +260,7 @@ func (suite *eventHubSuite) TestPartitioned() {
 		"TestSendTooBig":          testSendTooBig,
 		"TestSendAndReceive":      testBasicSendAndReceive,
 		"TestBatchSendAndReceive": testBatchSendAndReceive,
+		"TestBatchSendTooLarge":   testBatchSendTooLarge,
 	}
 
 	for name, testFunc := range tests {
@@ -267,6 +269,31 @@ func (suite *eventHubSuite) TestPartitioned() {
 			defer cleanup()
 			partitionID := (*hub.PartitionIds)[0]
 			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			testFunc(ctx, t, client, partitionID)
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
+
+func (suite *eventHubSuite) TestWebSocket() {
+	tests := map[string]func(context.Context, *testing.T, *Hub, string){
+		"TestSend":                testBasicSend,
+		"TestSendTooBig":          testSendTooBig,
+		"TestSendAndReceive":      testBasicSendAndReceive,
+		"TestBatchSendAndReceive": testBatchSendAndReceive,
+		"TestBatchSendTooLarge":   testBatchSendTooLarge,
+	}
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			hub, cleanup := suite.RandomHub()
+			defer cleanup()
+			partitionID := (*hub.PartitionIds)[0]
+			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID), HubWithWebSocketConnection())
 			defer closer()
 			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -316,6 +343,22 @@ func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 			waitUntil(t, &wg, time.Until(end))
 		}
 	}
+}
+
+func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ string) {
+	events := make([]*Event, 200000)
+
+	var wg sync.WaitGroup
+	wg.Add(len(events))
+
+	for idx := range events {
+		events[idx] = NewEventFromString(test.RandomString("foo", 10))
+	}
+	batch := &EventBatch{
+		Events: events,
+	}
+
+	assert.EqualError(t, client.SendBatch(ctx, batch), "encoded message size exceeds max of 1046528")
 }
 
 func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {

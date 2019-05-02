@@ -85,24 +85,21 @@ func ReceiveWithConsumerGroup(consumerGroup string) ReceiveOption {
 // ReceiveWithStartingOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithStartingOffset(offset string) ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint(offset, 0, time.Time{}))
-		return nil
+		return receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint(offset, 0, time.Time{}))
 	}
 }
 
 // ReceiveWithLatestOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithLatestOffset() ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedCheckpoint(persist.NewCheckpointFromEndOfStream())
-		return nil
+		return receiver.storeLastReceivedCheckpoint(persist.NewCheckpointFromEndOfStream())
 	}
 }
 
 // ReceiveFromTimestamp configures the receiver to start receiving from a specific point in time in the event stream
 func ReceiveFromTimestamp(t time.Time) ReceiveOption {
 	return func(receiver *receiver) error {
-		receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint("", 0, t))
-		return nil
+		return receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint("", 0, t))
 	}
 }
 
@@ -250,12 +247,22 @@ func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler
 
 	err := handler(ctx, event)
 	if err != nil {
-		msg.Modify(true, false, nil)
+		err = msg.Modify(true, false, nil)
+		if err != nil {
+			log.For(ctx).Error(err)
+		}
 		log.For(ctx).Error(fmt.Errorf("message modified(true, false, nil): id: %v", id))
 		return
 	}
-	msg.Accept()
-	r.storeLastReceivedCheckpoint(event.GetCheckpoint())
+	err = msg.Accept()
+	if err != nil {
+		log.For(ctx).Error(err)
+	}
+
+	err = r.storeLastReceivedCheckpoint(event.GetCheckpoint())
+	if err != nil {
+		log.For(ctx).Error(err)
+	}
 }
 
 func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Message) {
@@ -276,7 +283,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 		default:
 			if amqpErr, ok := err.(*amqp.DetachError); ok && amqpErr.RemoteError != nil && amqpErr.RemoteError.Condition == "amqp:link:stolen" {
 				log.For(ctx).Debug("link has been stolen by a higher epoch")
-				r.Close(ctx)
+				_ = r.Close(ctx)
 				return
 			}
 
@@ -302,7 +309,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			if retryErr != nil {
 				log.For(ctx).Debug("retried, but error was unrecoverable")
 				r.lastError = retryErr
-				r.Close(ctx)
+				_ = r.Close(ctx)
 				return
 			}
 		}

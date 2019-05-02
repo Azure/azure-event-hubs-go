@@ -157,6 +157,19 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 		sp.AddAttributes(trace.StringAttribute("he.message_id", str))
 	}
 
+	recvr := func(err error) {
+		duration := s.recoveryBackoff.Duration()
+		log.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
+		time.Sleep(duration)
+		err = s.Recover(ctx)
+		if err != nil {
+			log.For(ctx).Debug("failed to recover connection")
+		} else {
+			log.For(ctx).Debug("recovered connection")
+			s.recoveryBackoff.Reset()
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -176,18 +189,13 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 					}
 				}
 
-				duration := s.recoveryBackoff.Duration()
-				log.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
-				time.Sleep(duration)
-				err = s.Recover(ctx)
-				if err != nil {
-					log.For(ctx).Debug("failed to recover connection")
-				} else {
-					log.For(ctx).Debug("recovered connection")
-					s.recoveryBackoff.Reset()
-				}
+				recvr(err)
 			default:
-				return err
+				if !isRecoverableCloseError(err) {
+					return err
+				}
+
+				recvr(err)
 			}
 		}
 	}

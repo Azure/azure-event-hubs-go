@@ -14,5 +14,6 @@ require (
 	github.com/sirupsen/logrus v1.1.1
 	github.com/stretchr/testify v1.2.2
 	go.opencensus.io v0.18.0
+	golang.org/x/net v0.0.0-20181023162649-9b4f9f5ad519
 	pack.ag/amqp v0.11.0
 )

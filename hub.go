@@ -39,11 +39,13 @@ import (
 	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/sas"
-	"github.com/Azure/azure-event-hubs-go/atom"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
+	"pack.ag/amqp"
+
+	"github.com/Azure/azure-event-hubs-go/atom"
 )
 
 const (
@@ -51,7 +53,7 @@ const (
 	rootUserAgent   = "/golang-event-hubs"
 
 	// Version is the semantic version number
-	Version = "1.1.4"
+	Version = "1.2.0"
 )
 
 type (
@@ -681,6 +683,14 @@ func HubWithEnvironment(env azure.Environment) HubOption {
 	}
 }
 
+// HubWithWebSocketConnection configures the Hub to use a WebSocket connection wss:// rather than amqps://
+func HubWithWebSocketConnection() HubOption {
+	return func(h *Hub) error {
+		h.namespace.useWebSocket = true
+		return nil
+	}
+}
+
 func (h *Hub) appendAgent(userAgent string) error {
 	ua := path.Join(h.userAgent, userAgent)
 	if len(ua) > maxUserAgentLen {
@@ -708,6 +718,18 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	return h.sender, nil
 }
 
+func isRecoverableCloseError(err error) bool {
+	return isConnectionClosed(err) || isSessionClosed(err) || isLinkClosed(err)
+}
+
 func isConnectionClosed(err error) bool {
-	return err.Error() == "amqp: connection closed"
+	return err == amqp.ErrConnClosed
+}
+
+func isLinkClosed(err error) bool {
+	return err == amqp.ErrLinkClosed
+}
+
+func isSessionClosed(err error) bool {
+	return err == amqp.ErrSessionClosed
 }
