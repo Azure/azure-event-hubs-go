@@ -220,8 +220,8 @@ func (suite *BaseSuite) deleteAllTaggedEventHubs(ctx context.Context) {
 						break
 					}
 				}
-			} else {
-				suite.T().Logf("%q does not contain %q", *val.Name, suite.TagID)
+			} else if !strings.HasPrefix(*val.Name, "examplehub_") {
+				suite.T().Logf("%q does not contain %q, so it won't be deleted.", *val.Name, suite.TagID)
 			}
 		}
 		suite.NoError(res.Next())

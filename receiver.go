@@ -228,7 +228,13 @@ func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Messa
 }
 
 func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler Handler) {
-	event := eventFromMsg(msg)
+	event, err := eventFromMsg(msg)
+	if err != nil {
+		log.For(ctx).Error(err)
+		r.lastError = err
+		r.done()
+	}
+
 	var span *trace.Span
 	if val, ok := event.Get("_oc_prop"); ok {
 		if sc, ok := propagation.FromBinary(val.([]byte)); ok {
@@ -245,7 +251,7 @@ func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler
 		span.AddAttributes(trace.StringAttribute("eh.message_id", str))
 	}
 
-	err := handler(ctx, event)
+	err = handler(ctx, event)
 	if err != nil {
 		err = msg.Modify(true, false, nil)
 		if err != nil {

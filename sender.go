@@ -53,7 +53,7 @@ type (
 
 	eventer interface {
 		Set(key string, value interface{})
-		toMsg() *amqp.Message
+		toMsg() (*amqp.Message, error)
 	}
 )
 
@@ -152,7 +152,11 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	defer sp.End()
 
 	evt.Set("_oc_prop", propagation.Binary(sp.SpanContext()))
-	msg := evt.toMsg()
+	msg, err := evt.toMsg()
+	if err != nil {
+		return err
+	}
+
 	if str, ok := msg.Properties.MessageID.(string); ok {
 		sp.AddAttributes(trace.StringAttribute("he.message_id", str))
 	}

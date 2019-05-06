@@ -97,7 +97,7 @@ func ExampleHub_webSocket() {
 	}
 
 	// Create a client to communicate with EventHub
-	hub, err := eventhub.NewHubFromConnectionString(connStr + ";EntityPath=" + hubEntity.Name, eventhub.HubWithWebSocketConnection())
+	hub, err := eventhub.NewHubFromConnectionString(connStr+";EntityPath="+hubEntity.Name, eventhub.HubWithWebSocketConnection())
 	if err != nil {
 		fmt.Println(err)
 		return

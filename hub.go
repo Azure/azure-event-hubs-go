@@ -51,9 +51,6 @@ import (
 const (
 	maxUserAgentLen = 128
 	rootUserAgent   = "/golang-event-hubs"
-
-	// Version is the semantic version number
-	Version = "1.2.0"
 )
 
 type (
