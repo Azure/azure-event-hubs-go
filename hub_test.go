@@ -380,6 +380,11 @@ func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	count := 0
 	_, err := client.Receive(ctx, partitionID, func(ctx context.Context, event *Event) error {
 		assert.Equal(t, messages[count], string(event.Data))
+		require.NotNil(t, event.SystemProperties)
+		assert.NotNil(t, event.SystemProperties.EnqueuedTime)
+		assert.NotNil(t, event.SystemProperties.Offset)
+		assert.NotNil(t, event.SystemProperties.SequenceNumber)
+		assert.Equal(t, int64(count), *event.SystemProperties.SequenceNumber)
 		count++
 		wg.Done()
 		return nil
