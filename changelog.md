@@ -1,5 +1,10 @@
 # Change Log
 
+
+## `v2.0.0`
+- **breaking change** moved github.com/Azure/azure-amqp-common-go/persist to github.com/Azure/azure-event-hubs-go/persist
+- move tracing to devigned/tab so to not have to take a direct dependency on opentracing or opencensus
+
 ## `v1.3.1`
 - cleanup connection after making management request
 
