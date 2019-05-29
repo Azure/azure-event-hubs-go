@@ -29,9 +29,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/log"
+	"github.com/devigned/tab"
+
 	"github.com/Azure/azure-event-hubs-go"
-	"go.opencensus.io/trace"
 )
 
 type (
@@ -102,7 +102,7 @@ func (lr *leasedReceiver) listenForClose() {
 		defer span.End()
 		err := lr.processor.scheduler.stopReceiver(ctx, lr.lease)
 		if err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
 	}()
 }
@@ -120,7 +120,7 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 			time.Sleep(DefaultLeaseRenewalInterval + skew)
 			err := lr.tryRenew(ctx)
 			if err != nil {
-				log.For(ctx).Error(err)
+				tab.For(ctx).Error(err)
 				_ = lr.processor.scheduler.stopReceiver(ctx, lr.lease)
 			}
 		}
@@ -133,12 +133,12 @@ func (lr *leasedReceiver) tryRenew(ctx context.Context) error {
 
 	lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease.GetPartitionID())
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 	if !ok {
 		err = errors.New("can't renew lease")
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 	lr.dlog(ctx, "lease renewed")
@@ -150,15 +150,15 @@ func (lr *leasedReceiver) dlog(ctx context.Context, msg string) {
 	name := lr.processor.name
 	partitionID := lr.lease.GetPartitionID()
 	epoch := lr.lease.GetEpoch()
-	log.For(ctx).Debug(fmt.Sprintf("eph %q, partition %q, epoch %d: "+msg, name, partitionID, epoch))
+	tab.For(ctx).Debug(fmt.Sprintf("eph %q, partition %q, epoch %d: "+msg, name, partitionID, epoch))
 }
 
-func (lr *leasedReceiver) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	span, ctx := startConsumerSpanFromContext(ctx, operationName, opts...)
+func (lr *leasedReceiver) startConsumerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	span, ctx := startConsumerSpanFromContext(ctx, operationName)
 	span.AddAttributes(
-		trace.StringAttribute("eph.id", lr.processor.name),
-		trace.StringAttribute(partitionIDTag, lr.lease.GetPartitionID()),
-		trace.Int64Attribute(epochTag, lr.lease.GetEpoch()),
+		tab.StringAttribute("eph.id", lr.processor.name),
+		tab.StringAttribute(partitionIDTag, lr.lease.GetPartitionID()),
+		tab.Int64Attribute(epochTag, lr.lease.GetEpoch()),
 	)
 	return span, ctx
 }

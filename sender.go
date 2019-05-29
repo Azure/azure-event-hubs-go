@@ -28,11 +28,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/log"
 	"github.com/Azure/azure-amqp-common-go/uuid"
+	"github.com/devigned/tab"
 	"github.com/jpillora/backoff"
-	"go.opencensus.io/trace"
-	"go.opencensus.io/trace/propagation"
 	"pack.ag/amqp"
 )
 
@@ -52,7 +50,7 @@ type (
 	SendOption func(event *Event) error
 
 	eventer interface {
-		Set(key string, value interface{})
+		tab.Carrier
 		toMsg() (*amqp.Message, error)
 	}
 )
@@ -71,7 +69,7 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 			Jitter: true,
 		},
 	}
-	log.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
+	tab.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
 	return s, err
 }
@@ -97,23 +95,23 @@ func (s *sender) Close(ctx context.Context) error {
 
 	err := s.sender.Close(ctx)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		if sessionErr := s.session.Close(ctx); sessionErr != nil {
-			log.For(ctx).Error(sessionErr)
+			tab.For(ctx).Error(sessionErr)
 		}
 
 		if connErr := s.connection.Close(); connErr != nil {
-			log.For(ctx).Error(connErr)
+			tab.For(ctx).Error(connErr)
 		}
 
 		return err
 	}
 
 	if sessionErr := s.session.Close(ctx); sessionErr != nil {
-		log.For(ctx).Error(sessionErr)
+		tab.For(ctx).Error(sessionErr)
 
 		if connErr := s.connection.Close(); connErr != nil {
-			log.For(ctx).Error(connErr)
+			tab.For(ctx).Error(connErr)
 		}
 
 		return sessionErr
@@ -151,25 +149,30 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	sp, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.trySend")
 	defer sp.End()
 
-	evt.Set("_oc_prop", propagation.Binary(sp.SpanContext()))
+	if err := sp.Inject(evt); err != nil {
+		tab.For(ctx).Error(err)
+		return err
+	}
+
 	msg, err := evt.toMsg()
 	if err != nil {
+		tab.For(ctx).Error(err)
 		return err
 	}
 
 	if str, ok := msg.Properties.MessageID.(string); ok {
-		sp.AddAttributes(trace.StringAttribute("he.message_id", str))
+		sp.AddAttributes(tab.StringAttribute("he.message_id", str))
 	}
 
 	recvr := func(err error) {
 		duration := s.recoveryBackoff.Duration()
-		log.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
+		tab.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
 		time.Sleep(duration)
 		err = s.Recover(ctx)
 		if err != nil {
-			log.For(ctx).Debug("failed to recover connection")
+			tab.For(ctx).Debug("failed to recover connection")
 		} else {
-			log.For(ctx).Debug("recovered connection")
+			tab.For(ctx).Debug("recovered connection")
 			s.recoveryBackoff.Reset()
 		}
 	}
@@ -227,20 +230,20 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 
 	connection, err := s.hub.namespace.newConnection()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 	s.connection = connection
 
 	err = s.hub.namespace.negotiateClaim(ctx, connection, s.getAddress())
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
 	amqpSession, err := connection.NewSession()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
@@ -249,13 +252,13 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		amqp.LinkTargetAddress(s.getAddress()),
 	)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
 	s.session, err = newSession(amqpSession)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 

@@ -28,9 +28,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/log"
-	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/uuid"
+	"github.com/devigned/tab"
+
+	"github.com/Azure/azure-event-hubs-go/persist"
 )
 
 type (
@@ -285,7 +286,7 @@ func (ml *memoryLeaserCheckpointer) AcquireLease(ctx context.Context, partitionI
 	lease.leaser = ml
 	uuidToken, err := uuid.NewV4()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, err
 	}
 

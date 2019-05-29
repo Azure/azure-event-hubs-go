@@ -36,16 +36,16 @@ import (
 	"github.com/Azure/azure-amqp-common-go/aad"
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/conn"
-	"github.com/Azure/azure-amqp-common-go/log"
-	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/devigned/tab"
 	"pack.ag/amqp"
 
 	"github.com/Azure/azure-event-hubs-go/atom"
+	"github.com/Azure/azure-event-hubs-go/persist"
 )
 
 const (
@@ -216,7 +216,7 @@ func (hm *HubManager) Put(ctx context.Context, name string, opts ...HubManagemen
 
 	reqBytes, err := xml.Marshal(he)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -227,13 +227,13 @@ func (hm *HubManager) Put(ctx context.Context, name string, opts ...HubManagemen
 	}
 
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -256,13 +256,13 @@ func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 	}
 
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -290,7 +290,7 @@ func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) 
 	}
 
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -300,7 +300,7 @@ func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) 
 
 	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -489,19 +489,19 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation
 	client := newClient(h.namespace, h.name)
 	c, err := h.namespace.newConnection()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	defer func() {
 		if err := c.Close(); err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
 	}()
 
 	info, err := client.GetHubRuntimeInformation(ctx, c)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -515,13 +515,13 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 	client := newClient(h.namespace, h.name)
 	c, err := h.namespace.newConnection()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	defer func() {
 		if err := c.Close(); err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
 	}()
 
@@ -542,12 +542,12 @@ func (h *Hub) Close(ctx context.Context) error {
 		if err := h.sender.Close(ctx); err != nil {
 			if rErr := h.closeReceivers(ctx); rErr != nil {
 				if !isConnectionClosed(rErr) {
-					log.For(ctx).Error(rErr)
+					tab.For(ctx).Error(rErr)
 				}
 			}
 
 			if !isConnectionClosed(err) {
-				log.For(ctx).Error(err)
+				tab.For(ctx).Error(err)
 				return err
 			}
 
@@ -558,7 +558,7 @@ func (h *Hub) Close(ctx context.Context) error {
 	// close receivers and return error
 	err := h.closeReceivers(ctx)
 	if err != nil && !isConnectionClosed(err) {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
@@ -573,7 +573,7 @@ func (h *Hub) closeReceivers(ctx context.Context) error {
 	var lastErr error
 	for _, r := range h.receivers {
 		if err := r.Close(ctx); err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 			lastErr = err
 		}
 	}
@@ -610,7 +610,7 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 	// Todo: change this to use name rather than identifier
 	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
 		if err := r.Close(ctx); err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
 	}
 
@@ -720,7 +720,7 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	if h.sender == nil {
 		s, err := h.newSender(ctx)
 		if err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 			return nil, err
 		}
 		h.sender = s

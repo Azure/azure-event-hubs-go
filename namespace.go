@@ -27,6 +27,10 @@ import (
 	"runtime"
 	"strings"
 
+	// use OpenCensus tracing by default; to use opentracing add the following import to your application
+	// `_ "github.com/devigned/tab/opentracing"`
+	_ "github.com/devigned/tab/opencensus"
+
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/cbs"
 	"github.com/Azure/azure-amqp-common-go/conn"

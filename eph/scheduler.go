@@ -29,8 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/log"
-	"go.opencensus.io/trace"
+	"github.com/devigned/tab"
 )
 
 var (
@@ -103,7 +102,7 @@ func (s *scheduler) scan(ctx context.Context) {
 	allLeases, err := s.processor.leaser.GetLeases(leaseCtx)
 	cancel()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return
 	}
 
@@ -118,7 +117,7 @@ func (s *scheduler) scan(ctx context.Context) {
 	acquired, notAcquired, err := s.acquireExpiredLeases(ctx, allLeases)
 	s.dlog(ctx, fmt.Sprintf("acquired: %v, not acquired: %v", acquired, notAcquired))
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return
 	}
 
@@ -126,7 +125,7 @@ func (s *scheduler) scan(ctx context.Context) {
 	for _, lease := range acquired {
 		if err := s.startReceiver(ctx, lease); err != nil {
 			_, _ = s.processor.leaser.ReleaseLease(ctx, lease.GetPartitionID())
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 			return
 		}
 	}
@@ -160,14 +159,14 @@ func (s *scheduler) scan(ctx context.Context) {
 		cancel()
 		switch {
 		case err != nil:
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		case !ok:
 			s.dlog(ctx, fmt.Sprintf("failed to steal: %v", candidate))
 		default:
 			s.dlog(ctx, fmt.Sprintf("stole: %v", stolen))
 			if err := s.startReceiver(ctx, stolen); err != nil {
 				_, _ = s.processor.leaser.ReleaseLease(acquireCtx, candidate.GetPartitionID())
-				log.For(ctx).Error(err)
+				tab.For(ctx).Error(err)
 				return
 			}
 		}
@@ -221,18 +220,18 @@ func (s *scheduler) startReceiver(ctx context.Context, lease LeaseMarker) error 
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
 		// receiver thinks it's already running... this is probably a bug if it happens
 		if err := receiver.Close(ctx); err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
 		delete(s.receivers, lease.GetPartitionID())
 	}
 
 	span.AddAttributes(
-		trace.StringAttribute(partitionIDTag, lease.GetPartitionID()),
-		trace.Int64Attribute(epochTag, lease.GetEpoch()),
+		tab.StringAttribute(partitionIDTag, lease.GetPartitionID()),
+		tab.Int64Attribute(epochTag, lease.GetEpoch()),
 	)
 	lr := newLeasedReceiver(s.processor, lease)
 	if err := lr.Run(ctx); err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 	s.receivers[lease.GetPartitionID()] = lr
@@ -247,8 +246,8 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 	defer span.End()
 
 	span.AddAttributes(
-		trace.StringAttribute(partitionIDTag, lease.GetPartitionID()),
-		trace.Int64Attribute(epochTag, lease.GetEpoch()),
+		tab.StringAttribute(partitionIDTag, lease.GetPartitionID()),
+		tab.Int64Attribute(epochTag, lease.GetEpoch()),
 	)
 	s.dlog(ctx, fmt.Sprintf("stopping receiver for partitionID %q", lease.GetPartitionID()))
 	if receiver, ok := s.receivers[lease.GetPartitionID()]; ok {
@@ -257,7 +256,7 @@ func (s *scheduler) stopReceiver(ctx context.Context, lease LeaseMarker) error {
 		err := receiver.Close(ctx)
 		delete(s.receivers, lease.GetPartitionID())
 		if err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 			return err
 		}
 	}
@@ -292,7 +291,7 @@ func (s *scheduler) acquireExpiredLeases(ctx context.Context, leases []LeaseMark
 
 func (s *scheduler) dlog(ctx context.Context, msg string) {
 	name := s.processor.name
-	log.For(ctx).Debug(fmt.Sprintf("eph %q: "+msg, name))
+	tab.For(ctx).Debug(fmt.Sprintf("eph %q: "+msg, name))
 }
 
 func (s *scheduler) leaseToSteal(ctx context.Context, candidates []LeaseMarker, myLeaseCount int) (LeaseMarker, bool) {
@@ -302,7 +301,7 @@ func (s *scheduler) leaseToSteal(ctx context.Context, candidates []LeaseMarker, 
 	biggestOwner := ownerWithMostLeases(candidates)
 	if biggestOwner != nil && s.processor.GetName() != biggestOwner.Owner {
 		leasesByOwner := leasesByOwner(candidates)
-		log.For(ctx).Debug(fmt.Sprintf("i am %v, the biggest owner is %v and leases by owner: %v", s.processor.GetName(), biggestOwner.Owner, leasesByOwner))
+		tab.For(ctx).Debug(fmt.Sprintf("i am %v, the biggest owner is %v and leases by owner: %v", s.processor.GetName(), biggestOwner.Owner, leasesByOwner))
 		if leasesByOwner[biggestOwner.Owner] != nil &&
 			(len(biggestOwner.Leases)-myLeaseCount) >= 2 && len(leasesByOwner[biggestOwner.Owner]) >= 1 {
 			selection := rand.Intn(len(leasesByOwner[biggestOwner.Owner]))
@@ -337,8 +336,8 @@ func leasesByOwner(candidates []LeaseMarker) map[string][]LeaseMarker {
 	return byOwner
 }
 
-func (s *scheduler) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	span, ctx := startConsumerSpanFromContext(ctx, operationName, opts...)
-	span.AddAttributes(trace.StringAttribute("eph.id", s.processor.name))
+func (s *scheduler) startConsumerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	span, ctx := startConsumerSpanFromContext(ctx, operationName)
+	span.AddAttributes(tab.StringAttribute("eph.id", s.processor.name))
 	return span, ctx
 }

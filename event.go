@@ -28,9 +28,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/mitchellh/mapstructure"
 	"pack.ag/amqp"
+
+	"github.com/Azure/azure-event-hubs-go/persist"
 )
 
 const (
@@ -113,7 +114,12 @@ func (e *Event) GetCheckpoint() persist.Checkpoint {
 	return persist.NewCheckpoint(offset, sequenceNumber, enqueueTime)
 }
 
-// Set will set a key in the event properties
+// GetKeyValues implements tab.Carrier
+func (e *Event) GetKeyValues() map[string]interface{} {
+	return e.Properties
+}
+
+// Set implements tab.Carrier
 func (e *Event) Set(key string, value interface{}) {
 	if e.Properties == nil {
 		e.Properties = make(map[string]interface{})

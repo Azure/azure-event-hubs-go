@@ -35,13 +35,13 @@ import (
 
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/conn"
-	"github.com/Azure/azure-amqp-common-go/log"
-	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/Azure/azure-amqp-common-go/sas"
 	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-event-hubs-go/persist"
+
 	"github.com/Azure/go-autorest/autorest/azure"
-	"go.opencensus.io/trace"
+	"github.com/devigned/tab"
 )
 
 const (
@@ -125,19 +125,19 @@ func NewFromConnectionString(ctx context.Context, connStr string, leaser Leaser,
 
 	hostName, err := uuid.NewV4()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	parsed, err := conn.ParsedConnectionFromStr(connStr)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	tokenProvider, err := sas.NewTokenProvider(sas.TokenProviderWithKey(parsed.KeyName, parsed.Key))
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -167,13 +167,13 @@ func NewFromConnectionString(ctx context.Context, connStr string, leaser Leaser,
 
 	client, err := eventhub.NewHubFromConnectionString(connStr, hubOpts...)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
 	runtimeInfo, err := client.GetRuntimeInformation(ctx)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, err
 	}
 
@@ -276,7 +276,7 @@ func (h *EventProcessorHost) UnregisterHandler(ctx context.Context, id HandlerID
 
 	if len(h.handlers) == 0 {
 		if err := h.Close(ctx); err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
 	}
 }
@@ -300,8 +300,8 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		span := trace.FromContext(ctx)
-		ctx := trace.NewContext(context.Background(), span)
+		span := tab.FromContext(ctx)
+		ctx := tab.NewContext(context.Background(), span)
 		h.scheduler.Run(ctx)
 	}()
 
@@ -326,8 +326,8 @@ func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 	}
 
 	go func() {
-		span := trace.FromContext(ctx)
-		ctx := trace.NewContext(context.Background(), span)
+		span := tab.FromContext(ctx)
+		ctx := tab.NewContext(context.Background(), span)
 		h.scheduler.Run(ctx)
 	}()
 
@@ -416,7 +416,7 @@ func (h *EventProcessorHost) compositeHandlers() eventhub.Handler {
 			wg.Add(1)
 			go func(boundHandle eventhub.Handler) {
 				if err := boundHandle(ctx, event); err != nil {
-					log.For(ctx).Error(err)
+					tab.For(ctx).Error(err)
 				}
 				wg.Done()
 			}(handle)
@@ -438,9 +438,9 @@ func (c checkpointPersister) Read(namespace, name, consumerGroup, partitionID st
 	return c.checkpointer.EnsureCheckpoint(ctx, partitionID)
 }
 
-func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
+func startConsumerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	eventhub.ApplyComponentInfo(span)
-	span.AddAttributes(trace.StringAttribute("span.kind", "consumer"))
+	span.AddAttributes(tab.StringAttribute("span.kind", "consumer"))
 	return span, ctx
 }

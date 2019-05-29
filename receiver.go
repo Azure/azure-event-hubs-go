@@ -28,11 +28,10 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go"
-	"github.com/Azure/azure-amqp-common-go/log"
-	"github.com/Azure/azure-amqp-common-go/persist"
-	"go.opencensus.io/trace"
-	"go.opencensus.io/trace/propagation"
+	"github.com/devigned/tab"
 	"pack.ag/amqp"
+
+	"github.com/Azure/azure-event-hubs-go/persist"
 )
 
 const (
@@ -146,7 +145,7 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		}
 	}
 
-	log.For(ctx).Debug("creating a new receiver")
+	tab.For(ctx).Debug("creating a new receiver")
 	err := receiver.newSessionAndLink(ctx)
 	return receiver, err
 }
@@ -162,23 +161,23 @@ func (r *receiver) Close(ctx context.Context) error {
 
 	err := r.receiver.Close(ctx)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		if sessionErr := r.session.Close(ctx); sessionErr != nil {
-			log.For(ctx).Error(sessionErr)
+			tab.For(ctx).Error(sessionErr)
 		}
 
 		if connErr := r.connection.Close(); connErr != nil {
-			log.For(ctx).Error(connErr)
+			tab.For(ctx).Error(connErr)
 		}
 
 		return err
 	}
 
 	if sessionErr := r.session.Close(ctx); sessionErr != nil {
-		log.For(ctx).Error(sessionErr)
+		tab.For(ctx).Error(sessionErr)
 
 		if connErr := r.connection.Close(); connErr != nil {
-			log.For(ctx).Error(connErr)
+			tab.For(ctx).Error(connErr)
 		}
 
 		return sessionErr
@@ -228,46 +227,40 @@ func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Messa
 }
 
 func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler Handler) {
+	const optName = "eh.Receiver.handleMessage"
+
 	event, err := eventFromMsg(msg)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		r.lastError = err
 		r.done()
 	}
 
-	var span *trace.Span
-	if val, ok := event.Get("_oc_prop"); ok {
-		if sc, ok := propagation.FromBinary(val.([]byte)); ok {
-			span, ctx = r.startConsumerSpanFromWire(ctx, "eh.receiver.handleMessage", sc)
-		}
-	}
-
-	if span == nil {
-		span, ctx = r.startConsumerSpanFromContext(ctx, "eh.receiver.handleMessage")
-	}
+	ctx, span := tab.StartSpanWithRemoteParent(ctx, optName, event)
+	defer span.End()
 
 	id := messageID(msg)
 	if str, ok := id.(string); ok {
-		span.AddAttributes(trace.StringAttribute("eh.message_id", str))
+		span.AddAttributes(tab.StringAttribute("eh.message_id", str))
 	}
 
 	err = handler(ctx, event)
 	if err != nil {
 		err = msg.Modify(true, false, nil)
 		if err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 		}
-		log.For(ctx).Error(fmt.Errorf("message modified(true, false, nil): id: %v", id))
+		tab.For(ctx).Error(fmt.Errorf("message modified(true, false, nil): id: %v", id))
 		return
 	}
 	err = msg.Accept()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 	}
 
 	err = r.storeLastReceivedCheckpoint(event.GetCheckpoint())
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 	}
 }
 
@@ -284,11 +277,11 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 
 		select {
 		case <-ctx.Done():
-			log.For(ctx).Debug("context done")
+			tab.For(ctx).Debug("context done")
 			return
 		default:
 			if amqpErr, ok := err.(*amqp.DetachError); ok && amqpErr.RemoteError != nil && amqpErr.RemoteError.Condition == "amqp:link:stolen" {
-				log.For(ctx).Debug("link has been stolen by a higher epoch")
+				tab.For(ctx).Debug("link has been stolen by a higher epoch")
 				_ = r.Close(ctx)
 				return
 			}
@@ -297,10 +290,10 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 				sp, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessages.tryRecover")
 				defer sp.End()
 
-				log.For(ctx).Debug("recovering connection")
+				tab.For(ctx).Debug("recovering connection")
 				err := r.Recover(ctx)
 				if err == nil {
-					log.For(ctx).Debug("recovered connection")
+					tab.For(ctx).Debug("recovered connection")
 					return nil, nil
 				}
 
@@ -313,7 +306,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			})
 
 			if retryErr != nil {
-				log.For(ctx).Debug("retried, but error was unrecoverable")
+				tab.For(ctx).Debug("retried, but error was unrecoverable")
 				r.lastError = retryErr
 				_ = r.Close(ctx)
 				return
@@ -328,13 +321,13 @@ func (r *receiver) listenForMessage(ctx context.Context) (*amqp.Message, error) 
 
 	msg, err := r.receiver.Receive(ctx)
 	if err != nil {
-		log.For(ctx).Debug(err.Error())
+		tab.For(ctx).Debug(err.Error())
 		return nil, err
 	}
 
 	id := messageID(msg)
 	if str, ok := id.(string); ok {
-		span.AddAttributes(trace.StringAttribute("he.message_id", str))
+		span.AddAttributes(tab.StringAttribute("he.message_id", str))
 	}
 	return msg, nil
 }
@@ -353,25 +346,25 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	address := r.getAddress()
 	err = r.hub.namespace.negotiateClaim(ctx, connection, address)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
 	amqpSession, err := connection.NewSession()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
 	offsetExpression, err := r.getOffsetExpression()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
 	r.session, err = newSession(amqpSession)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
@@ -388,7 +381,7 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 
 	amqpReceiver, err := amqpSession.NewReceiver(opts...)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return err
 	}
 
