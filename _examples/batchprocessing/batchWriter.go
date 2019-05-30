@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Azure/azure-amqp-common-go/persist"
+	"github.com/Azure/azure-amqp-common-go/v2/persist"
 	"github.com/Azure/azure-event-hubs-go"
 )
 

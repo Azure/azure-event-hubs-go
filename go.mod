@@ -1,7 +1,7 @@
 module github.com/Azure/azure-event-hubs-go
 
 require (
-	github.com/Azure/azure-amqp-common-go v1.1.5-0.20190529222532-b92ea57d4550
+	github.com/Azure/azure-amqp-common-go/v2 v2.0.0-20190530212817-ce8a38113650
 	github.com/Azure/azure-pipeline-go v0.1.9
 	github.com/Azure/azure-sdk-for-go v30.0.0+incompatible
 	github.com/Azure/azure-storage-blob-go v0.6.0

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/aad"
+	"github.com/Azure/azure-amqp-common-go/v2/aad"
 	"github.com/Azure/azure-event-hubs-go"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"

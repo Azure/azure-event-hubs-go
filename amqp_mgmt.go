@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/rpc"
+	"github.com/Azure/azure-amqp-common-go/v2/rpc"
 	"github.com/devigned/tab"
 	"github.com/mitchellh/mapstructure"
 	"pack.ag/amqp"

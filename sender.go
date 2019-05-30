@@ -28,7 +28,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/uuid"
+	"github.com/Azure/azure-amqp-common-go/v2/uuid"
 	"github.com/devigned/tab"
 	"github.com/jpillora/backoff"
 	"pack.ag/amqp"

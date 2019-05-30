@@ -305,8 +305,8 @@ import (
 	"time"
 	
 	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/Azure/azure-amqp-common-go/conn"
-	"github.com/Azure/azure-amqp-common-go/sas"
+	"github.com/Azure/azure-amqp-common-go/v2/conn"
+	"github.com/Azure/azure-amqp-common-go/v2/sas"
 	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-event-hubs-go/storage"

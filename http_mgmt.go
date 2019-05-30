@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/auth"
+	"github.com/Azure/azure-amqp-common-go/v2/auth"
 	"github.com/devigned/tab"
 )
 
