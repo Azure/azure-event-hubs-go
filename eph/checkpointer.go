@@ -26,7 +26,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/Azure/azure-event-hubs-go/persist"
+	"github.com/Azure/azure-event-hubs-go/v2/persist"
 )
 
 type (

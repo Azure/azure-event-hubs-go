@@ -42,7 +42,7 @@ import (
 	"os/signal"
 	"time"
 	
-	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-event-hubs-go/v2"
 )
 
 func main() {
@@ -307,9 +307,9 @@ import (
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/azure-amqp-common-go/v2/conn"
 	"github.com/Azure/azure-amqp-common-go/v2/sas"
-	"github.com/Azure/azure-event-hubs-go/eph"
-	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/storage"
+	"github.com/Azure/azure-event-hubs-go/v2/eph"
+	"github.com/Azure/azure-event-hubs-go/v2"
+	"github.com/Azure/azure-event-hubs-go/v2/storage"
 	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
 )
 

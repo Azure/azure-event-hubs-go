@@ -31,7 +31,7 @@ import (
 
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-event-hubs-go/v2"
 )
 
 type (

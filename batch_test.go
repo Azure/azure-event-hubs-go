@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-event-hubs-go/v2"
 )
 
 func TestNewEventBatch(t *testing.T) {

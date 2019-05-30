@@ -44,7 +44,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/Azure/azure-event-hubs-go/internal/test"
+	"github.com/Azure/azure-event-hubs-go/v2/internal/test"
 )
 
 type (

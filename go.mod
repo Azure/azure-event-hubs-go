@@ -1,4 +1,4 @@
-module github.com/Azure/azure-event-hubs-go
+module github.com/Azure/azure-event-hubs-go/v2
 
 require (
 	github.com/Azure/azure-amqp-common-go/v2 v2.0.0-20190530212817-ce8a38113650

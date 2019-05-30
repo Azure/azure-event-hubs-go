@@ -28,9 +28,10 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v2/aad"
-	"github.com/Azure/azure-event-hubs-go/eph"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/azure-event-hubs-go/v2/eph"
 )
 
 const (

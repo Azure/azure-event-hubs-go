@@ -35,8 +35,8 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v2/auth"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/internal/test"
+	"github.com/Azure/azure-event-hubs-go/v2"
+	"github.com/Azure/azure-event-hubs-go/v2/internal/test"
 )
 
 const (
