@@ -52,14 +52,6 @@ type (
 		SystemProperties *SystemProperties
 	}
 
-	// EventBatch is a batch of Event Hubs messages to be sent
-	EventBatch struct {
-		Events       []*Event
-		PartitionKey *string
-		Properties   map[string]interface{}
-		ID           string
-	}
-
 	// SystemProperties are used to store properties that are set by the system.
 	SystemProperties struct {
 		SequenceNumber *int64     `mapstructure:"x-opt-sequence-number"` // unique sequence number of the message
@@ -84,13 +76,6 @@ func NewEventFromString(message string) *Event {
 func NewEvent(data []byte) *Event {
 	return &Event{
 		Data: data,
-	}
-}
-
-// NewEventBatch builds an EventBatch from an array of Events
-func NewEventBatch(events []*Event) *EventBatch {
-	return &EventBatch{
-		Events: events,
 	}
 }
 
@@ -170,36 +155,6 @@ func (e *Event) toMsg() (*amqp.Message, error) {
 	}
 
 	return msg, nil
-}
-
-func (b *EventBatch) toEvent() (*Event, error) {
-	msg := &amqp.Message{
-		Data: make([][]byte, len(b.Events)),
-		Properties: &amqp.MessageProperties{
-			MessageID: b.ID,
-		},
-		Format: batchMessageFormat,
-	}
-
-	if b.PartitionKey != nil {
-		msg.Annotations = make(amqp.Annotations)
-		msg.Annotations[partitionKeyAnnotationName] = b.PartitionKey
-	}
-
-	for idx, event := range b.Events {
-		innerMsg, err := event.toMsg()
-		if err != nil {
-			return nil, err
-		}
-
-		bin, err := innerMsg.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		msg.Data[idx] = bin
-	}
-
-	return eventFromMsg(msg)
 }
 
 func eventFromMsg(msg *amqp.Message) (*Event, error) {

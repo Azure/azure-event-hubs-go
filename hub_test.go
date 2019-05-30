@@ -326,11 +326,9 @@ func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	for idx, msg := range messages {
 		events[idx] = NewEventFromString(msg)
 	}
-	batch := &EventBatch{
-		Events: events,
-	}
 
-	if assert.NoError(t, client.SendBatch(ctx, batch)) {
+	ebi := NewEventBatchIterator(events...)
+	if assert.NoError(t, client.SendBatch(ctx, ebi)) {
 		count := 0
 		_, err := client.Receive(context.Background(), partitionID, func(ctx context.Context, event *Event) error {
 			assert.Equal(t, messages[count], string(event.Data))
@@ -354,11 +352,9 @@ func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ str
 	for idx := range events {
 		events[idx] = NewEventFromString(test.RandomString("foo", 10))
 	}
-	batch := &EventBatch{
-		Events: events,
-	}
 
-	assert.EqualError(t, client.SendBatch(ctx, batch), "encoded message size exceeds max of 1046528")
+	ebi := NewEventBatchIterator(events...)
+	assert.EqualError(t, client.SendBatch(ctx, ebi, BatchWithMaxSizeInBytes(10000000)), "encoded message size exceeds max of 1046528")
 }
 
 func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {

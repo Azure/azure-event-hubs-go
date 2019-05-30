@@ -223,7 +223,9 @@ func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	ts.NoError(client.SendBatch(ctx, eventhub.NewEventBatch(events)))
+
+	ebi := eventhub.NewEventBatchIterator(events...)
+	ts.NoError(client.SendBatch(ctx, ebi))
 
 	return messages, ctx.Err()
 }

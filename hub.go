@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/auth"
 	"github.com/Azure/azure-amqp-common-go/conn"
 	"github.com/Azure/azure-amqp-common-go/sas"
+	"github.com/Azure/azure-amqp-common-go/uuid"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
@@ -635,24 +636,49 @@ func (h *Hub) Send(ctx context.Context, event *Event, opts ...SendOption) error 
 	return sender.Send(ctx, event, opts...)
 }
 
-// SendBatch sends an EventBatch to the Event Hub
-//
-// SendBatch will retry sending the message for as long as the context allows
-func (h *Hub) SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error {
+// SendBatch sends a batch of events to the Hub
+func (h *Hub) SendBatch(ctx context.Context, iterator BatchIterator, opts ...BatchOption) error {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.SendBatch")
 	defer span.End()
 
 	sender, err := h.getSender(ctx)
 	if err != nil {
+		tab.For(ctx).Error(err)
 		return err
 	}
 
-	event, err := batch.toEvent()
-	if err != nil {
-		return err
+	batchOptions := &BatchOptions{
+		MaxSize: DefaultMaxMessageSizeInBytes,
 	}
 
-	return sender.Send(ctx, event, opts...)
+	for _, opt := range opts {
+		if err := opt(batchOptions); err != nil {
+			tab.For(ctx).Error(err)
+			return err
+		}
+	}
+
+	for !iterator.Done() {
+		id, err := uuid.NewV4()
+		if err != nil {
+			tab.For(ctx).Error(err)
+			return err
+		}
+
+		batch, err := iterator.Next(id.String(), batchOptions)
+
+		if err != nil {
+			tab.For(ctx).Error(err)
+			return err
+		}
+
+		if err := sender.trySend(ctx, batch); err != nil {
+			tab.For(ctx).Error(err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 // HubWithPartitionedSender configures the Hub instance to send to a specific event Hub partition
