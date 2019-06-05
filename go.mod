@@ -7,7 +7,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.6.0
 	github.com/Azure/go-autorest v12.0.0+incompatible
 	github.com/devigned/tab v0.1.1
-	github.com/devigned/tab/opencensus v0.1.1
+	github.com/devigned/tab/opencensus v0.1.2
 	github.com/dimchansky/utfbom v1.1.0 // indirect
 	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/google/go-cmp v0.3.0 // indirect
