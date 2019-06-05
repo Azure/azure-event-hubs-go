@@ -7,11 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-event-hubs-go"
 	"github.com/Azure/azure-amqp-common-go/v2/aad"
 	mgmt "github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	azauth "github.com/Azure/go-autorest/autorest/azure/auth"
+
+	"github.com/Azure/azure-event-hubs-go/v2"
 )
 
 const (
@@ -37,7 +38,11 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	for _, partitionID := range partitions {
-		hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
+		_, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
+		if err != nil {
+			fmt.Println("Error: ", err)
+			return
+		}
 	}
 	cancel()
 
