@@ -6,82 +6,72 @@ import (
 	"os"
 	"strconv"
 
-	"go.opencensus.io/trace"
+	"github.com/devigned/tab"
 )
 
-func (h *Hub) startSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
+func (h *Hub) startSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	ApplyComponentInfo(span)
 	return span, ctx
 }
 
-func (ns *namespace) startSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
+func (ns *namespace) startSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	ApplyComponentInfo(span)
 	return span, ctx
 }
 
-func (s *sender) startProducerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
+func (s *sender) startProducerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	ApplyComponentInfo(span)
 	span.AddAttributes(
-		trace.StringAttribute("span.kind", "producer"),
-		trace.StringAttribute("message_bus.destination", s.getFullIdentifier()),
+		tab.StringAttribute("span.kind", "producer"),
+		tab.StringAttribute("message_bus.destination", s.getFullIdentifier()),
 	)
 	return span, ctx
 }
 
-func (r *receiver) startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
+func (r *receiver) startConsumerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	ApplyComponentInfo(span)
 	span.AddAttributes(
-		trace.StringAttribute("span.kind", "consumer"),
-		trace.StringAttribute("message_bus.destination", r.getFullIdentifier()),
+		tab.StringAttribute("span.kind", "consumer"),
+		tab.StringAttribute("message_bus.destination", r.getFullIdentifier()),
 	)
 	return span, ctx
 }
 
-func (r *receiver) startConsumerSpanFromWire(ctx context.Context, operationName string, reference trace.SpanContext, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpanWithRemoteParent(ctx, operationName, reference, opts...)
+func (em *entityManager) startSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	ApplyComponentInfo(span)
-	span.AddAttributes(
-		trace.StringAttribute("span.kind", "consumer"),
-		trace.StringAttribute("message_bus.destination", r.getFullIdentifier()),
-	)
-	return span, ctx
-}
-
-func (em *entityManager) startSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
-	ApplyComponentInfo(span)
-	span.AddAttributes(trace.StringAttribute("span.kind", "client"))
+	span.AddAttributes(tab.StringAttribute("span.kind", "client"))
 	return span, ctx
 }
 
 // ApplyComponentInfo applies eventhub library and network info to the span
-func ApplyComponentInfo(span *trace.Span) {
+func ApplyComponentInfo(span tab.Spanner) {
 	span.AddAttributes(
-		trace.StringAttribute("component", "github.com/Azure/azure-event-hubs-go"),
-		trace.StringAttribute("version", Version))
+		tab.StringAttribute("component", "github.com/Azure/azure-event-hubs-go"),
+		tab.StringAttribute("version", Version))
 	applyNetworkInfo(span)
 }
 
-func applyNetworkInfo(span *trace.Span) {
+func applyNetworkInfo(span tab.Spanner) {
 	hostname, err := os.Hostname()
 	if err == nil {
-		span.AddAttributes(trace.StringAttribute("peer.hostname", hostname))
+		span.AddAttributes(tab.StringAttribute("peer.hostname", hostname))
 	}
 }
 
-func applyRequestInfo(span *trace.Span, req *http.Request) {
+func applyRequestInfo(span tab.Spanner, req *http.Request) {
 	span.AddAttributes(
-		trace.StringAttribute("http.url", req.URL.String()),
-		trace.StringAttribute("http.method", req.Method),
+		tab.StringAttribute("http.url", req.URL.String()),
+		tab.StringAttribute("http.method", req.Method),
 	)
 }
 
-func applyResponseInfo(span *trace.Span, res *http.Response) {
+func applyResponseInfo(span tab.Spanner, res *http.Response) {
 	if res != nil {
-		span.AddAttributes(trace.StringAttribute("http.status_code", strconv.Itoa(res.StatusCode)))
+		span.AddAttributes(tab.StringAttribute("http.status_code", strconv.Itoa(res.StatusCode)))
 	}
 }

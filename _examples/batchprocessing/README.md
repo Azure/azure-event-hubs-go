@@ -1,6 +1,6 @@
 # Batch Processing
 
-To process batches of events at one time a handler needs to implement both an event handler function as well as the `CheckpointPersister` interface found in `github.com/Azure/azure-amqp-common-go/persist`. 
+To process batches of events at one time a handler needs to implement both an event handler function as well as the `CheckpointPersister` interface.
 
 ## Running this example
 

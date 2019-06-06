@@ -28,9 +28,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/persist"
 	"github.com/mitchellh/mapstructure"
 	"pack.ag/amqp"
+
+	"github.com/Azure/azure-event-hubs-go/v2/persist"
 )
 
 const (
@@ -49,14 +50,6 @@ type (
 		ID               string
 		message          *amqp.Message
 		SystemProperties *SystemProperties
-	}
-
-	// EventBatch is a batch of Event Hubs messages to be sent
-	EventBatch struct {
-		Events       []*Event
-		PartitionKey *string
-		Properties   map[string]interface{}
-		ID           string
 	}
 
 	// SystemProperties are used to store properties that are set by the system.
@@ -86,13 +79,6 @@ func NewEvent(data []byte) *Event {
 	}
 }
 
-// NewEventBatch builds an EventBatch from an array of Events
-func NewEventBatch(events []*Event) *EventBatch {
-	return &EventBatch{
-		Events: events,
-	}
-}
-
 // GetCheckpoint returns the checkpoint information on the Event
 func (e *Event) GetCheckpoint() persist.Checkpoint {
 	var offset string
@@ -113,7 +99,12 @@ func (e *Event) GetCheckpoint() persist.Checkpoint {
 	return persist.NewCheckpoint(offset, sequenceNumber, enqueueTime)
 }
 
-// Set will set a key in the event properties
+// GetKeyValues implements tab.Carrier
+func (e *Event) GetKeyValues() map[string]interface{} {
+	return e.Properties
+}
+
+// Set implements tab.Carrier
 func (e *Event) Set(key string, value interface{}) {
 	if e.Properties == nil {
 		e.Properties = make(map[string]interface{})
@@ -164,36 +155,6 @@ func (e *Event) toMsg() (*amqp.Message, error) {
 	}
 
 	return msg, nil
-}
-
-func (b *EventBatch) toEvent() (*Event, error) {
-	msg := &amqp.Message{
-		Data: make([][]byte, len(b.Events)),
-		Properties: &amqp.MessageProperties{
-			MessageID: b.ID,
-		},
-		Format: batchMessageFormat,
-	}
-
-	if b.PartitionKey != nil {
-		msg.Annotations = make(amqp.Annotations)
-		msg.Annotations[partitionKeyAnnotationName] = b.PartitionKey
-	}
-
-	for idx, event := range b.Events {
-		innerMsg, err := event.toMsg()
-		if err != nil {
-			return nil, err
-		}
-
-		bin, err := innerMsg.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		msg.Data[idx] = bin
-	}
-
-	return eventFromMsg(msg)
 }
 
 func eventFromMsg(msg *amqp.Message) (*Event, error) {

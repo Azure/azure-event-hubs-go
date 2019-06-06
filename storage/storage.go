@@ -34,12 +34,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/log"
-	"github.com/Azure/azure-amqp-common-go/persist"
-	"github.com/Azure/azure-amqp-common-go/uuid"
-	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/eph"
-	"go.opencensus.io/trace"
+	"github.com/Azure/azure-amqp-common-go/v2/uuid"
+	"github.com/devigned/tab"
+
+	"github.com/Azure/azure-event-hubs-go/v2"
+	"github.com/Azure/azure-event-hubs-go/v2/eph"
+	"github.com/Azure/azure-event-hubs-go/v2/persist"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -250,19 +250,19 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 	blobURL := sl.containerURL.NewBlobURL(partitionID)
 	lease, err := sl.getLease(ctx, partitionID)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, nil
 	}
 
 	res, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, err
 	}
 
 	uuidToken, err := uuid.NewV4()
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, err
 	}
 
@@ -271,13 +271,13 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 		// is leased by someone else due to a race to acquire
 		_, err := blobURL.ChangeLease(ctx, lease.Token, newToken, azblob.ModifiedAccessConditions{})
 		if err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 			return nil, false, err
 		}
 	} else {
 		_, err = blobURL.AcquireLease(ctx, newToken, int32(sl.leaseDuration.Round(time.Second).Seconds()), azblob.ModifiedAccessConditions{})
 		if err != nil {
-			log.For(ctx).Error(err)
+			tab.For(ctx).Error(err)
 			return nil, false, err
 		}
 	}
@@ -309,7 +309,7 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 
 	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.ModifiedAccessConditions{})
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, err
 	}
 	return lease, true, nil
@@ -331,7 +331,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 
 	_, err := blobURL.ReleaseLease(ctx, lease.Token, azblob.ModifiedAccessConditions{})
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return false, err
 	}
 	delete(sl.leases, partitionID)
@@ -362,7 +362,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 
 	_, err := blobURL.RenewLease(ctx, lease.Token, azblob.ModifiedAccessConditions{})
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, err
 	}
 
@@ -372,7 +372,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 
 	err = sl.uploadLease(ctx, lease)
 	if err != nil {
-		log.For(ctx).Error(err)
+		tab.For(ctx).Error(err)
 		return nil, false, err
 	}
 
@@ -483,7 +483,7 @@ func (sl *LeaserCheckpointer) persistLeases(ctx context.Context) {
 		default:
 			err := sl.persistDirtyPartitions(ctx)
 			if err != nil {
-				log.For(ctx).Error(err)
+				tab.For(ctx).Error(err)
 			}
 			<-time.After(sl.LeasePersistenceInterval)
 		}
@@ -652,12 +652,12 @@ func (s *storageLease) String() string {
 	return string(bits)
 }
 
-func startConsumerSpanFromContext(ctx context.Context, operationName string, opts ...trace.StartOption) (*trace.Span, context.Context) {
-	ctx, span := trace.StartSpan(ctx, operationName, opts...)
+func startConsumerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+	ctx, span := tab.StartSpan(ctx, operationName)
 	eventhub.ApplyComponentInfo(span)
 	span.AddAttributes(
-		trace.StringAttribute("span.kind", "client"),
-		trace.StringAttribute("eh.eventprocessorhost.kind", "azure.storage"),
+		tab.StringAttribute("span.kind", "client"),
+		tab.StringAttribute("eh.eventprocessorhost.kind", "azure.storage"),
 	)
 	return span, ctx
 }

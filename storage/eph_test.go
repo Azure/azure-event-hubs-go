@@ -31,11 +31,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/aad"
-	"github.com/Azure/azure-amqp-common-go/auth"
-	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/eph"
+	"github.com/Azure/azure-amqp-common-go/v2/aad"
+	"github.com/Azure/azure-amqp-common-go/v2/auth"
 	"github.com/Azure/azure-storage-blob-go/azblob"
+
+	"github.com/Azure/azure-event-hubs-go/v2"
+	"github.com/Azure/azure-event-hubs-go/v2/eph"
 )
 
 const (
@@ -223,7 +224,9 @@ func (ts *testSuite) sendMessages(hubName string, length int) ([]string, error) 
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	ts.NoError(client.SendBatch(ctx, eventhub.NewEventBatch(events)))
+
+	ebi := eventhub.NewEventBatchIterator(events...)
+	ts.NoError(client.SendBatch(ctx, ebi))
 
 	return messages, ctx.Err()
 }

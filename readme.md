@@ -14,13 +14,17 @@ general.
 
 This library is a pure Golang implementation of Azure Event Hubs over AMQP.
 
-## Installing the library
-Use `go get` to acquire and install from source. Versions of the project after 1.0.1 use Go modules exclusively, which 
-means you'll need Go 1.11 or later to ensure all of the dependencies are properly versioned.
+## Install with Go modules
+If you want to use stable versions of the library, please use Go modules.
 
-For more information on modules, see the [Go modules wiki](https://github.com/golang/go/wiki/Modules).
+### Using go get targeting version 2.x.x
+``` bash
+go get -u github.com/Azure/azure-amqp-common-go/v2
 ```
-go get -u github.com/Azure/azure-event-hubs-go/...
+
+### Using go get targeting version 1.x.x
+``` bash
+go get -u github.com/Azure/azure-amqp-common-go
 ```
 
 ## Using Event Hubs
@@ -31,7 +35,7 @@ This library has two main dependencies, [vcabbage/amqp](https://github.com/vcabb
 and the latter provides some common authentication, persistence and request-response message flows.
 
 ### Quick start
-Let's send and receive `"hello, world!"`.
+Let's send and receive `"hello, world!"` to all the partitions in an Event Hub.
 ```go
 package main
 
@@ -42,7 +46,7 @@ import (
 	"os/signal"
 	"time"
 	
-	"github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-event-hubs-go/v2"
 )
 
 func main() {
@@ -50,7 +54,8 @@ func main() {
 	hub, err := eventhub.NewHubFromConnectionString(connStr)
 
 	if err != nil {
-		// handle err
+		fmt.Println(err)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -59,7 +64,8 @@ func main() {
 	// send a single message into a random partition
 	err = hub.Send(ctx, eventhub.NewEventFromString("hello, world!"))
 	if err != nil {
-		// handle error
+		fmt.Println(err)
+		return
 	}
 
 	handler := func(c context.Context, event *eventhub.Event) error {
@@ -70,18 +76,20 @@ func main() {
 	// listen to each partition of the Event Hub
 	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
 	if err != nil {
-		// handle err
+		fmt.Println(err)
+		return
 	}
 	
 	for _, partitionID := range runtimeInfo.PartitionIDs { 
 		// Start receiving messages 
 		// 
 		// Receive blocks while attempting to connect to hub, then runs until listenerHandle.Close() is called 
-		// <- listenerHandle.Done() signals listener has died 
+		// <- listenerHandle.Done() signals listener has stopped
 		// listenerHandle.Err() provides the last error the receiver encountered 
 		listenerHandle, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
 		if err != nil {
-			// handle err
+			fmt.Println(err)
+			return
 		}
     }
 
@@ -90,7 +98,10 @@ func main() {
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
 
-	hub.Close(context.Background())
+	err = hub.Close(context.Background())
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 ```
 
@@ -304,13 +315,13 @@ import (
 	"os/signal"
 	"time"
 	
+	"github.com/Azure/azure-amqp-common-go/v2/conn"
+	"github.com/Azure/azure-amqp-common-go/v2/sas"
+    "github.com/Azure/azure-event-hubs-go/v2"
+    "github.com/Azure/azure-event-hubs-go/v2/eph"
+    "github.com/Azure/azure-event-hubs-go/v2/storage"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
-	"github.com/Azure/azure-amqp-common-go/conn"
-	"github.com/Azure/azure-amqp-common-go/sas"
-	"github.com/Azure/azure-event-hubs-go/eph"
-	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/storage"
-	"github.com/Azure/azure-storage-blob-go/2016-05-31/azblob"
 )
 
 func main() {
@@ -328,16 +339,23 @@ func main() {
     }
     
     // create a new Azure Storage Leaser / Checkpointer
-    cred := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
+    cred, err := azblob.NewSharedKeyCredential(storageAccountName, storageAccountKey)
+    if err != nil {
+	fmt.Println(err)
+	return
+    }
+
     leaserCheckpointer, err := storage.NewStorageLeaserCheckpointer(cred, storageAccountName, storageContainerName, azure.PublicCloud)
     if err != nil {
-    	// handle error
+	fmt.Println(err)
+	return
     }
     
     // SAS token provider for Azure Event Hubs
     provider, err := sas.NewTokenProvider(sas.TokenProviderWithKey(parsed.KeyName, parsed.Key))
     if err != nil {
-    	// handle error
+	fmt.Println(err)
+	return
     }
     
     ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -345,24 +363,32 @@ func main() {
     // create a new EPH processor
     processor, err := eph.New(ctx, parsed.Namespace, parsed.HubName, provider, leaserCheckpointer, leaserCheckpointer)
     if err != nil {
-        // handle error
+	fmt.Println(err)
+	return
     }
     
     // register a message handler -- many can be registered
     handlerID, err := processor.RegisterHandler(ctx, 
-    	func(c context.Context, event *eventhub.Event) error {
-    		fmt.Println(string(event.Data))
+	func(c context.Context, e *eventhub.Event) error {
+		fmt.Println(string(e.Data))
     		return nil
     })
     if err != nil {
-        // handle error
+	fmt.Println(err)
+	return
     }
     
+    fmt.Printf("handler id: %q is running\n", handlerID)
+
     // unregister a handler to stop that handler from receiving events
     // processor.UnregisterHandler(ctx, handleID)
     
     // start handling messages from all of the partitions balancing across multiple consumers
-    processor.StartNonBlocking(ctx)
+    err = processor.StartNonBlocking(ctx)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
     
     // Wait for a signal to quit:
     signalChan := make(chan os.Signal, 1)
@@ -371,7 +397,8 @@ func main() {
     
     err = processor.Close(context.Background())
     if err != nil {
-    	// handle error
+        fmt.Println(err)
+        return
     }
 }
 ```

@@ -31,11 +31,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/aad"
-	"github.com/Azure/azure-amqp-common-go/auth"
-	"github.com/Azure/azure-event-hubs-go"
-	"github.com/Azure/azure-event-hubs-go/internal/test"
+	"github.com/Azure/azure-amqp-common-go/v2/aad"
+	"github.com/Azure/azure-amqp-common-go/v2/auth"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/Azure/azure-event-hubs-go/v2"
+	"github.com/Azure/azure-event-hubs-go/v2/internal/test"
 )
 
 const (
@@ -103,7 +104,7 @@ func (s *testSuite) TestSingle() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
+	_, _ = processor.RegisterHandler(ctx, func(c context.Context, event *eventhub.Event) error {
 		wg.Done()
 		return nil
 	})
@@ -111,7 +112,7 @@ func (s *testSuite) TestSingle() {
 	s.NoError(processor.StartNonBlocking(context.Background()))
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		processor.Close(closeContext)
+		_ = processor.Close(closeContext)
 		cancel()
 		del()
 	}()
@@ -136,14 +137,14 @@ func (s *testSuite) TestMultiple() {
 		s.Require().NoError(err)
 
 		processors[processor.GetName()] = processor
-		processor.StartNonBlocking(ctx)
+		s.Require().NoError(processor.StartNonBlocking(ctx))
 		processorNames[i] = processor.GetName()
 	}
 
 	defer func() {
 		for _, processor := range processors {
 			closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			processor.Close(closeContext)
+			_ = processor.Close(closeContext)
 			cancel()
 		}
 		del()
@@ -175,7 +176,7 @@ func (s *testSuite) TestMultiple() {
 	s.Require().True(balanced, "never balanced work within allotted time")
 
 	closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	processors[processorNames[numPartitions-1]].Close(closeContext) // close the last partition
+	s.Require().NoError(processors[processorNames[numPartitions-1]].Close(closeContext)) // close the last partition
 	delete(processors, processorNames[numPartitions-1])
 	cancel()
 
@@ -211,7 +212,7 @@ func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 	client := s.newClient(s.T(), hubName)
 	defer func() {
 		closeContext, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		client.Close(closeContext)
+		_ = client.Close(closeContext)
 		cancel()
 	}()
 
@@ -227,7 +228,11 @@ func (s *testSuite) sendMessages(hubName string, length int) ([]string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	client.SendBatch(ctx, eventhub.NewEventBatch(events))
+	ebi := eventhub.NewEventBatchIterator(events...)
+	err := client.SendBatch(ctx, ebi)
+	if err != nil {
+		return nil, err
+	}
 
 	return messages, ctx.Err()
 }
