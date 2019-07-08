@@ -19,12 +19,12 @@ If you want to use stable versions of the library, please use Go modules.
 
 ### Using go get targeting version 2.x.x
 ``` bash
-go get -u github.com/Azure/azure-amqp-common-go/v2
+go get -u github.com/Azure/azure-event-hubs-go/v2
 ```
 
 ### Using go get targeting version 1.x.x
 ``` bash
-go get -u github.com/Azure/azure-amqp-common-go
+go get -u github.com/Azure/azure-event-hubs-go
 ```
 
 ## Using Event Hubs
