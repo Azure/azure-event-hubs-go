@@ -27,11 +27,10 @@ import (
 	"fmt"
 	"time"
 
-	// "github.com/Azure/azure-event-hubs-go/persist"
+	common "github.com/Azure/azure-amqp-common-go/v2"
 	"github.com/devigned/tab"
 	"pack.ag/amqp"
 
-	common "github.com/Azure/azure-amqp-common-go"
 	"github.com/Azure/azure-event-hubs-go/v2/persist"
 )
 
