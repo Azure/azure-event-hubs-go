@@ -88,7 +88,6 @@ func ReceiveWithStartingOffset(offset string) ReceiveOption {
 		receiver.checkpoint = persist.NewCheckpoint(offset, 0, time.Time{})
 		return nil
 	}
-
 }
 
 // ReceiveWithLatestOffset configures the receiver to start at a given position in the event stream
@@ -150,21 +149,18 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		}
 	}
 
-	// update checkpoint if old checkpoint is succesfully read from e.g. file or memory
+	// update checkpoint if old checkpoint is successfully read from e.g. file or memory
 	oldCheckpoint, err := receiver.getLastReceivedCheckpoint()
 	if err == nil {
 		receiver.checkpoint = oldCheckpoint
 	}
 
-	err = receiver.storeLastReceivedCheckpoint(receiver.checkpoint)
-
-	if err != nil {
+	if err = receiver.storeLastReceivedCheckpoint(receiver.checkpoint); err != nil {
 		return nil, err
 	}
 
 	tab.For(ctx).Debug("creating a new receiver")
-	err = receiver.newSessionAndLink(ctx)
-	return receiver, err
+	return receiver, receiver.newSessionAndLink(ctx)
 }
 
 // Close will close the AMQP session and link of the receiver
