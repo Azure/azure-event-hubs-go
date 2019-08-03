@@ -1,7 +1,7 @@
 module github.com/Azure/azure-event-hubs-go/v2
 
 require (
-	github.com/Azure/azure-amqp-common-go/v2 v2.0.0
+	github.com/Azure/azure-amqp-common-go/v2 v2.1.0
 	github.com/Azure/azure-pipeline-go v0.1.9
 	github.com/Azure/azure-sdk-for-go v30.0.0+incompatible
 	github.com/Azure/azure-storage-blob-go v0.6.0
@@ -26,5 +26,5 @@ require (
 	google.golang.org/api v0.5.0 // indirect
 	google.golang.org/genproto v0.0.0-20190522204451-c2c4e71fbf69 // indirect
 	google.golang.org/grpc v1.21.0 // indirect
-	pack.ag/amqp v0.11.0
+	pack.ag/amqp v0.11.2
 )

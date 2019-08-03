@@ -422,20 +422,10 @@ func testEpochGreaterThenLess(ctx context.Context, t *testing.T, client *Hub, pa
 		assert.FailNow(t, "error receiving with epoch of 4")
 	}
 
-	r2, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
-	if !assert.NoError(t, err) {
-		assert.FailNow(t, "error receiving with epoch of 1")
-	}
+	_, err = client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 
-	select {
-	case <-r2.Done():
-		break
-	case <-ctx.Done():
-		assert.FailNow(t, "r2 didn't finish in time")
-	}
-
+	assert.Error(t, err, "receiving with epoch of 1 should have failed")
 	assert.NoError(t, r1.Err(), "r1 should still be running with the higher epoch")
-	assert.Error(t, r2.Err(), "r2 should have failed")
 }
 
 func testEpochLessThenGreater(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {

@@ -1,5 +1,7 @@
 # Change Log
 
+## `head`
+- update to amqp 0.11.2 & common 2.1.0 to fix [#115](https://github.com/Azure/azure-event-hubs-go/issues/115)
 
 ## `v2.0.0`
 - **breaking change:** moved github.com/Azure/azure-amqp-common-go/persist to
