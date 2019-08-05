@@ -80,7 +80,7 @@ func (fp *FilePersister) Read(namespace, name, consumerGroup, partitionID string
 
 	f, err := os.Open(filePath)
 	if err != nil {
-		return NewCheckpointFromStartOfStream(), nil
+		return NewCheckpointFromStartOfStream(), err
 	}
 
 	buf := bytes.NewBuffer(nil)

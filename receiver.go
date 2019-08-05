@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v2"
+	common "github.com/Azure/azure-amqp-common-go/v2"
 	"github.com/devigned/tab"
 	"pack.ag/amqp"
 
@@ -61,6 +61,7 @@ type (
 		done          func()
 		epoch         *int64
 		lastError     error
+		checkpoint    persist.Checkpoint
 	}
 
 	// ReceiveOption provides a structure for configuring receivers
@@ -84,21 +85,24 @@ func ReceiveWithConsumerGroup(consumerGroup string) ReceiveOption {
 // ReceiveWithStartingOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithStartingOffset(offset string) ReceiveOption {
 	return func(receiver *receiver) error {
-		return receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint(offset, 0, time.Time{}))
+		receiver.checkpoint = persist.NewCheckpoint(offset, 0, time.Time{})
+		return nil
 	}
 }
 
 // ReceiveWithLatestOffset configures the receiver to start at a given position in the event stream
 func ReceiveWithLatestOffset() ReceiveOption {
 	return func(receiver *receiver) error {
-		return receiver.storeLastReceivedCheckpoint(persist.NewCheckpointFromEndOfStream())
+		receiver.checkpoint = persist.NewCheckpointFromEndOfStream()
+		return nil
 	}
 }
 
 // ReceiveFromTimestamp configures the receiver to start receiving from a specific point in time in the event stream
 func ReceiveFromTimestamp(t time.Time) ReceiveOption {
 	return func(receiver *receiver) error {
-		return receiver.storeLastReceivedCheckpoint(persist.NewCheckpoint("", 0, t))
+		receiver.checkpoint = persist.NewCheckpoint("", 0, t)
+		return nil
 	}
 }
 
@@ -145,9 +149,18 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		}
 	}
 
+	// update checkpoint if old checkpoint is successfully read from e.g. file or memory
+	oldCheckpoint, err := receiver.getLastReceivedCheckpoint()
+	if err == nil {
+		receiver.checkpoint = oldCheckpoint
+	}
+
+	if err = receiver.storeLastReceivedCheckpoint(receiver.checkpoint); err != nil {
+		return nil, err
+	}
+
 	tab.For(ctx).Debug("creating a new receiver")
-	err := receiver.newSessionAndLink(ctx)
-	return receiver, err
+	return receiver, receiver.newSessionAndLink(ctx)
 }
 
 // Close will close the AMQP session and link of the receiver
