@@ -1,6 +1,8 @@
 # Change Log
 
 ## `head`
+
+## `v2.0.1`
 - update to amqp 0.11.2 & common 2.1.0 to fix [#115](https://github.com/Azure/azure-event-hubs-go/issues/115)
 - added checkpoint attribute to receiver to fix [#95](https://github.com/Azure/azure-event-hubs-go/issues/95) and [#118](https://github.com/Azure/azure-event-hubs-go/issues/118)
 
