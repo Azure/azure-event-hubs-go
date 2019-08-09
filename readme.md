@@ -230,12 +230,16 @@ particular partition. You can do this in two ways.
 #### Sending batches of events
 Sending a batch of messages is more efficient than sending a single message. `SendBatch` takes an `*EventBatchIterator` that will automatically create batches from a slice of `*Event`.
 ```go
-var events []*Event
-events = append(events, NewEventFromString("one"))
-events = append(events, NewEventFromString("two"))
-events = append(events, NewEventFromString("three"))
+import (
+    eventhub "github.com/Azure/azure-event-hubs-go/v2"
+)
+...
+var events []*eventhub.Event
+events = append(events, eventhub.NewEventFromString("one"))
+events = append(events, eventhub.NewEventFromString("two"))
+events = append(events, eventhub.NewEventFromString("three"))
 
-err := client.SendBatch(ctx, NewEventBatchIterator(events...))
+err := client.SendBatch(ctx, eventhub.NewEventBatchIterator(events...))
 ```
 
 #### Receiving
