@@ -49,7 +49,7 @@ func TestFilePersister_Read(t *testing.T) {
 	persister, err := NewFilePersister(dir)
 	assert.Nil(t, err)
 	ckp, err := persister.Read(namespace, name, group, partitionID)
-	assert.Nil(t, err)
+	assert.NotNil(t, err)
 	assert.Equal(t, NewCheckpointFromStartOfStream(), ckp)
 }
 
