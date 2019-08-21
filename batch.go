@@ -15,13 +15,12 @@ type (
 	BatchIterator interface {
 		Done() bool
 		Next(messageID string, opts *BatchOptions) (*EventBatch, error)
-		NextWithPartition(opts *BatchOptions) (map[string]*EventBatch, error)
 	}
 
 	// EventBatchIterator provides an easy way to iterate over a slice of events to reliably create batches
 	EventBatchIterator struct {
-		Events []*Event
-		Cursor int
+		Visited            map[string]bool
+		PartitionEventsMap map[string][]*Event
 	}
 
 	// EventBatch is a batch of Event Hubs messages to be sent
@@ -57,19 +56,39 @@ func BatchWithMaxSizeInBytes(sizeInBytes int) BatchOption {
 
 // NewEventBatchIterator wraps a slice of `Event` pointers to allow it to be made into a `EventBatchIterator`.
 func NewEventBatchIterator(events ...*Event) *EventBatchIterator {
+	partitionEventMap := make(map[string][]*Event)
+	visited := make(map[string]bool)
+	for _, event := range events {
+		var ok bool
+		var key string
+		if event.PartitionKey == nil {
+			key = KeyOfNoPartitionKey
+		} else {
+			key = * event.PartitionKey
+		}
+		if _, ok = partitionEventMap[key]; !ok {
+			visited[key] = false
+			partitionEventMap[key] = []*Event{}
+		}
+		partitionEventMap[key] = append(partitionEventMap[key], event)
+	}
 	return &EventBatchIterator{
-		Events: events,
+		Visited:            visited,
+		PartitionEventsMap: partitionEventMap,
 	}
 }
 
 // Done communicates whether there are more messages remaining to be iterated over.
 func (ebi *EventBatchIterator) Done() bool {
-	return len(ebi.Events) == ebi.Cursor
+	for _, visit := range ebi.Visited {
+		if !visit {
+			return false
+		}
+	}
+	return true
 }
 
 // Next fetches the batch of messages in the message slice at a position one larger than the last one accessed.
-//
-// Deprecated: Next will ignore the partitionKey information of the events, use NextWithPartitionKey instead
 func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventBatch, error) {
 	if ebi.Done() {
 		return nil, ErrNoMessages{}
@@ -81,9 +100,21 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		}
 	}
 
+	var key string
+	for partitionKey, visit := range ebi.Visited {
+		if !visit {
+			key = partitionKey
+			ebi.Visited[partitionKey] = true
+		}
+	}
+
+	events := ebi.PartitionEventsMap[key]
 	eb := NewEventBatch(eventID, opts)
-	for ebi.Cursor < len(ebi.Events) {
-		ok, err := eb.Add(ebi.Events[ebi.Cursor])
+	if key != KeyOfNoPartitionKey && len(events) > 0 {
+		eb.PartitionKey = events[0].PartitionKey
+	}
+	for i := 0; i < len(events); i++ {
+		ok, err := eb.Add(events[i])
 		if err != nil {
 			return nil, err
 		}
@@ -91,59 +122,8 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		if !ok {
 			return eb, nil
 		}
-		ebi.Cursor++
 	}
 	return eb, nil
-}
-
-// NextWithPartition fetches the batch of messages in the message slice at a position one larger than the last one accessed and then map them with partitionKey.
-func (ebi *EventBatchIterator) NextWithPartition(opts *BatchOptions) (map[string]*EventBatch, error) {
-	if ebi.Done() {
-		return nil, ErrNoMessages{}
-	}
-
-	if opts == nil {
-		opts = &BatchOptions{
-			MaxSize: DefaultMaxMessageSizeInBytes,
-		}
-	}
-
-	ebMap := make(map[string]*EventBatch)
-	for ebi.Cursor < len(ebi.Events) {
-		event := ebi.Events[ebi.Cursor]
-
-		var eb *EventBatch
-		var ok bool
-		var key string
-		if event.PartitionKey == nil {
-			key = KeyOfNoPartitionKey
-		} else {
-			key = *event.PartitionKey
-		}
-
-		if eb, ok = ebMap[key]; !ok {
-			id, err := uuid.NewV4()
-			if err != nil {
-				return nil, err
-			}
-			eb = NewEventBatch(id.String(), opts)
-			if key != KeyOfNoPartitionKey {
-				eb.PartitionKey = event.PartitionKey
-			}
-			ebMap[key] = eb
-		}
-
-		ok, err := eb.Add(event)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return ebMap, nil
-		}
-
-		ebi.Cursor++
-	}
-	return ebMap, nil
 }
 
 // NewEventBatch builds a new event batch

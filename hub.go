@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v2/auth"
 	"github.com/Azure/azure-amqp-common-go/v2/conn"
 	"github.com/Azure/azure-amqp-common-go/v2/sas"
+	"github.com/Azure/azure-amqp-common-go/v2/uuid"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
@@ -658,18 +659,22 @@ func (h *Hub) SendBatch(ctx context.Context, iterator BatchIterator, opts ...Bat
 	}
 
 	for !iterator.Done() {
-		batches, err := iterator.NextWithPartition(batchOptions)
+		id, err := uuid.NewV4()
+		if err != nil {
+			tab.For(ctx).Error(err)
+			return err
+		}
+
+		batch, err := iterator.Next(id.String(), batchOptions)
 
 		if err != nil {
 			tab.For(ctx).Error(err)
 			return err
 		}
 
-		for _, batch := range batches {
-			if err := sender.trySend(ctx, batch); err != nil {
-				tab.For(ctx).Error(err)
-				return err
-			}
+		if err := sender.trySend(ctx, batch); err != nil {
+			tab.For(ctx).Error(err)
+			return err
 		}
 	}
 
