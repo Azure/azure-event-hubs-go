@@ -68,7 +68,6 @@ func NewEventBatchIterator(events ...*Event) *EventBatchIterator {
 		}
 		if _, ok = partitionEventMap[key]; !ok {
 			visited[key] = false
-			partitionEventMap[key] = []*Event{}
 		}
 		partitionEventMap[key] = append(partitionEventMap[key], event)
 	}
@@ -113,8 +112,8 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 	if key != KeyOfNoPartitionKey && len(events) > 0 {
 		eb.PartitionKey = events[0].PartitionKey
 	}
-	for i := 0; i < len(events); i++ {
-		ok, err := eb.Add(events[i])
+	for _, event := range events {
+		ok, err := eb.Add(event)
 		if err != nil {
 			return nil, err
 		}
