@@ -19,7 +19,7 @@ type (
 
 	// EventBatchIterator provides an easy way to iterate over a slice of events to reliably create batches
 	EventBatchIterator struct {
-		Visited            map[string]bool
+		Cursors            map[string]int
 		PartitionEventsMap map[string][]*Event
 	}
 
@@ -57,7 +57,7 @@ func BatchWithMaxSizeInBytes(sizeInBytes int) BatchOption {
 // NewEventBatchIterator wraps a slice of `Event` pointers to allow it to be made into a `EventBatchIterator`.
 func NewEventBatchIterator(events ...*Event) *EventBatchIterator {
 	partitionEventMap := make(map[string][]*Event)
-	visited := make(map[string]bool)
+	cursors := make(map[string]int)
 	for _, event := range events {
 		var ok bool
 		var key string
@@ -67,20 +67,20 @@ func NewEventBatchIterator(events ...*Event) *EventBatchIterator {
 			key = * event.PartitionKey
 		}
 		if _, ok = partitionEventMap[key]; !ok {
-			visited[key] = false
+			cursors[key] = 0
 		}
 		partitionEventMap[key] = append(partitionEventMap[key], event)
 	}
 	return &EventBatchIterator{
-		Visited:            visited,
+		Cursors:            cursors,
 		PartitionEventsMap: partitionEventMap,
 	}
 }
 
 // Done communicates whether there are more messages remaining to be iterated over.
 func (ebi *EventBatchIterator) Done() bool {
-	for _, visit := range ebi.Visited {
-		if !visit {
+	for key, cursor := range ebi.Cursors {
+		if cursor != len(ebi.PartitionEventsMap[key]) {
 			return false
 		}
 	}
@@ -89,21 +89,19 @@ func (ebi *EventBatchIterator) Done() bool {
 
 // Next fetches the batch of messages in the message slice at a position one larger than the last one accessed.
 func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventBatch, error) {
-	if ebi.Done() {
+	var key string
+	for partitionKey, cursor := range ebi.Cursors {
+		if cursor != len(ebi.PartitionEventsMap[partitionKey]) {
+			key = partitionKey
+		}
+	}
+	if key == "" {
 		return nil, ErrNoMessages{}
 	}
 
 	if opts == nil {
 		opts = &BatchOptions{
 			MaxSize: DefaultMaxMessageSizeInBytes,
-		}
-	}
-
-	var key string
-	for partitionKey, visit := range ebi.Visited {
-		if !visit {
-			key = partitionKey
-			ebi.Visited[partitionKey] = true
 		}
 	}
 
@@ -121,6 +119,7 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		if !ok {
 			return eb, nil
 		}
+		ebi.Cursors[key]++
 	}
 	return eb, nil
 }
