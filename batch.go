@@ -19,8 +19,8 @@ type (
 
 	// EventBatchIterator provides an easy way to iterate over a slice of events to reliably create batches
 	EventBatchIterator struct {
-		Events []*Event
-		Cursor int
+		Cursors            map[string]int
+		PartitionEventsMap map[string][]*Event
 	}
 
 	// EventBatch is a batch of Event Hubs messages to be sent
@@ -43,6 +43,7 @@ const (
 	DefaultMaxMessageSizeInBytes MaxMessageSizeInBytes = 1000000
 
 	batchMessageWrapperSize = 100
+	KeyOfNoPartitionKey     = "NoPartitionKey"
 )
 
 // BatchWithMaxSizeInBytes configures the EventBatchIterator to fill the batch to the specified max size in bytes
@@ -55,19 +56,46 @@ func BatchWithMaxSizeInBytes(sizeInBytes int) BatchOption {
 
 // NewEventBatchIterator wraps a slice of `Event` pointers to allow it to be made into a `EventBatchIterator`.
 func NewEventBatchIterator(events ...*Event) *EventBatchIterator {
+	partitionEventMap := make(map[string][]*Event)
+	cursors := make(map[string]int)
+	for _, event := range events {
+		var ok bool
+		var key string
+		if event.PartitionKey == nil {
+			key = KeyOfNoPartitionKey
+		} else {
+			key = * event.PartitionKey
+		}
+		if _, ok = partitionEventMap[key]; !ok {
+			cursors[key] = 0
+		}
+		partitionEventMap[key] = append(partitionEventMap[key], event)
+	}
 	return &EventBatchIterator{
-		Events: events,
+		Cursors:            cursors,
+		PartitionEventsMap: partitionEventMap,
 	}
 }
 
 // Done communicates whether there are more messages remaining to be iterated over.
 func (ebi *EventBatchIterator) Done() bool {
-	return len(ebi.Events) == ebi.Cursor
+	for key, cursor := range ebi.Cursors {
+		if cursor != len(ebi.PartitionEventsMap[key]) {
+			return false
+		}
+	}
+	return true
 }
 
 // Next fetches the batch of messages in the message slice at a position one larger than the last one accessed.
 func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventBatch, error) {
-	if ebi.Done() {
+	var key string
+	for partitionKey, cursor := range ebi.Cursors {
+		if cursor != len(ebi.PartitionEventsMap[partitionKey]) {
+			key = partitionKey
+		}
+	}
+	if key == "" {
 		return nil, ErrNoMessages{}
 	}
 
@@ -77,9 +105,13 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		}
 	}
 
+	events := ebi.PartitionEventsMap[key]
 	eb := NewEventBatch(eventID, opts)
-	for ebi.Cursor < len(ebi.Events) {
-		ok, err := eb.Add(ebi.Events[ebi.Cursor])
+	if key != KeyOfNoPartitionKey && len(events) > 0 {
+		eb.PartitionKey = events[0].PartitionKey
+	}
+	for _, event := range events {
+		ok, err := eb.Add(event)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +119,7 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		if !ok {
 			return eb, nil
 		}
-		ebi.Cursor++
+		ebi.Cursors[key]++
 	}
 	return eb, nil
 }
@@ -160,6 +192,12 @@ func (eb *EventBatch) toMsg() (*amqp.Message, error) {
 	for idx, bytes := range eb.marshaledMessages {
 		batchMessage.Data[idx] = bytes
 	}
+
+	if eb.PartitionKey != nil {
+		batchMessage.Annotations = make(amqp.Annotations)
+		batchMessage.Annotations[partitionKeyAnnotationName] = eb.PartitionKey
+	}
+
 	return batchMessage, nil
 }
 
