@@ -2,6 +2,7 @@
 
 ## `head`
 - enable partitionKey for sendBatch
+- close `leaseCh` on function return in storage.(*LeaserCheckpointer).GetLeases to fix [#136](https://github.com/Azure/azure-event-hubs-go/issues/136)
 
 ## `v2.0.1`
 - update to amqp 0.11.2 & common 2.1.0 to fix [#115](https://github.com/Azure/azure-event-hubs-go/issues/115)
