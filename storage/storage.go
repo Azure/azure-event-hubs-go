@@ -191,14 +191,17 @@ func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker,
 
 	partitionIDs := sl.processor.GetPartitionIDs()
 	leaseCh := make(chan leaseGetResult)
-	for idx, partitionID := range partitionIDs {
-		go func(i int, pID string) {
+	defer close(leaseCh)
+
+	for _, partitionID := range partitionIDs {
+		go func(pID string) {
 			lease, err := sl.getLease(ctx, pID)
-			leaseCh <- leaseGetResult{
-				Lease: lease,
-				Err:   err,
+			select {
+			case <-ctx.Done():
+				return
+			case leaseCh <- leaseGetResult{Lease: lease, Err: err}:
 			}
-		}(idx, partitionID)
+		}(partitionID)
 	}
 
 	leases := make([]eph.LeaseMarker, len(partitionIDs))
