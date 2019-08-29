@@ -2,6 +2,7 @@
 
 ## `head`
 - enable partitionKey for sendBatch
+- ensure sender receives ack'd messages from EH [#126](https://github.com/Azure/azure-event-hubs-go/issues/126)
 - close `leaseCh` on function return in storage.(*LeaserCheckpointer).GetLeases to fix [#136](https://github.com/Azure/azure-event-hubs-go/issues/136)
 
 ## `v2.0.1`

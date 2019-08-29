@@ -248,7 +248,8 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 	}
 
 	amqpSender, err := amqpSession.NewSender(
-		amqp.LinkSenderSettle(amqp.ModeUnsettled),
+		amqp.LinkSenderSettle(amqp.ModeMixed),
+		amqp.LinkReceiverSettle(amqp.ModeFirst),
 		amqp.LinkTargetAddress(s.getAddress()),
 	)
 	if err != nil {
