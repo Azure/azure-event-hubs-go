@@ -192,6 +192,8 @@ func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker,
 	partitionIDs := sl.processor.GetPartitionIDs()
 	leaseCh := make(chan leaseGetResult)
 	defer close(leaseCh)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	for _, partitionID := range partitionIDs {
 		go func(pID string) {
