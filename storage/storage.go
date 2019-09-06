@@ -191,7 +191,8 @@ func (sl *LeaserCheckpointer) GetLeases(ctx context.Context) ([]eph.LeaseMarker,
 
 	partitionIDs := sl.processor.GetPartitionIDs()
 	leaseCh := make(chan leaseGetResult)
-	defer close(leaseCh)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	for _, partitionID := range partitionIDs {
 		go func(pID string) {
@@ -501,7 +502,6 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 	defer span.End()
 
 	resCh := make(chan dirtyResult)
-	defer close(resCh)
 
 	// gather all of the dirty partition ids
 	pids := make([]string, len(sl.dirtyPartitions))
@@ -515,9 +515,10 @@ func (sl *LeaserCheckpointer) persistDirtyPartitions(ctx context.Context) error 
 	for _, pid := range pids {
 		go func(id string) {
 			err := sl.persistLease(ctx, id)
-			resCh <- dirtyResult{
-				Err:         err,
-				PartitionID: id,
+			select {
+			case <-ctx.Done():
+				return
+			case resCh <- dirtyResult{PartitionID: id, Err: err}:
 			}
 		}(pid)
 	}
