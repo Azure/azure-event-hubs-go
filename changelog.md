@@ -1,7 +1,9 @@
 # Change Log
 
 ## `head`
-- fix send on closed channel for GetLeases
+
+## `v2.0.3`
+- fix send on closed channel for GetLeases [#142](https://github.com/Azure/azure-event-hubs-go/issues/142)
 
 ## `v2.0.2`
 - enable partitionKey for sendBatch to fix [#128](https://github.com/Azure/azure-event-hubs-go/issues/128)
