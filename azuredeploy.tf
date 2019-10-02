@@ -3,7 +3,7 @@ provider "azuread" {
 }
 
 provider "azurerm" {
-  version = "~> 1.33"
+  version = "~> 1.34"
 }
 
 provider "random" {
@@ -99,19 +99,21 @@ resource "azuread_service_principal_password" "test" {
   end_date             = "2030-01-01T01:02:03Z"
 }
 
-# This provides the new AAD application the rights to managed, send and receive from the Event Hubs instance
-resource "azurerm_role_assignment" "service_principal_eh" {
-  scope                = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}/providers/Microsoft.EventHub/namespaces/${azurerm_eventhub_namespace.test.name}"
-  role_definition_name = "Azure Event Hubs Data Owner"
-  principal_id         = data.azurerm_client_config.current.service_principal_application_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.service_principal_object_id
-}
-
 # This provides the new AAD application the rights to managed the resource group
 resource "azurerm_role_assignment" "service_principal_rg" {
   scope                = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}"
   role_definition_name = "Owner"
   principal_id         = data.azurerm_client_config.current.service_principal_application_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.service_principal_object_id
 }
+
+# This provides the new AAD application the rights to managed, send and receive from the Event Hubs instance
+resource "azurerm_role_assignment" "service_principal_eh" {
+	scope                = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}/providers/Microsoft.EventHub/namespaces/${azurerm_eventhub_namespace.test.name}"
+	role_definition_name = "Azure Event Hubs Data Owner"
+	principal_id         = data.azurerm_client_config.current.service_principal_application_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.service_principal_object_id
+	depends_on 		     = [azurerm_eventhub_namespace.test]
+}
+
 
 output "TEST_EVENTHUB_RESOURCE_GROUP" {
   value = azurerm_resource_group.test.name
