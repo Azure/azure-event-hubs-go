@@ -43,6 +43,7 @@ const (
 	DefaultMaxMessageSizeInBytes MaxMessageSizeInBytes = 1000000
 
 	batchMessageWrapperSize = 100
+	// KeyOfNoPartitionKey is the key value in Events map for Events which do not have PartitionKey
 	KeyOfNoPartitionKey     = "NoPartitionKey"
 )
 

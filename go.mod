@@ -1,5 +1,7 @@
 module github.com/Azure/azure-event-hubs-go/v2
 
+go 1.13
+
 require (
 	github.com/Azure/azure-amqp-common-go/v2 v2.1.0
 	github.com/Azure/azure-pipeline-go v0.1.9
