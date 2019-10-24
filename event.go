@@ -57,7 +57,7 @@ type (
 		SequenceNumber *int64     `mapstructure:"x-opt-sequence-number"` // unique sequence number of the message
 		EnqueuedTime   *time.Time `mapstructure:"x-opt-enqueued-time"`   // time the message landed in the message queue
 		Offset         *int64     `mapstructure:"x-opt-offset"`
-		PartitionID    *int16     `mapstructure:"x-opt-partition-id"`
+		PartitionID    *int16     `mapstructure:"x-opt-partition-id"` // This value will always be nil. For information related to the event's partition refer to the PartitionKey field in this type
 		PartitionKey   *string    `mapstructure:"x-opt-partition-key"`
 	}
 
