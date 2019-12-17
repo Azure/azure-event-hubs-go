@@ -17,6 +17,13 @@ This library is a pure Golang implementation of Azure Event Hubs over AMQP.
 ## Install with Go modules
 If you want to use stable versions of the library, please use Go modules.
 
+**NOTE**: versions prior to 3.0.0 depend on pack.ag/amqp which is no longer maintained. Any new code should not use versions prior to 3.0.0.
+
+### Using go get targeting version 3.x.x
+``` bash
+go get -u github.com/Azure/azure-event-hubs-go/v3
+```
+
 ### Using go get targeting version 2.x.x
 ``` bash
 go get -u github.com/Azure/azure-event-hubs-go/v2
@@ -46,7 +53,7 @@ import (
 	"os/signal"
 	"time"
 	
-	"github.com/Azure/azure-event-hubs-go/v2"
+	"github.com/Azure/azure-event-hubs-go/v3"
 )
 
 func main() {
@@ -231,7 +238,7 @@ particular partition. You can do this in two ways.
 Sending a batch of messages is more efficient than sending a single message. `SendBatch` takes an `*EventBatchIterator` that will automatically create batches from a slice of `*Event`.
 ```go
 import (
-    eventhub "github.com/Azure/azure-event-hubs-go/v2"
+    eventhub "github.com/Azure/azure-event-hubs-go/v3"
 )
 ...
 var events []*eventhub.Event
@@ -318,11 +325,11 @@ import (
 	"os/signal"
 	"time"
 	
-	"github.com/Azure/azure-amqp-common-go/v2/conn"
-	"github.com/Azure/azure-amqp-common-go/v2/sas"
-    "github.com/Azure/azure-event-hubs-go/v2"
-    "github.com/Azure/azure-event-hubs-go/v2/eph"
-    "github.com/Azure/azure-event-hubs-go/v2/storage"
+	"github.com/Azure/azure-amqp-common-go/v3/conn"
+	"github.com/Azure/azure-amqp-common-go/v3/sas"
+    "github.com/Azure/azure-event-hubs-go/v3"
+    "github.com/Azure/azure-event-hubs-go/v3/eph"
+    "github.com/Azure/azure-event-hubs-go/v3/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 )

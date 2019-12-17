@@ -34,12 +34,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v2/uuid"
+	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go/v2"
-	"github.com/Azure/azure-event-hubs-go/v2/eph"
-	"github.com/Azure/azure-event-hubs-go/v2/persist"
+	"github.com/Azure/azure-event-hubs-go/v3"
+	"github.com/Azure/azure-event-hubs-go/v3/eph"
+	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
