@@ -2,5 +2,5 @@ package eventhub
 
 const (
 	// Version is the semantic version number
-	Version = "2.0.4"
+	Version = "3.0.0"
 )

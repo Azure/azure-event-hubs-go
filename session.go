@@ -23,8 +23,8 @@ package eventhub
 //	SOFTWARE
 
 import (
-	"github.com/Azure/azure-amqp-common-go/v2/uuid"
-	"pack.ag/amqp"
+	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/go-amqp"
 )
 
 type (

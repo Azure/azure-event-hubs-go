@@ -36,15 +36,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v2/aad"
-	"github.com/Azure/azure-amqp-common-go/v2/auth"
-	"github.com/Azure/azure-amqp-common-go/v2/sas"
-	"github.com/Azure/azure-amqp-common-go/v2/uuid"
+	"github.com/Azure/azure-amqp-common-go/v3/aad"
+	"github.com/Azure/azure-amqp-common-go/v3/auth"
+	"github.com/Azure/azure-amqp-common-go/v3/sas"
+	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/Azure/azure-event-hubs-go/v2/internal/test"
+	"github.com/Azure/azure-event-hubs-go/v3/internal/test"
 )
 
 type (

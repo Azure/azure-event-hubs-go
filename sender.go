@@ -28,10 +28,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v2/uuid"
+	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 	"github.com/jpillora/backoff"
-	"pack.ag/amqp"
+	"github.com/Azure/go-amqp"
 )
 
 // sender provides session and link handling for an sending entity path
