@@ -118,7 +118,7 @@ func WithEnvironment(env azure.Environment) EventProcessorHostOption {
 	}
 }
 
-// WithEnvironment will configure an EventProcessorHost to use the specified Azure Environment
+// WithWebSocketConnection will configure an EventProcessorHost to use websockets
 func WithWebSocketConnection() EventProcessorHostOption {
 	return func(host *EventProcessorHost) error {
 		host.webSocketConnection = true
