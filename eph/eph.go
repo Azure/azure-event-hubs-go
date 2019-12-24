@@ -230,6 +230,10 @@ func New(ctx context.Context, namespace, hubName string, tokenProvider auth.Toke
 		hubOpts = append(hubOpts, eventhub.HubWithEnvironment(*host.env))
 	}
 
+	if host.webSocketConnection {
+		hubOpts = append(hubOpts, eventhub.HubWithWebSocketConnection())
+	}
+
 	client, err := eventhub.NewHub(namespace, hubName, tokenProvider, hubOpts...)
 	if err != nil {
 		return nil, err
