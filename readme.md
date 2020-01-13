@@ -434,6 +434,25 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 See [contributing.md](./.github/contributing.md).
 
+## Running Tests
+To setup the integration test environment, create a file in the root of the repo named `.env` containing the following key / value pairs.
+
+```
+EVENTHUB_CONNECTION_STRING="<some connection string>"
+AZURE_SUBSCRIPTION_ID="<some subscription id"
+EVENTHUB_NAMESPACE="<some namespace>"
+TEST_EVENTHUB_RESOURCE_GROUP="<some resource group>"
+TEST_EVENTHUB_LOCATION="<some azure region string ex. eastus>"
+```
+If you want to authenticate to Azure via a client secret, also add the following values
+```
+AZURE_TENANT_ID="<some tenant id>"
+AZURE_CLIENT_ID="<some client id>"
+AZURE_CLIENT_SECRET="<some secret>"
+```
+
+Alternatively, tests can be run in the context of an Azure CLI login.
+
 # License
 
 MIT, see [LICENSE](./LICENSE).
