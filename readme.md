@@ -437,9 +437,6 @@ See [contributing.md](./.github/contributing.md).
 ## Running Tests
 To setup the integration test environment, ensure the following pre-requisites are in place
 - [install WSL](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (if on Windows)
-- optionally install VSCOde extensions
-  - Remote - WSL 
-  - Terraform extensiion
 - [install golang](https://golang.org/doc/install) 
 - add paths to .profile
   - export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
