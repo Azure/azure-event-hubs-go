@@ -444,6 +444,9 @@ To setup the integration test environment, ensure the following pre-requisites a
 - add paths to .profile
   - export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
   - export GOPATH=$HOME/go
+- install go dev dependencies
+  - run `go get github.com/fzipp/gocyclo`
+  - run `go get -u golang.org/x/lint/golint`
 - run the following bash commands
   - `sudo apt-get install jq`
 - install gcc
@@ -455,6 +458,8 @@ To setup the integration test environment, ensure the following pre-requisites a
 - run `az login`
 
 To run all tests run `make test`
+
+To cleanup dev tools in `go.mod` and `go.sum` prior to check-in run `make tidy` or `go mode tidy`
 
 # License
 
