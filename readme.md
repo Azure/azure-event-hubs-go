@@ -445,9 +445,9 @@ To setup the integration test environment, ensure the following pre-requisites a
   - run `go get github.com/fzipp/gocyclo`
   - run `go get -u golang.org/x/lint/golint`
 - run the following bash commands
-  - `sudo apt-get install jq`
+  - `sudo apt install jq`
 - install gcc
-  - on Ubuntun:
+  - on Ubuntu:
     - `sudo apt update`
     - `sudo apt install build-essential`
 - [download terraform](https://www.terraform.io/downloads.html) and add to the path
