@@ -3,7 +3,7 @@
 ## 'head'
 - Azure storage SAS token regeneration fix [#157](https://github.com/Azure/azure-event-hubs-go/issues/157)
 
-## '3.1.0'
+## 'v3.1.0'
 - add support for websocket connections with eph with `eph.WithWebSocketConnection()`
 
 
