@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.1.2`
+- fix errors in message handling being ignored [#155](https://github.com/Azure/azure-event-hubs-go/issues/155)
+
 ## `v3.1.1`
 - Azure storage SAS token regeneration fix [#157](https://github.com/Azure/azure-event-hubs-go/issues/157)
 
