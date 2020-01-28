@@ -434,6 +434,30 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 See [contributing.md](./.github/contributing.md).
 
+## Running Tests
+To setup the integration test environment, ensure the following pre-requisites are in place
+- [install WSL](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (if on Windows)
+- [install golang](https://golang.org/doc/install) 
+- add paths to .profile
+  - export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+  - export GOPATH=$HOME/go
+- install go dev dependencies
+  - run `go get github.com/fzipp/gocyclo`
+  - run `go get -u golang.org/x/lint/golint`
+- run the following bash commands
+  - `sudo apt install jq`
+- install gcc
+  - on Ubuntu:
+    - `sudo apt update`
+    - `sudo apt install build-essential`
+- [download terraform](https://www.terraform.io/downloads.html) and add to the path
+- install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-apt?view=azure-cli-latest)
+- run `az login`
+
+To run all tests run `make test`
+
+To cleanup dev tools in `go.mod` and `go.sum` prior to check-in run `make tidy` or `go mode tidy`
+
 # License
 
 MIT, see [LICENSE](./LICENSE).
