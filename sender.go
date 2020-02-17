@@ -53,6 +53,15 @@ type (
 		tab.Carrier
 		toMsg() (*amqp.Message, error)
 	}
+
+	// EventSender provides an interface for session and link handling for an sending entity path
+	EventSender interface {
+		Recover(ctx context.Context) 								error
+		Close(ctx context.Context) 									error
+		Send(ctx context.Context, event *Event, opts ...SendOption) error
+		trySend(ctx context.Context, evt eventer) 					error
+		String() 													string
+	}
 )
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path

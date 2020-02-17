@@ -39,11 +39,11 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
+	"github.com/Azure/go-amqp"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/devigned/tab"
-	"github.com/Azure/go-amqp"
 
 	"github.com/Azure/azure-event-hubs-go/v3/atom"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
@@ -57,16 +57,21 @@ const (
 type (
 	// Hub provides the ability to send and receive Event Hub messages
 	Hub struct {
-		name              string
-		namespace         *namespace
-		receivers         map[string]*receiver
-		sender            *sender
-		senderPartitionID *string
-		receiverMu        sync.Mutex
-		senderMu          sync.Mutex
-		offsetPersister   persist.CheckpointPersister
-		userAgent         string
+		name                string
+		namespace           *namespace
+		receivers           map[string]Receiver
+		receiverInitializer func(h *Hub, ctx context.Context, partitionID string, opts ...ReceiveOption) (Receiver, error)
+		sender              EventSender
+		senderPartitionID   *string
+		receiverMu          sync.Mutex
+		senderMu            sync.Mutex
+		offsetPersister     persist.CheckpointPersister
+		userAgent           string
+		hubInfoManager      Manager
 	}
+
+	// ReceiverInitializer is the function signature for a custom initializer for the Receiver
+	ReceiverInitializer func(h *Hub, ctx context.Context, partitionID string, opts ...ReceiveOption) (Receiver, error)
 
 	// Handler is the function signature for any receiver of events
 	Handler func(ctx context.Context, event *Event) error
@@ -84,8 +89,8 @@ type (
 
 	// Manager provides the ability to query management node information about a node
 	Manager interface {
-		GetRuntimeInformation(context.Context) (HubRuntimeInformation, error)
-		GetPartitionInformation(context.Context, string) (HubPartitionRuntimeInformation, error)
+		GetRuntimeInformation(context.Context) (*HubRuntimeInformation, error)
+		GetPartitionInformation(context.Context, string) (*HubPartitionRuntimeInformation, error)
 	}
 
 	// HubOption provides structure for configuring new Event Hub clients. For building new Event Hubs, see
@@ -342,7 +347,7 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 		namespace:       ns,
 		offsetPersister: persist.NewMemoryPersister(),
 		userAgent:       rootUserAgent,
-		receivers:       make(map[string]*receiver),
+		receivers:       make(map[string]Receiver),
 	}
 
 	for _, opt := range opts {
@@ -470,7 +475,7 @@ func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error)
 		namespace:       ns,
 		offsetPersister: persist.NewMemoryPersister(),
 		userAgent:       rootUserAgent,
-		receivers:       make(map[string]*receiver),
+		receivers:       make(map[string]Receiver),
 	}
 
 	for _, opt := range opts {
@@ -487,20 +492,14 @@ func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error)
 func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
 	defer span.End()
-	client := newClient(h.namespace, h.name)
-	c, err := h.namespace.newConnection()
+	client, cleanup, err := h.getRuntimeManager(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
 	}
+	defer cleanup()
 
-	defer func() {
-		if err := c.Close(); err != nil {
-			tab.For(ctx).Error(err)
-		}
-	}()
-
-	info, err := client.GetHubRuntimeInformation(ctx, c)
+	info, err := client.GetRuntimeInformation(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -513,25 +512,39 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation
 func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (*HubPartitionRuntimeInformation, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
 	defer span.End()
-	client := newClient(h.namespace, h.name)
-	c, err := h.namespace.newConnection()
+
+	client, cleanup, err := h.getRuntimeManager(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
 	}
+	defer cleanup()
 
-	defer func() {
-		if err := c.Close(); err != nil {
-			tab.For(ctx).Error(err)
-		}
-	}()
-
-	info, err := client.GetHubPartitionRuntimeInformation(ctx, c, partitionID)
+	info, err := client.GetPartitionInformation(ctx, partitionID)
 	if err != nil {
 		return nil, err
 	}
 
 	return info, nil
+}
+
+func (h *Hub) getRuntimeManager(ctx context.Context) (Manager, func(), error) {
+	// return the configured Manager if it exists
+	if nil != h.hubInfoManager {
+		return h.hubInfoManager, func(){}, nil
+	}
+
+	c, err := h.namespace.newConnection()
+	cleanup := func() {
+		if err := c.Close(); err != nil {
+			tab.For(ctx).Error(err)
+		}
+	}
+	if err != nil {
+		return nil, cleanup, err
+	}
+	client := newClient(h.namespace, h.name, c)
+	return client, cleanup, nil
 }
 
 // Close drains and closes all of the existing senders, receivers and connections
@@ -603,19 +616,26 @@ func (h *Hub) Receive(ctx context.Context, partitionID string, handler Handler, 
 	h.receiverMu.Lock()
 	defer h.receiverMu.Unlock()
 
-	receiver, err := h.newReceiver(ctx, partitionID, opts...)
+	var receiver Receiver
+	var err error
+
+	if h.receiverInitializer != nil {
+		receiver, err = h.receiverInitializer(h, ctx, partitionID, opts...)
+	} else {
+		receiver, err = h.newReceiver(ctx, partitionID, opts...)
+	}
 	if err != nil {
 		return nil, err
 	}
 
 	// Todo: change this to use name rather than identifier
-	if r, ok := h.receivers[receiver.getIdentifier()]; ok {
+	if r, ok := h.receivers[receiver.GetIdentifier()]; ok {
 		if err := r.Close(ctx); err != nil {
 			tab.For(ctx).Error(err)
 		}
 	}
 
-	h.receivers[receiver.getIdentifier()] = receiver
+	h.receivers[receiver.GetIdentifier()] = receiver
 	listenerContext := receiver.Listen(handler)
 
 	return listenerContext, nil
@@ -689,6 +709,30 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 	}
 }
 
+// HubWithReceiverInit configures the hub instance with a provided ReceiverInitializer
+func HubWithReceiverInit(init ReceiverInitializer) HubOption {
+	return func(h *Hub) error {
+		h.receiverInitializer = init
+		return nil
+	}
+}
+
+// HubWithSender configures the hub instance with a provided EventSender
+func HubWithSender(sender EventSender) HubOption {
+	return func(h *Hub) error {
+		h.sender = sender
+		return nil
+	}
+}
+
+// HubWithInformationManager configures the hub instance with a provided Manager
+func HubWithInformationManager(manager Manager) HubOption {
+	return func(h *Hub) error {
+		h.hubInfoManager = manager
+		return nil
+	}
+}
+
 // HubWithOffsetPersistence configures the Hub instance to read and write offsets so that if a Hub is interrupted, it
 // can resume after the last consumed event.
 func HubWithOffsetPersistence(offsetPersister persist.CheckpointPersister) HubOption {
@@ -736,7 +780,7 @@ func (h *Hub) appendAgent(userAgent string) error {
 	return nil
 }
 
-func (h *Hub) getSender(ctx context.Context) (*sender, error) {
+func (h *Hub) getSender(ctx context.Context) (EventSender, error) {
 	h.senderMu.Lock()
 	defer h.senderMu.Unlock()
 

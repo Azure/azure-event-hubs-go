@@ -55,7 +55,7 @@ type (
 )
 
 var (
-	defaultTimeout = 30 * time.Second
+	defaultTimeout = 60 * time.Second
 )
 
 const (
