@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.2.0`
+- add IoT Hub system properties
+
 ## `v3.1.2`
 - fix errors in message handling being ignored [#155](https://github.com/Azure/azure-event-hubs-go/issues/155)
 
