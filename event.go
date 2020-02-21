@@ -28,8 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
 	"github.com/Azure/go-amqp"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 )
@@ -59,6 +59,16 @@ type (
 		Offset         *int64     `mapstructure:"x-opt-offset"`
 		PartitionID    *int16     `mapstructure:"x-opt-partition-id"` // This value will always be nil. For information related to the event's partition refer to the PartitionKey field in this type
 		PartitionKey   *string    `mapstructure:"x-opt-partition-key"`
+		// Nil for messages other than from Azure IoT Hub. deviceId of the device that sent the message.
+		IoTHubDeviceConnectionID *string `mapstructure:"iothub-connection-device-id"`
+		// Nil for messages other than from Azure IoT Hub. Used to distinguish devices with the same deviceId, when they have been deleted and re-created.
+		IoTHubAuthGenerationID *string `mapstructure:"iothub-connection-auth-generation-id"`
+		// Nil for messages other than from Azure IoT Hub. Contains information about the authentication method used to authenticate the device sending the message.
+		IoTHubConnectionAuthMethod *string `mapstructure:"iothub-connection-auth-method"`
+		// Nil for messages other than from Azure IoT Hub. moduleId of the device that sent the message.
+		IoTHubConnectionModuleID *string `mapstructure:"iothub-connection-module-id"`
+		// Nil for messages other than from Azure IoT Hub. The time the Device-to-Cloud message was received by IoT Hub.
+		IoTHubEnqueuedTime *time.Time `mapstructure:"iothub-enqueuedtime"`
 	}
 
 	mapStructureTag struct {
