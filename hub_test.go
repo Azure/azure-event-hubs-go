@@ -389,7 +389,7 @@ func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 		assert.NotNil(t, event.SystemProperties.SequenceNumber)
 		assert.Equal(t, int64(count), *event.SystemProperties.SequenceNumber)
 		require.NotNil(t, event.SystemProperties.Annotations)
-		assert.Equal(t, *event.SystemProperties.EnqueuedTime, event.SystemProperties.Annotations["x-opt-enqueued-time"].(string))
+		assert.Equal(t, *event.SystemProperties.EnqueuedTime, event.SystemProperties.Annotations["x-opt-enqueued-time"].(time.Time))
 		assert.Equal(t, strconv.FormatInt(*event.SystemProperties.Offset, 10), event.SystemProperties.Annotations["x-opt-offset"].(string))
 		assert.Equal(t, *event.SystemProperties.SequenceNumber, event.SystemProperties.Annotations["x-opt-sequence-number"].(int64))
 		assert.Equal(t, "custom-value", event.SystemProperties.Annotations["x-opt-custom-annotation"].(string))

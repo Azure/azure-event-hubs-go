@@ -252,6 +252,11 @@ func encodeStructureToMap(structPointer interface{}) (map[string]interface{}, er
 				return nil, err
 			}
 
+			// Skip any entries with an exclude tag
+			if tag.Name == "-" {
+				continue
+			}
+
 			if tag != nil {
 				switch f.Kind() {
 				case reflect.Ptr:
