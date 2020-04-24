@@ -39,11 +39,11 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
+	"github.com/Azure/go-amqp"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/devigned/tab"
-	"github.com/Azure/go-amqp"
 
 	"github.com/Azure/azure-event-hubs-go/v3/atom"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
