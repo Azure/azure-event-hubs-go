@@ -163,10 +163,6 @@ func (e *Event) toMsg() (*amqp.Message, error) {
 			return nil, err
 		}
 		msg.Annotations = addMapToAnnotations(msg.Annotations, sysPropMap)
-
-		for k, v := range e.SystemProperties.Annotations {
-			msg.Annotations[k] = v
-		}
 	}
 
 	if e.PartitionKey != nil {
