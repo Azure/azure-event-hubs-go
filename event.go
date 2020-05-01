@@ -166,7 +166,10 @@ func (e *Event) toMsg() (*amqp.Message, error) {
 	}
 
 	if e.PartitionKey != nil {
-		msg.Annotations = make(amqp.Annotations)
+		if msg.Annotations == nil {
+			msg.Annotations = make(amqp.Annotations)
+		}
+
 		msg.Annotations[partitionKeyAnnotationName] = e.PartitionKey
 	}
 
