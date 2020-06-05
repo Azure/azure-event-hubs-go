@@ -278,7 +278,7 @@ At some point, a receiver process is going to stop. You will likely want it to s
 processing messages. This is where message offsets can be used to start from where you have left off.
 
 The `Hub` struct can be customized to use an `persist.CheckpointPersister`. By default, a `Hub` uses an in-memory
-`CheckpointPersister`, but accepts anything that implements the `perist.CheckpointPersister` interface.
+`CheckpointPersister`, but accepts anything that implements the `persist.CheckpointPersister` interface.
 
 ```go
 // CheckpointPersister provides persistence for the received offset for a given namespace, hub name, consumer group, partition Id and
