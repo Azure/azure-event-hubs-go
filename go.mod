@@ -19,6 +19,7 @@ require (
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/sirupsen/logrus v1.2.0
-	github.com/stretchr/testify v1.3.0
+	github.com/stretchr/testify v1.5.1
 	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
+	gopkg.in/yaml.v2 v2.2.8 // indirect
 )

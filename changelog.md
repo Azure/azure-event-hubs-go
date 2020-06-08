@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.0`
+- add support for sending and receiving custom annotations
+
 ## `v3.2.0`
 - add IoT Hub system properties
 

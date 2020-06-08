@@ -69,6 +69,8 @@ type (
 		IoTHubConnectionModuleID *string `mapstructure:"iothub-connection-module-id"`
 		// Nil for messages other than from Azure IoT Hub. The time the Device-to-Cloud message was received by IoT Hub.
 		IoTHubEnqueuedTime *time.Time `mapstructure:"iothub-enqueuedtime"`
+		// Raw annotations provided on the message. Includes any additional System Properties that are not explicitly mapped.
+		Annotations map[string]interface{} `mapstructure:"-"`
 	}
 
 	mapStructureTag struct {
@@ -152,15 +154,22 @@ func (e *Event) toMsg() (*amqp.Message, error) {
 	}
 
 	if e.SystemProperties != nil {
+		// Set the raw annotations first (they may be nil) and add the explicit
+		// system properties second to ensure they're set properly.
+		msg.Annotations = addMapToAnnotations(msg.Annotations, e.SystemProperties.Annotations)
+
 		sysPropMap, err := encodeStructureToMap(e.SystemProperties)
 		if err != nil {
 			return nil, err
 		}
-		msg.Annotations = annotationsFromMap(sysPropMap)
+		msg.Annotations = addMapToAnnotations(msg.Annotations, sysPropMap)
 	}
 
 	if e.PartitionKey != nil {
-		msg.Annotations = make(amqp.Annotations)
+		if msg.Annotations == nil {
+			msg.Annotations = make(amqp.Annotations)
+		}
+
 		msg.Annotations[partitionKeyAnnotationName] = e.PartitionKey
 	}
 
@@ -189,12 +198,32 @@ func newEvent(data []byte, msg *amqp.Message) (*Event, error) {
 				event.PartitionKey = &valStr
 			}
 		}
-	}
 
-	if msg.Annotations != nil {
 		if err := mapstructure.WeakDecode(msg.Annotations, &event.SystemProperties); err != nil {
 			fmt.Println("error decoding...", err)
 			return event, err
+		}
+
+		// If we didn't populate any system properties, set up the struct so we
+		// can put the annotations in it
+		if event.SystemProperties == nil {
+			event.SystemProperties = new(SystemProperties)
+		}
+
+		// Take all string-keyed annotations because the protocol reserves all
+		// numeric keys for itself and there are no numeric keys defined in the
+		// protocol today:
+		//
+		//	http://www.amqp.org/sites/amqp.org/files/amqp.pdf (section 3.2.10)
+		//
+		// This approach is also consistent with the behavior of .NET:
+		//
+		//	https://docs.microsoft.com/en-us/dotnet/api/azure.messaging.eventhubs.eventdata.systemproperties?view=azure-dotnet#Azure_Messaging_EventHubs_EventData_SystemProperties
+		event.SystemProperties.Annotations = make(map[string]interface{})
+		for key, val := range msg.Annotations {
+			if s, ok := key.(string); ok {
+				event.SystemProperties.Annotations[s] = val
+			}
 		}
 	}
 
@@ -220,6 +249,11 @@ func encodeStructureToMap(structPointer interface{}) (map[string]interface{}, er
 			tag, err := parseMapStructureTag(tf.Tag)
 			if err != nil {
 				return nil, err
+			}
+
+			// Skip any entries with an exclude tag
+			if tag.Name == "-" {
+				continue
 			}
 
 			if tag != nil {
@@ -267,8 +301,10 @@ func parseMapStructureTag(tag reflect.StructTag) (*mapStructureTag, error) {
 	return mapTag, nil
 }
 
-func annotationsFromMap(m map[string]interface{}) amqp.Annotations {
-	a := make(amqp.Annotations)
+func addMapToAnnotations(a amqp.Annotations, m map[string]interface{}) amqp.Annotations {
+	if a == nil && len(m) > 0 {
+		a = make(amqp.Annotations)
+	}
 	for key, val := range m {
 		a[key] = val
 	}

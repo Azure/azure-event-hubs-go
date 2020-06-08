@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/rpc"
+	"github.com/Azure/go-amqp"
 	"github.com/devigned/tab"
 	"github.com/mitchellh/mapstructure"
-	"github.com/Azure/go-amqp"
 )
 
 const (
