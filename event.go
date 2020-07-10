@@ -97,7 +97,7 @@ func (e *Event) GetCheckpoint() persist.Checkpoint {
 	var enqueueTime time.Time
 	var sequenceNumber int64
 	if val, ok := e.message.Annotations[offsetAnnotationName]; ok {
-		offset = val.(string)
+		offset = fmt.Sprintf("%v", val)
 	}
 
 	if val, ok := e.message.Annotations[enqueueTimeName]; ok {
