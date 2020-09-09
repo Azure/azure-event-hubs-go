@@ -27,7 +27,7 @@ steps:
     displayName: 'Install Dependencies'
   - script: |
       set -e
-      curl -sLo /tmp/terraform.zip https://releases.hashicorp.com/terraform/0.12.4/terraform_0.12.4_linux_amd64.zip
+      curl -sLo /tmp/terraform.zip https://releases.hashicorp.com/terraform/0.12.8/terraform_0.12.8_linux_amd64.zip
       unzip /tmp/terraform.zip -d /tmp
       mkdir -p ~/bin
       export PATH="~/bin:$PATH"
