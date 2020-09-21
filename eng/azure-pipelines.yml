@@ -24,7 +24,6 @@ jobs:
         inputs:
           version: '$(go.version)'
         displayName: "Select Go Version"
-
       - script: |
           set -e
           mkdir -p '$(GOPATH)/bin'
@@ -60,3 +59,9 @@ jobs:
           gocyclo -over 19 .
         workingDirectory: '$(sdkPath)'
         displayName: 'Cyclo'
+      - script: |
+          gofmt -s -l -w . >&2
+        workingDirectory: '$(sdkPath)'
+        displayName: 'Format Check'
+        failOnStderr: true
+        condition: succeededOrFailed()

@@ -25,11 +25,6 @@ steps:
       go get github.com/fzipp/gocyclo
       go get golang.org/x/lint/golint
     displayName: 'Install Dependencies'
-    env:
-      ARM_SUBSCRIPTION_ID=$(go-eh-azure-subscription-id)
-      ARM_CLIENT_ID=$(go-eh-azure-client-id)
-      ARM_CLIENT_SECRET=$(go-eh-azure-client-secret)
-      ARM_TENANT_ID=$(go-eh-azure-tenant-id)
   - script: |
       set -e
       curl -sLo /tmp/terraform.zip https://releases.hashicorp.com/terraform/0.12.8/terraform_0.12.8_linux_amd64.zip
@@ -40,28 +35,27 @@ steps:
       make test-cover
       goveralls -coverprofile=cover.out -service=azure-devops
       make destroy-sb
+    env:
+      ARM_SUBSCRIPTION_ID: $(go-eh-azure-subscription-id)
+      ARM_CLIENT_ID: $(go-eh-azure-client-id)
+      ARM_CLIENT_SECRET: $(go-eh-azure-client-secret)
+      ARM_TENANT_ID: $(go-eh-azure-tenant-id)
     displayName: 'Run Integration Tests'
-    - script: |
-          set -e
-          go test -race -v -coverprofile=coverage.txt -covermode atomic ./... 2>&1 | go-junit-report > report.xml
-          gocov convert coverage.txt > coverage.json
-          gocov-xml < coverage.json > coverage.xml
-          gocov-html < coverage.json > coverage.html
-        workingDirectory: '$(sdkPath)'
-        displayName: 'Run Tests'
-      - script: |
-          gofmt -s -l -w . >&2
-        workingDirectory: '$(sdkPath)'
-        displayName: 'Format Check'
-        failOnStderr: true
-        condition: succeededOrFailed()
-      - task: PublishTestResults@2
-        inputs:
-          testRunner: JUnit
-          testResultsFiles: $(sdkPath)/report.xml
-          failTaskOnFailedTests: true
-      - task: PublishCodeCoverageResults@1
-        inputs:
-          codeCoverageTool: Cobertura 
-          summaryFileLocation: $(sdkPath)/coverage.xml
-          additionalCodeCoverageFiles: $(sdkPath)/coverage.html
+  - script: |
+      set -e
+      go test -race -v -coverprofile=coverage.txt -covermode atomic ./... 2>&1 | go-junit-report > report.xml
+      gocov convert coverage.txt > coverage.json
+      gocov-xml < coverage.json > coverage.xml
+      gocov-html < coverage.json > coverage.html
+    workingDirectory: '$(sdkPath)'
+    displayName: 'Run Tests'
+  - task: PublishTestResults@2
+      inputs:
+        testRunner: JUnit
+        testResultsFiles: $(sdkPath)/report.xml
+        failTaskOnFailedTests: true
+    - task: PublishCodeCoverageResults@1
+      inputs:
+        codeCoverageTool: Cobertura 
+        summaryFileLocation: $(sdkPath)/coverage.xml
+        additionalCodeCoverageFiles: $(sdkPath)/coverage.html
