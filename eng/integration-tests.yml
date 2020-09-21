@@ -34,21 +34,13 @@ steps:
       export GO111MODULE=on
       make test-cover
       goveralls -coverprofile=cover.out -service=azure-devops
-      make destroy-sb
+      make destroy
     env:
       ARM_SUBSCRIPTION_ID: $(go-eh-azure-subscription-id)
       ARM_CLIENT_ID: $(go-eh-azure-client-id)
       ARM_CLIENT_SECRET: $(go-eh-azure-client-secret)
       ARM_TENANT_ID: $(go-eh-azure-tenant-id)
     displayName: 'Run Integration Tests'
-  - script: |
-      set -e
-      go test -race -v -coverprofile=coverage.txt -covermode atomic ./... 2>&1 | go-junit-report > report.xml
-      gocov convert coverage.txt > coverage.json
-      gocov-xml < coverage.json > coverage.xml
-      gocov-html < coverage.json > coverage.html
-    workingDirectory: '$(sdkPath)'
-    displayName: 'Run Tests'
   - task: PublishTestResults@2
       inputs:
         testRunner: JUnit
