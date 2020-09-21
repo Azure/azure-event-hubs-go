@@ -35,19 +35,20 @@ steps:
       make test-cover
       goveralls -coverprofile=cover.out -service=azure-devops
       make destroy
+    displayName: 'Run Integration Tests'
     env:
       ARM_SUBSCRIPTION_ID: $(go-eh-azure-subscription-id)
       ARM_CLIENT_ID: $(go-eh-azure-client-id)
       ARM_CLIENT_SECRET: $(go-eh-azure-client-secret)
       ARM_TENANT_ID: $(go-eh-azure-tenant-id)
-    displayName: 'Run Integration Tests'
-    - task: PublishTestResults@2
-        inputs:
-          testRunner: JUnit
-          testResultsFiles: $(sdkPath)/report.xml
-          failTaskOnFailedTests: true
-    - task: PublishCodeCoverageResults@1
-      inputs:
-        codeCoverageTool: Cobertura 
-        summaryFileLocation: $(sdkPath)/coverage.xml
-        additionalCodeCoverageFiles: $(sdkPath)/coverage.html
+
+  - task: PublishTestResults@2
+    inputs:
+      testRunner: JUnit
+      testResultsFiles: $(sdkPath)/report.xml
+      failTaskOnFailedTests: true
+  - task: PublishCodeCoverageResults@1
+    inputs:
+      codeCoverageTool: Cobertura 
+      summaryFileLocation: $(sdkPath)/coverage.xml
+      additionalCodeCoverageFiles: $(sdkPath)/coverage.html
