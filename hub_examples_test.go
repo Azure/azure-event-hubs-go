@@ -6,16 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
-
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 )
-
-func init() {
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("FATAL: ", err)
-	}
-}
 
 func ExampleHub_helloWorld() {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
