@@ -60,28 +60,3 @@ jobs:
           gocyclo -over 19 .
         workingDirectory: '$(sdkPath)'
         displayName: 'Cyclo'
-      - script: |
-          set -e
-          go test -race -v -coverprofile=coverage.txt -covermode atomic ./... 2>&1 | go-junit-report > report.xml
-          gocov convert coverage.txt > coverage.json
-          gocov-xml < coverage.json > coverage.xml
-          gocov-html < coverage.json > coverage.html
-        workingDirectory: '$(sdkPath)'
-        displayName: 'Run Tests'
-      - script: |
-          gofmt -s -l -w . >&2
-        workingDirectory: '$(sdkPath)'
-        displayName: 'Format Check'
-        failOnStderr: true
-        condition: succeededOrFailed()
-      - task: PublishTestResults@2
-        inputs:
-          testRunner: JUnit
-          testResultsFiles: $(sdkPath)/report.xml
-          failTaskOnFailedTests: true
-
-      - task: PublishCodeCoverageResults@1
-        inputs:
-          codeCoverageTool: Cobertura 
-          summaryFileLocation: $(sdkPath)/coverage.xml
-          additionalCodeCoverageFiles: $(sdkPath)/coverage.html

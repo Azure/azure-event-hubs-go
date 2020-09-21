@@ -355,7 +355,7 @@ func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ str
 	}
 
 	ebi := NewEventBatchIterator(events...)
-	assert.EqualError(t, client.SendBatch(ctx, ebi, BatchWithMaxSizeInBytes(10000000)), "encoded message size exceeds max of 1046528")
+	assert.EqualError(t, client.SendBatch(ctx, ebi, BatchWithMaxSizeInBytes(10000000)), "encoded message size exceeds max of 1048576")
 }
 
 func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
