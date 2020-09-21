@@ -24,6 +24,7 @@ jobs:
         inputs:
           version: '$(go.version)'
         displayName: "Select Go Version"
+
       - script: |
           set -e
           mkdir -p '$(GOPATH)/bin'
