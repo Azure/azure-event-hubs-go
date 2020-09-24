@@ -106,7 +106,7 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		}
 	}
 
-	events := ebi.PartitionEventsMap[key]
+	events := ebi.PartitionEventsMap[key][ebi.Cursors[key]:]
 	eb := NewEventBatch(eventID, opts)
 	if key != KeyOfNoPartitionKey && len(events) > 0 {
 		eb.PartitionKey = events[0].PartitionKey
