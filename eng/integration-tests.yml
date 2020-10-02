@@ -37,6 +37,7 @@ steps:
       mkdir -p ~/bin
       export PATH="~/bin:$PATH"
       export GO111MODULE=on
+      pwd
       make test-cover
       goveralls -coverprofile=cover.out -service=azure-devops
       make destroy
