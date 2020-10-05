@@ -38,6 +38,8 @@ steps:
       export PATH="~/bin:$PATH"
       export GO111MODULE=on
       pwd
+      cd '$(sdkPath)'
+      pwd
       make test-cover
       goveralls -coverprofile=cover.out -service=azure-devops
       make destroy
