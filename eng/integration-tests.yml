@@ -37,9 +37,7 @@ steps:
       mkdir -p ~/bin
       export PATH="~/bin:$PATH"
       export GO111MODULE=on
-      pwd
       cd '$(sdkPath)'
-      pwd
       make test-cover
       goveralls -coverprofile=cover.out -service=azure-devops
       make destroy
@@ -48,7 +46,7 @@ steps:
       ARM_SUBSCRIPTION_ID: $(go-live-azure-subscription-id)
       ARM_CLIENT_ID: $(go-live-eh-azure-client-id)
       ARM_CLIENT_SECRET: $(go-live-eh-azure-client-secret)
-      ARM_TENANT_ID: $(go-live-azure-tenant-id)
+      ARM_TENANT_ID: $(go-live-tenant-id)
 
   - task: PublishTestResults@2
     inputs:
