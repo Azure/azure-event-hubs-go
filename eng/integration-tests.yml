@@ -25,8 +25,10 @@ steps:
     displayName: 'Create Go Workspace'
   - script: |
       set -e
-      go get github.com/mattn/goveralls
-      go get golang.org/x/tools/cmd/cover
+      go get github.com/jstemmer/go-junit-report
+      go get github.com/axw/gocov/gocov
+      go get github.com/AlekSi/gocov-xml
+      go get -u github.com/matm/gocov-html
       go get github.com/fzipp/gocyclo
       go get golang.org/x/lint/golint
     displayName: 'Install Dependencies'
@@ -39,8 +41,10 @@ steps:
       export GO111MODULE=on
       cd '$(sdkPath)'
       make test-cover
-      goveralls -coverprofile=cover.out -service=azure-devops
       make destroy
+      gocov convert cover.out > coverage.json
+      gocov-xml < coverage.json > coverage.xml
+      gocov-html < coverage.json > coverage.html
     displayName: 'Run Integration Tests'
     env:
       ARM_SUBSCRIPTION_ID: $(go-live-azure-subscription-id)
