@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
@@ -166,7 +167,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 
 	recvr := func(err error) {
 		duration := s.recoveryBackoff.Duration()
-		tab.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
+		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
 		time.Sleep(duration)
 		err = s.Recover(ctx)
 		if err != nil {
