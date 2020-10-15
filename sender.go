@@ -166,7 +166,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 
 	recvr := func(err error) {
 		duration := s.recoveryBackoff.Duration()
-		tab.For(ctx).Debug("amqp error, delaying " + string(duration/time.Millisecond) + " millis: " + err.Error())
+		tab.For(ctx).Debug("amqp error, delaying " + (duration / time.Millisecond).String() + " millis: " + err.Error())
 		time.Sleep(duration)
 		err = s.Recover(ctx)
 		if err != nil {
