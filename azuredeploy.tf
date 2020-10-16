@@ -78,9 +78,9 @@ resource "random_string" "secret" {
 resource "azuread_application" "test" {
   count                      = data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0
   name                       = "eventhubstest"
-  homepage                   = "https://eventhubstest"
-  identifier_uris            = ["https://eventhubstest"]
-  reply_urls                 = ["https://eventhubstest"]
+  homepage                   = "https://eventhubstest-${random_string.name.result}"
+  identifier_uris            = ["https://eventhubstest-${random_string.name.result}"]
+  reply_urls                 = ["https://eventhubstest-${random_string.name.result}"]
   available_to_other_tenants = false
   oauth2_allow_implicit_flow = true
 }

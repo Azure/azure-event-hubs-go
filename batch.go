@@ -44,7 +44,7 @@ const (
 
 	batchMessageWrapperSize = 100
 	// KeyOfNoPartitionKey is the key value in Events map for Events which do not have PartitionKey
-	KeyOfNoPartitionKey     = "NoPartitionKey"
+	KeyOfNoPartitionKey = "NoPartitionKey"
 )
 
 // BatchWithMaxSizeInBytes configures the EventBatchIterator to fill the batch to the specified max size in bytes
@@ -65,7 +65,7 @@ func NewEventBatchIterator(events ...*Event) *EventBatchIterator {
 		if event.PartitionKey == nil {
 			key = KeyOfNoPartitionKey
 		} else {
-			key = * event.PartitionKey
+			key = *event.PartitionKey
 		}
 		if _, ok = partitionEventMap[key]; !ok {
 			cursors[key] = 0

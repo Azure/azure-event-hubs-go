@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -354,7 +355,7 @@ func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ str
 	}
 
 	ebi := NewEventBatchIterator(events...)
-	assert.EqualError(t, client.SendBatch(ctx, ebi, BatchWithMaxSizeInBytes(10000000)), "encoded message size exceeds max of 1046528")
+	assert.EqualError(t, client.SendBatch(ctx, ebi, BatchWithMaxSizeInBytes(10000000)), "encoded message size exceeds max of 1048576")
 }
 
 func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
@@ -368,7 +369,13 @@ func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	}
 
 	for idx, message := range messages {
-		if !assert.NoError(t, client.Send(ctx, NewEventFromString(message), SendWithMessageID(fmt.Sprintf("%d", idx)))) {
+		event := NewEventFromString(message)
+		event.SystemProperties = &SystemProperties{
+			Annotations: map[string]interface{}{
+				"x-opt-custom-annotation": "custom-value",
+			},
+		}
+		if !assert.NoError(t, client.Send(ctx, event, SendWithMessageID(fmt.Sprintf("%d", idx)))) {
 			assert.FailNow(t, "unable to send event")
 		}
 	}
@@ -381,6 +388,11 @@ func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 		assert.NotNil(t, event.SystemProperties.Offset)
 		assert.NotNil(t, event.SystemProperties.SequenceNumber)
 		assert.Equal(t, int64(count), *event.SystemProperties.SequenceNumber)
+		require.NotNil(t, event.SystemProperties.Annotations)
+		assert.Equal(t, *event.SystemProperties.EnqueuedTime, event.SystemProperties.Annotations["x-opt-enqueued-time"].(time.Time))
+		assert.Equal(t, strconv.FormatInt(*event.SystemProperties.Offset, 10), event.SystemProperties.Annotations["x-opt-offset"].(string))
+		assert.Equal(t, *event.SystemProperties.SequenceNumber, event.SystemProperties.Annotations["x-opt-sequence-number"].(int64))
+		assert.Equal(t, "custom-value", event.SystemProperties.Annotations["x-opt-custom-annotation"].(string))
 		count++
 		wg.Done()
 		return nil
