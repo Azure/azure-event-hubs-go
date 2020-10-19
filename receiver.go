@@ -262,14 +262,14 @@ func (r *receiver) handleMessage(ctx context.Context, msg *amqp.Message, handler
 
 	err = handler(ctx, event)
 	if err != nil {
-		err = msg.Modify(true, false, nil)
+		err = msg.Modify(ctx, true, false, nil)
 		if err != nil {
 			tab.For(ctx).Error(err)
 		}
 		tab.For(ctx).Error(fmt.Errorf("message modified(true, false, nil): id: %v", id))
 		return
 	}
-	err = msg.Accept()
+	err = msg.Accept(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 	}
