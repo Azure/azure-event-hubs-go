@@ -1,5 +1,9 @@
 # Change Log
 
+## `v3.3.2`
+- passing a context to internal calls that use go-amqp that now expect a context
+- updating dependencies in go.mod
+
 ## `v3.3.1`
 - fixed panic caused by interface conversion in event.go [#182](https://github.com/Azure/azure-event-hubs-go/issues/182)
 - apply Receive options after populating last stored checkpoint
