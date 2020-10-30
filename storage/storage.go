@@ -34,10 +34,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
@@ -58,6 +59,7 @@ type (
 		serviceURL               *azblob.ServiceURL
 		containerName            string
 		accountName              string
+		blobPathPrefix           string
 		env                      azure.Environment
 		dirtyPartitions          map[string]uuid.UUID
 		leasesMu                 sync.Mutex
@@ -86,6 +88,9 @@ type (
 		PartitionID string
 		Err         error
 	}
+
+	// LeaserCheckpointerOption provides a way to customize a LeaserCheckpointer
+	LeaserCheckpointerOption func(*LeaserCheckpointer) error
 )
 
 const (
@@ -94,7 +99,7 @@ const (
 
 // NewStorageLeaserCheckpointer builds an Azure Storage Leaser Checkpointer which handles leasing and checkpointing for
 // the EventProcessorHost
-func NewStorageLeaserCheckpointer(credential Credential, accountName, containerName string, env azure.Environment) (*LeaserCheckpointer, error) {
+func NewStorageLeaserCheckpointer(credential Credential, accountName, containerName string, env azure.Environment, opts ...LeaserCheckpointerOption) (*LeaserCheckpointer, error) {
 	storageURL, err := url.Parse("https://" + accountName + ".blob." + env.StorageEndpointSuffix)
 	if err != nil {
 		return nil, err
@@ -103,7 +108,7 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 	svURL := azblob.NewServiceURL(*storageURL, azblob.NewPipeline(credential, azblob.PipelineOptions{}))
 	containerURL := svURL.NewContainerURL(containerName)
 
-	return &LeaserCheckpointer{
+	ls := &LeaserCheckpointer{
 		credential:               credential,
 		containerName:            containerName,
 		accountName:              accountName,
@@ -114,7 +119,16 @@ func NewStorageLeaserCheckpointer(credential Credential, accountName, containerN
 		leases:                   make(map[string]*storageLease),
 		dirtyPartitions:          make(map[string]uuid.UUID),
 		LeasePersistenceInterval: defaultLeasePersistenceInterval,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		err := opt(ls)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return ls, nil
 }
 
 // SetEventHostProcessor sets the EventHostProcessor on the instance of the LeaserCheckpointer
@@ -238,7 +252,7 @@ func (sl *LeaserCheckpointer) DeleteLease(ctx context.Context, partitionID strin
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.DeleteLease")
 	defer span.End()
 
-	_, err := sl.containerURL.NewBlobURL(partitionID).Delete(ctx, azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
+	_, err := sl.containerURL.NewBlobURL(sl.blobPathPrefix+partitionID).Delete(ctx, azblob.DeleteSnapshotsOptionInclude, azblob.BlobAccessConditions{})
 	delete(sl.leases, partitionID)
 	return err
 }
@@ -251,7 +265,7 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.AcquireLease")
 	defer span.End()
 
-	blobURL := sl.containerURL.NewBlobURL(partitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
 	lease, err := sl.getLease(ctx, partitionID)
 	if err != nil {
 		tab.For(ctx).Error(err)
@@ -305,7 +319,7 @@ func (sl *LeaserCheckpointer) RenewLease(ctx context.Context, partitionID string
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.RenewLease")
 	defer span.End()
 
-	blobURL := sl.containerURL.NewBlobURL(partitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
 	lease, ok := sl.leases[partitionID]
 	if !ok {
 		return nil, false, errors.New("lease was not found")
@@ -327,7 +341,7 @@ func (sl *LeaserCheckpointer) ReleaseLease(ctx context.Context, partitionID stri
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.ReleaseLease")
 	defer span.End()
 
-	blobURL := sl.containerURL.NewBlobURL(partitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
 	lease, ok := sl.leases[partitionID]
 	if !ok {
 		return false, errors.New("lease was not found")
@@ -358,7 +372,7 @@ func (sl *LeaserCheckpointer) updateLease(ctx context.Context, partitionID strin
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.updateLease")
 	defer span.End()
 
-	blobURL := sl.containerURL.NewBlobURL(partitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
 	lease, ok := sl.leases[partitionID]
 	if !ok {
 		return nil, false, errors.New("lease was not found")
@@ -563,7 +577,7 @@ func (sl *LeaserCheckpointer) uploadLease(ctx context.Context, lease *storageLea
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.uploadLease")
 	defer span.End()
 
-	blobURL := sl.containerURL.NewBlobURL(lease.PartitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + lease.PartitionID)
 	jsonLease, err := json.Marshal(lease)
 	if err != nil {
 		return err
@@ -587,7 +601,7 @@ func (sl *LeaserCheckpointer) createOrGetLease(ctx context.Context, partitionID 
 			PartitionID: partitionID,
 		},
 	}
-	blobURL := sl.containerURL.NewBlobURL(partitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
 	jsonLease, err := json.Marshal(lease)
 	if err != nil {
 		return nil, err
@@ -613,7 +627,7 @@ func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) 
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.getLease")
 	defer span.End()
 
-	blobURL := sl.containerURL.NewBlobURL(partitionID)
+	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
 	res, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
 	if err != nil {
 		return nil, err
@@ -664,4 +678,12 @@ func startConsumerSpanFromContext(ctx context.Context, operationName string) (ta
 		tab.StringAttribute("eh.eventprocessorhost.kind", "azure.storage"),
 	)
 	return span, ctx
+}
+
+// WithEventhubInfoInBlobPath configures the LeaserCheckpointerOption with a blob path
+func WithEventhubInfoInBlobPath(ehInfo *conn.ParsedConn, consumerGroup string) LeaserCheckpointerOption {
+	return func(ls *LeaserCheckpointer) error {
+		ls.blobPathPrefix = ehInfo.Namespace + "." + ehInfo.Suffix + "/" + ehInfo.HubName + "/" + consumerGroup + "/"
+		return nil
+	}
 }
