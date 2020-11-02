@@ -49,6 +49,7 @@ const (
 	KeyOfNoPartitionKey = "NoPartitionKey"
 )
 
+// ErrMessageIsTooBig represents the error when one single event in the batch is bigger than the maximum batch size
 var ErrMessageIsTooBig = errors.New("message is too big")
 
 // BatchWithMaxSizeInBytes configures the EventBatchIterator to fill the batch to the specified max size in bytes
