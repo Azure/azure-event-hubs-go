@@ -1,6 +1,8 @@
 package eventhub
 
 import (
+	"errors"
+
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/Azure/go-amqp"
 )
@@ -46,6 +48,9 @@ const (
 	// KeyOfNoPartitionKey is the key value in Events map for Events which do not have PartitionKey
 	KeyOfNoPartitionKey = "NoPartitionKey"
 )
+
+// ErrMessageIsTooBig represents the error when one single event in the batch is bigger than the maximum batch size
+var ErrMessageIsTooBig = errors.New("message is too big")
 
 // BatchWithMaxSizeInBytes configures the EventBatchIterator to fill the batch to the specified max size in bytes
 func BatchWithMaxSizeInBytes(sizeInBytes int) BatchOption {
@@ -106,7 +111,7 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		}
 	}
 
-	events := ebi.PartitionEventsMap[key]
+	events := ebi.PartitionEventsMap[key][ebi.Cursors[key]:]
 	eb := NewEventBatch(eventID, opts)
 	if key != KeyOfNoPartitionKey && len(events) > 0 {
 		eb.PartitionKey = events[0].PartitionKey
@@ -118,6 +123,11 @@ func (ebi *EventBatchIterator) Next(eventID string, opts *BatchOptions) (*EventB
 		}
 
 		if !ok {
+			if len(eb.marshaledMessages) == 0 {
+				ebi.Cursors[key]++
+				return nil, ErrMessageIsTooBig
+			}
+
 			return eb, nil
 		}
 		ebi.Cursors[key]++
