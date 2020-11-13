@@ -1,11 +1,12 @@
 package eventhub_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 )
 
 func TestNewEventBatch(t *testing.T) {
@@ -28,6 +29,7 @@ func TestEventBatch_AddManyMessages(t *testing.T) {
 	ok, err := eb.Add(event)
 	assert.True(t, ok)
 	assert.NoError(t, err)
+
 	msgSize := eb.Size() - wrapperSize
 
 	limit := ((int(eb.MaxSize) - 100) / msgSize) - 1
@@ -51,4 +53,57 @@ func TestEventBatch_Clear(t *testing.T) {
 
 	eb.Clear()
 	assert.Equal(t, 100, eb.Size())
+}
+
+func TestHugeBatches(t *testing.T) {
+	data := make([]byte, 500)
+	events := make([]*eventhub.Event, 0)
+
+	for i := 0; i < 100; i++ {
+		// 100 / 4 * 50000 = 1250000 bytes per partition
+		partitionKey := strconv.Itoa(i % 4)
+		evt := &eventhub.Event{
+			Data:         data,
+			PartitionKey: &partitionKey,
+		}
+
+		events = append(events, evt)
+	}
+
+	opts := &eventhub.BatchOptions{
+		MaxSize: 10000,
+	}
+	iter := eventhub.NewEventBatchIterator(events...)
+	iterCount := 0
+
+	for !iter.Done() {
+		_, err := iter.Next("batchId", opts)
+		assert.NoError(t, err)
+
+		iterCount++
+
+		if iterCount > 101 {
+			assert.Fail(t, "Too much iteration")
+		}
+	}
+
+	assert.Greater(t, iterCount, 5)
+}
+
+func TestOneHugeEvent(t *testing.T) {
+	data := make([]byte, 1100)
+	events := []*eventhub.Event{
+		{
+			Data: data,
+		},
+	}
+	opts := &eventhub.BatchOptions{
+		MaxSize: 1000,
+	}
+	iter := eventhub.NewEventBatchIterator(events...)
+
+	for !iter.Done() {
+		_, err := iter.Next("batchId", opts)
+		assert.Equal(t, err, eventhub.ErrMessageIsTooBig)
+	}
 }
