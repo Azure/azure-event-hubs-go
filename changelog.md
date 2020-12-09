@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.4`
+- read AZURE_ENVIRONMENT variable from environment to use the specified environment when creating NewHub
+
 ## `v3.3.3`
 - EventBatchIterator drops messages which bigger than 1MB with an error
 
