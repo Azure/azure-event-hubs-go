@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.3`
+- EventBatchIterator drops messages which bigger than 1MB with an error
+
 ## `v3.3.2`
 - passing a context to internal calls that use go-amqp that now expect a context
 - updating dependencies in go.mod
@@ -50,7 +53,7 @@
 - cleanup connection after making management request
 
 ## `v1.3.0`
-- add `SystemProperties` to `Event` which contains immutable broker provided metadata (squence number, offset, 
+- add `SystemProperties` to `Event` which contains immutable broker provided metadata (squence number, offset,
   enqueued time)
 
 ## `v1.2.0`
@@ -63,11 +66,11 @@
 - update to amqp 0.11.0 and change sender to use unsettled rather than receiver second mode
 
 ## `v1.1.3`
-- fix leak in partition persistence 
+- fix leak in partition persistence
 - fix discarding event properties on batch sending
 
 ## `v1.1.2`
-- take dep on updated amqp common which has more permissive RPC status description parsing 
+- take dep on updated amqp common which has more permissive RPC status description parsing
 
 ## `v1.1.1`
 - close sender when hub is closed
