@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/auth"
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -676,5 +677,40 @@ func (suite *eventHubSuite) captureEnv() func() {
 	}
 	return func() {
 		suite.NoError(restoreEnv(capture))
+	}
+}
+
+func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
+	_ = os.Setenv("AZURE_ENVIRONMENT", "AZURECHINACLOUD")
+	h, err := NewHub("test", "test", &aad.TokenProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(h.namespace.host, azure.ChinaCloud.ServiceBusEndpointSuffix) {
+		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.ChinaCloud.ServiceBusEndpointSuffix, h.namespace.host)
+	}
+	_ = os.Setenv("AZURE_ENVIRONMENT", "AZUREGERMANCLOUD")
+	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(h.namespace.host, azure.GermanCloud.ServiceBusEndpointSuffix) {
+		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.GermanCloud.ServiceBusEndpointSuffix, h.namespace.host)
+	}
+	_ = os.Setenv("AZURE_ENVIRONMENT", "AZUREUSGOVERNMENTCLOUD")
+	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(h.namespace.host, azure.USGovernmentCloud.ServiceBusEndpointSuffix) {
+		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.USGovernmentCloud.ServiceBusEndpointSuffix, h.namespace.host)
+	}
+	_ = os.Unsetenv("AZURE_ENVIRONMENT")
+	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(h.namespace.host, azure.PublicCloud.ServiceBusEndpointSuffix) {
+		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.PublicCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
 }

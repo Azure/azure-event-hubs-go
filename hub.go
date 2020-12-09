@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/Azure/azure-amqp-common-go/v3/aad"
@@ -331,8 +332,22 @@ func hubEntryToEntity(entry *hubEntry) *HubEntity {
 }
 
 // NewHub creates a new Event Hub client for sending and receiving messages
+// NOTE: If the AZURE_ENVIRONMENT variable is set, it will be used to set the ServiceBusEndpointSuffix
+// from the corresponding azure.Environment type at the end of the namespace host string. The default
+// value is azure.PublicCloud. Azure Stack environment is currently not supported.
 func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (*Hub, error) {
-	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, azure.PublicCloud))
+	var env azure.Environment
+	switch os.Getenv("AZURE_ENVIRONMENT") {
+	case strings.ToUpper(azure.ChinaCloud.Name):
+		env = azure.ChinaCloud
+	case strings.ToUpper(azure.GermanCloud.Name):
+		env = azure.GermanCloud
+	case strings.ToUpper(azure.USGovernmentCloud.Name):
+		env = azure.USGovernmentCloud
+	default:
+		env = azure.PublicCloud
+	}
+	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, env))
 	if err != nil {
 		return nil, err
 	}
