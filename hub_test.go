@@ -705,6 +705,14 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 	if !strings.HasSuffix(h.namespace.host, azure.USGovernmentCloud.ServiceBusEndpointSuffix) {
 		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.USGovernmentCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
+	_ = os.Setenv("AZURE_ENVIRONMENT", "AZUREPUBLICCLOUD")
+	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(h.namespace.host, azure.PublicCloud.ServiceBusEndpointSuffix) {
+		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.PublicCloud.ServiceBusEndpointSuffix, h.namespace.host)
+	}
 	_ = os.Unsetenv("AZURE_ENVIRONMENT")
 	h, err = NewHub("test", "test", &aad.TokenProvider{})
 	if err != nil {
