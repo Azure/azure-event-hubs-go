@@ -335,10 +335,13 @@ func hubEntryToEntity(entry *hubEntry) *HubEntity {
 // from the corresponding azure.Environment type at the end of the namespace host string. The default
 // is azure.PublicCloud.
 func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (*Hub, error) {
-	env, err := azure.EnvironmentFromName(os.Getenv("AZURE_ENVIRONMENT"))
-	if err != nil {
-		// will ignore the error from checking the environment variable and default to azure.PublicCloud
-		env = azure.PublicCloud
+	env := azure.PublicCloud
+	if e := os.Getenv("AZURE_ENVIRONMENT"); e != "" {
+		var err error
+		env, err = azure.EnvironmentFromName(e)
+		if err != nil {
+			return nil, err
+		}
 	}
 	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, env))
 	if err != nil {
