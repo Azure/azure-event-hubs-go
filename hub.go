@@ -331,8 +331,19 @@ func hubEntryToEntity(entry *hubEntry) *HubEntity {
 }
 
 // NewHub creates a new Event Hub client for sending and receiving messages
+// NOTE: If the AZURE_ENVIRONMENT variable is set, it will be used to set the ServiceBusEndpointSuffix
+// from the corresponding azure.Environment type at the end of the namespace host string. The default
+// is azure.PublicCloud.
 func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...HubOption) (*Hub, error) {
-	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, azure.PublicCloud))
+	env := azure.PublicCloud
+	if e := os.Getenv("AZURE_ENVIRONMENT"); e != "" {
+		var err error
+		env, err = azure.EnvironmentFromName(e)
+		if err != nil {
+			return nil, err
+		}
+	}
+	ns, err := newNamespace(namespaceWithAzureEnvironment(namespace, tokenProvider, env))
 	if err != nil {
 		return nil, err
 	}
