@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.5`
+- Remove the check for temporary network errors in sender.go [#80](https://github.com/Azure/azure-event-hubs-go/issues/80)
+
 ## `v3.3.4`
 - read AZURE_ENVIRONMENT variable from environment to use the specified value when creating NewHub
 
