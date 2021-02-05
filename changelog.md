@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.6`
+- fix goroutine leak on listener close
+
 ## `v3.3.5`
 - Remove the check for temporary network errors in sender.go [#80](https://github.com/Azure/azure-event-hubs-go/issues/80)
 
