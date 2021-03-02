@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"sync"
@@ -683,7 +684,7 @@ func startConsumerSpanFromContext(ctx context.Context, operationName string) (ta
 // WithEventhubInfoInBlobPath configures the LeaserCheckpointerOption with a blob path
 func WithEventhubInfoInBlobPath(ehInfo *conn.ParsedConn, consumerGroup string) LeaserCheckpointerOption {
 	return func(ls *LeaserCheckpointer) error {
-		ls.blobPathPrefix = ehInfo.Namespace + "." + ehInfo.Suffix + "/" + ehInfo.HubName + "/" + consumerGroup + "/"
+		ls.blobPathPrefix = fmt.Sprintf("%s.%s/%s/%s/", ehInfo.Namespace, ehInfo.Suffix, ehInfo.HubName, consumerGroup)
 		return nil
 	}
 }
