@@ -287,8 +287,15 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 	for {
 		msg, err := r.listenForMessage(ctx)
 		if err == nil {
-			msgChan <- msg
-			continue
+			select {
+			case msgChan <- msg:
+				// Sent
+				continue
+			case <-ctx.Done():
+				// Context canceled before send, ignore and shut down
+				tab.For(ctx).Debug("context done")
+				return
+			}
 		}
 
 		select {

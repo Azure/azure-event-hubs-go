@@ -191,12 +191,6 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			}
 			switch err.(type) {
 			case *amqp.Error, *amqp.DetachError, net.Error:
-				if netErr, ok := err.(net.Error); ok {
-					if !netErr.Temporary() {
-						return netErr
-					}
-				}
-
 				recvr(err)
 			default:
 				if !isRecoverableCloseError(err) {
