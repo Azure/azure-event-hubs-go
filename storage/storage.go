@@ -29,13 +29,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 
@@ -681,10 +679,10 @@ func startConsumerSpanFromContext(ctx context.Context, operationName string) (ta
 	return span, ctx
 }
 
-// WithEventhubInfoInBlobPath configures the LeaserCheckpointerOption with a blob path
-func WithEventhubInfoInBlobPath(ehInfo *conn.ParsedConn, consumerGroup string) LeaserCheckpointerOption {
+// WithPrefixInBlobPath is a LeaserCheckpointerOption that adds a prefix to the checkpoint blob path
+func WithPrefixInBlobPath(prefix string) LeaserCheckpointerOption {
 	return func(ls *LeaserCheckpointer) error {
-		ls.blobPathPrefix = fmt.Sprintf("%s.%s/%s/%s/", ehInfo.Namespace, ehInfo.Suffix, ehInfo.HubName, consumerGroup)
+		ls.blobPathPrefix = prefix
 		return nil
 	}
 }
