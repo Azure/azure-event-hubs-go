@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.7`
+- add option to prefix checkpoint blob paths
+
 ## `v3.3.6`
 - fix goroutine leak on listener close
 
