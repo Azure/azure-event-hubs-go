@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.8`
+- add option to customise initial checkpoint
+
 ## `v3.3.7`
 - add option to prefix checkpoint blob paths
 
