@@ -93,7 +93,7 @@ func main() {
 		// Receive blocks while attempting to connect to hub, then runs until listenerHandle.Close() is called 
 		// <- listenerHandle.Done() signals listener has stopped
 		// listenerHandle.Err() provides the last error the receiver encountered 
-		listenerHandle, err := hub.Receive(ctx, partitionID, handler, eventhub.ReceiveWithLatestOffset())
+		listenerHandle, err := hub.Receive(ctx, partitionID, handler)
 		if err != nil {
 			fmt.Println(err)
 			return
