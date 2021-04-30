@@ -143,12 +143,6 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		partitionID:   partitionID,
 	}
 
-	// update checkpoint if old checkpoint is successfully read from e.g. file or memory
-	oldCheckpoint, err := receiver.getLastReceivedCheckpoint()
-	if err == nil {
-		receiver.checkpoint = oldCheckpoint
-	}
-
 	// apply options after fetching the persisted checkpoint in case the options
 	// specify a custom checkpoint to start from. This allows the custom
 	// checkpoint to override the stored one.
@@ -158,7 +152,16 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 		}
 	}
 
-	if err = receiver.storeLastReceivedCheckpoint(receiver.checkpoint); err != nil {
+	// update checkpoint if no checkpoint is specified and if old checkpoint is successfully read from e.g. file or memory
+	emptyCheckpoint := persist.Checkpoint{}
+	if receiver.checkpoint == emptyCheckpoint {
+		oldCheckpoint, err := receiver.getLastReceivedCheckpoint()
+		if err == nil {
+			receiver.checkpoint = oldCheckpoint
+		}
+	}
+
+	if err := receiver.storeLastReceivedCheckpoint(receiver.checkpoint); err != nil {
 		return nil, err
 	}
 
