@@ -62,6 +62,7 @@ type (
 		env                      azure.Environment
 		dirtyPartitions          map[string]uuid.UUID
 		leasesMu                 sync.Mutex
+		getInitialCheckpoint     func() persist.Checkpoint
 		done                     func()
 	}
 
@@ -422,12 +423,12 @@ func (sl *LeaserCheckpointer) EnsureCheckpoint(ctx context.Context, partitionID 
 	lease, ok := sl.leases[partitionID]
 	if ok {
 		if lease.Checkpoint == nil {
-			checkpoint := persist.NewCheckpointFromStartOfStream()
+			checkpoint := sl.newInitialCheckpoint()
 			lease.Checkpoint = &checkpoint
 		}
 		return *lease.Checkpoint, nil
 	}
-	return persist.NewCheckpointFromStartOfStream(), nil
+	return sl.newInitialCheckpoint(), nil
 }
 
 // UpdateCheckpoint will attempt to write the checkpoint to Azure Storage
@@ -649,6 +650,16 @@ func (sl *LeaserCheckpointer) leaseFromResponse(res *azblob.DownloadResponse) (*
 	return &lease, nil
 }
 
+func (sl *LeaserCheckpointer) newInitialCheckpoint() persist.Checkpoint {
+	if sl.getInitialCheckpoint != nil {
+		initialCheckpoint := sl.getInitialCheckpoint()
+		if initialCheckpoint.Offset != "" {
+			return initialCheckpoint
+		}
+	}
+	return persist.NewCheckpointFromStartOfStream()
+}
+
 // IsExpired checks to see if the blob is not still leased
 func (s *storageLease) IsExpired(ctx context.Context) bool {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.storageLease.IsExpired")
@@ -683,6 +694,14 @@ func startConsumerSpanFromContext(ctx context.Context, operationName string) (ta
 func WithPrefixInBlobPath(prefix string) LeaserCheckpointerOption {
 	return func(ls *LeaserCheckpointer) error {
 		ls.blobPathPrefix = prefix
+		return nil
+	}
+}
+
+// WithInitialCheckpoint is a LeaserCheckpointerOption that overrides the initial checkpoint used when no checkpoint exists rather than starting from the start of the stream
+func WithInitialCheckpoint(getInitialCheckpoint func() persist.Checkpoint) LeaserCheckpointerOption {
+	return func(ls *LeaserCheckpointer) error {
+		ls.getInitialCheckpoint = getInitialCheckpoint
 		return nil
 	}
 }
