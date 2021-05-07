@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.9`
+- update the checkpoint after the receiver options are applied
+
 ## `v3.3.8`
 - add option to customise initial checkpoint
 
