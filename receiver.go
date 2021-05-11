@@ -153,8 +153,7 @@ func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...Recei
 	}
 
 	// update checkpoint if no checkpoint is specified and if old checkpoint is successfully read from e.g. file or memory
-	emptyCheckpoint := persist.Checkpoint{}
-	if receiver.checkpoint == emptyCheckpoint {
+	if receiver.checkpoint == (persist.Checkpoint{}) {
 		oldCheckpoint, err := receiver.getLastReceivedCheckpoint()
 		if err == nil {
 			receiver.checkpoint = oldCheckpoint
