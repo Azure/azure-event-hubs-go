@@ -2,6 +2,7 @@
 
 ## `v3.3.9`
 - update the checkpoint after the receiver options are applied
+- return the error from reading an old checkpoint when initializing the receiver
 
 ## `v3.3.8`
 - add option to customise initial checkpoint
