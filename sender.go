@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
@@ -46,10 +48,13 @@ type (
 		hub             *Hub
 		connection      *amqp.Client
 		session         *session
-		sender          *amqp.Sender
+		sender          atomic.Value // holds a *amqp.Sender
 		partitionID     *string
 		Name            string
 		recoveryBackoff *backoff.Backoff
+		// cond and recovering are used to atomically implement Recover()
+		cond       *sync.Cond
+		recovering bool
 	}
 
 	// SendOption provides a way to customize a message on sending
@@ -74,24 +79,50 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 			Max:    4 * time.Second,
 			Jitter: true,
 		},
+		cond: sync.NewCond(&sync.Mutex{}),
 	}
 	tab.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
 	return s, err
 }
 
+func (s *sender) amqpSender() *amqp.Sender {
+	return s.sender.Load().(*amqp.Sender)
+}
+
 // Recover will attempt to close the current session and link, then rebuild them
 func (s *sender) Recover(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
-
-	// we expect the sender, session or client is in an error state, ignore errors
-	closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	_ = s.sender.Close(closeCtx)
-	_ = s.session.Close(closeCtx)
-	_ = s.connection.Close()
-	return s.newSessionAndLink(ctx)
+	recover := false
+	// acquire exclusive lock to see if this goroutine should recover
+	s.cond.L.Lock()
+	if !s.recovering {
+		// another goroutine isn't recovering, so this one will
+		s.recovering = true
+		recover = true
+	} else {
+		// wait for the recovery to finish
+		s.cond.Wait()
+	}
+	s.cond.L.Unlock()
+	var err error
+	if recover {
+		// we expect the sender, session or client is in an error state, ignore errors
+		closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		// update shared state
+		s.cond.L.Lock()
+		_ = s.amqpSender().Close(closeCtx)
+		_ = s.session.Close(closeCtx)
+		_ = s.connection.Close()
+		err = s.newSessionAndLink(ctx)
+		s.recovering = false
+		s.cond.L.Unlock()
+		// signal to waiters that recovery is complete
+		s.cond.Broadcast()
+	}
+	return err
 }
 
 // Close will close the AMQP connection, session and link of the sender
@@ -99,7 +130,7 @@ func (s *sender) Close(ctx context.Context) error {
 	span, _ := s.startProducerSpanFromContext(ctx, "eh.sender.Close")
 	defer span.End()
 
-	err := s.sender.Close(ctx)
+	err := s.amqpSender().Close(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		if sessionErr := s.session.Close(ctx); sessionErr != nil {
@@ -170,8 +201,10 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 		sp.AddAttributes(tab.StringAttribute("he.message_id", str))
 	}
 
+	// create a per goroutine copy as Duration() and Reset() modify its state
+	backoff := *s.recoveryBackoff
 	recvr := func(err error, recover bool) {
-		duration := s.recoveryBackoff.Duration()
+		duration := backoff.Duration()
 		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
 		time.Sleep(duration)
 		if recover {
@@ -180,7 +213,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				tab.For(ctx).Debug("failed to recover connection")
 			} else {
 				tab.For(ctx).Debug("recovered connection")
-				s.recoveryBackoff.Reset()
+				backoff.Reset()
 			}
 		}
 	}
@@ -191,7 +224,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return ctx.Err()
 		default:
 			// try as long as the context is not dead
-			err := s.sender.Send(ctx, msg)
+			err := s.amqpSender().Send(ctx, msg)
 			if err == nil {
 				// successful send
 				return err
@@ -272,7 +305,7 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	s.sender = amqpSender
+	s.sender.Store(amqpSender)
 	return nil
 }
 
