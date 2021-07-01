@@ -35,6 +35,11 @@ import (
 	"github.com/jpillora/backoff"
 )
 
+const (
+	errorServerBusy amqp.ErrorCondition = "com.microsoft:server-busy"
+	errorTimeout    amqp.ErrorCondition = "com.microsoft:timeout"
+)
+
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
@@ -165,16 +170,18 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 		sp.AddAttributes(tab.StringAttribute("he.message_id", str))
 	}
 
-	recvr := func(err error) {
+	recvr := func(err error, recover bool) {
 		duration := s.recoveryBackoff.Duration()
 		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
 		time.Sleep(duration)
-		err = s.Recover(ctx)
-		if err != nil {
-			tab.For(ctx).Debug("failed to recover connection")
-		} else {
-			tab.For(ctx).Debug("recovered connection")
-			s.recoveryBackoff.Reset()
+		if recover {
+			err = s.Recover(ctx)
+			if err != nil {
+				tab.For(ctx).Debug("failed to recover connection")
+			} else {
+				tab.For(ctx).Debug("recovered connection")
+				s.recoveryBackoff.Reset()
+			}
 		}
 	}
 
@@ -189,15 +196,21 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				// successful send
 				return err
 			}
-			switch err.(type) {
-			case *amqp.Error, *amqp.DetachError, net.Error:
-				recvr(err)
+			switch e := err.(type) {
+			case *amqp.Error:
+				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
+					// don't rebuild the connection in this case, just delay and try again
+					recvr(err, false)
+				}
+				recvr(err, true)
+			case *amqp.DetachError, net.Error:
+				recvr(err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recvr(err)
+				recvr(err, true)
 			}
 		}
 	}
