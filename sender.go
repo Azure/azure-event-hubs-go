@@ -201,6 +201,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
 					// don't rebuild the connection in this case, just delay and try again
 					recvr(err, false)
+					break
 				}
 				recvr(err, true)
 			case *amqp.DetachError, net.Error:
