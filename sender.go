@@ -90,13 +90,17 @@ func (s *sender) amqpSender() *amqp.Sender {
 	return s.sender.Load().(*amqp.Sender)
 }
 
-// Recover will attempt to close the current session and link, then rebuild them
+// Recover will attempt to close the current session and link, then rebuild them.
+// Note that while the implementation will ensure that Recover() is goroutine safe
+// it won't prevent excessive connection recovery.  E.g. if a Recover() is in progress
+// and is in block 2, any additional calls to Recover() will wait at block 1 to
+// restart the recovery process once block 2 exits.
 func (s *sender) Recover(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
 	recover := false
 	// acquire exclusive lock to see if this goroutine should recover
-	s.cond.L.Lock()
+	s.cond.L.Lock() // block 1
 	if !s.recovering {
 		// another goroutine isn't recovering, so this one will
 		tab.For(ctx).Debug("will recover connection")
@@ -115,7 +119,7 @@ func (s *sender) Recover(ctx context.Context) error {
 		closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		// update shared state
-		s.cond.L.Lock()
+		s.cond.L.Lock() // block 2
 		_ = s.amqpSender().Close(closeCtx)
 		_ = s.session.Close(closeCtx)
 		_ = s.connection.Close()
