@@ -209,7 +209,13 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	recvr := func(err error, recover bool) {
 		duration := backoff.Duration()
 		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
-		time.Sleep(duration)
+		select {
+		case <-time.After(duration):
+			// ok, continue to recover
+		case <-ctx.Done():
+			// context expired, exit
+			return
+		}
 		if recover {
 			err = s.Recover(ctx)
 			if err != nil {
