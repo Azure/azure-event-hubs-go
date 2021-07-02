@@ -99,15 +99,18 @@ func (s *sender) Recover(ctx context.Context) error {
 	s.cond.L.Lock()
 	if !s.recovering {
 		// another goroutine isn't recovering, so this one will
+		tab.For(ctx).Debug("will recover connection")
 		s.recovering = true
 		recover = true
 	} else {
 		// wait for the recovery to finish
+		tab.For(ctx).Debug("waiting for connection to recover")
 		s.cond.Wait()
 	}
 	s.cond.L.Unlock()
 	var err error
 	if recover {
+		tab.For(ctx).Debug("recovering connection")
 		// we expect the sender, session or client is in an error state, ignore errors
 		closeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
