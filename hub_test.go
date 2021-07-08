@@ -306,6 +306,27 @@ func (suite *eventHubSuite) TestWebSocket() {
 	}
 }
 
+func (suite *eventHubSuite) TestConcurrency() {
+	tests := map[string]func(context.Context, *testing.T, *Hub, string){
+		"TestConcurrentSendWithRecover": testConcurrentSendWithRecover,
+	}
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			hub, cleanup := suite.RandomHub()
+			defer cleanup()
+			partitionID := (*hub.PartitionIds)[0]
+			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
+			defer closer()
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			testFunc(ctx, t, client, partitionID)
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
+
 func testBasicSend(ctx context.Context, t *testing.T, client *Hub, _ string) {
 	err := client.Send(ctx, NewEventFromString("Hello!"))
 	assert.NoError(t, err)
@@ -402,6 +423,22 @@ func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 		end, _ := ctx.Deadline()
 		waitUntil(t, &wg, time.Until(end))
 	}
+}
+
+func testConcurrentSendWithRecover(ctx context.Context, t *testing.T, client *Hub, _ string) {
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := client.Send(ctx, NewEventFromString("Hello!"))
+			assert.NoError(t, err)
+			err = client.sender.Recover(ctx)
+			assert.NoError(t, err)
+		}()
+	}
+	end, _ := ctx.Deadline()
+	waitUntil(t, &wg, time.Until(end))
 }
 
 func (suite *eventHubSuite) TestEpochReceivers() {

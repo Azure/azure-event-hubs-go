@@ -8,7 +8,7 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 )
 
 func init() {
@@ -65,7 +65,12 @@ func ExampleHub_helloWorld() {
 	}
 
 	// wait for the first handler to get called with "Hello World!"
-	<-exit
+	select {
+	case <-exit:
+		// test completed
+	case <-ctx.Done():
+		// test timed out
+	}
 	err = hub.Close(ctx)
 	if err != nil {
 		fmt.Println(err)
@@ -122,7 +127,12 @@ func ExampleHub_webSocket() {
 	}
 
 	// wait for the first handler to get called with "Hello World!"
-	<-exit
+	select {
+	case <-exit:
+		// test completed
+	case <-ctx.Done():
+		// test timed out
+	}
 	err = hub.Close(ctx)
 	if err != nil {
 		fmt.Println(err)
