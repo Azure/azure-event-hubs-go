@@ -24,7 +24,6 @@ package persist
 //	SOFTWARE
 
 import (
-	"fmt"
 	"path"
 	"sync"
 )
@@ -73,7 +72,7 @@ func (p *MemoryPersister) Read(namespace, name, consumerGroup, partitionID strin
 	if offset, ok := p.values[key]; ok {
 		return offset, nil
 	}
-	return NewCheckpointFromStartOfStream(), fmt.Errorf("could not read the offset for the key %s", key)
+	return NewCheckpointFromStartOfStream(), nil
 }
 
 func getPersistenceKey(namespace, name, consumerGroup, partitionID string) string {
