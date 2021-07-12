@@ -16,10 +16,10 @@ func TestMemoryPersister(t *testing.T) {
 
 	now := time.Now()
 
-	err = p.Write("namespace", "name", "consumerGroup", "0", Checkpoint {
-		Offset: "100",
+	err = p.Write("namespace", "name", "consumerGroup", "0", Checkpoint{
+		Offset:         "100",
 		SequenceNumber: 2,
-		EnqueueTime: now,
+		EnqueueTime:    now,
 	})
 
 	assert.NoError(t, err)
@@ -27,9 +27,9 @@ func TestMemoryPersister(t *testing.T) {
 	actualCheckpoint, err = p.Read("namespace", "name", "consumerGroup", "0")
 	assert.NoError(t, err)
 
-	assert.Equal(t, Checkpoint {
-		Offset: "100",
+	assert.Equal(t, Checkpoint{
+		Offset:         "100",
 		SequenceNumber: 2,
-		EnqueueTime: now,
+		EnqueueTime:    now,
 	}, actualCheckpoint)
 }
