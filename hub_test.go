@@ -318,7 +318,7 @@ func (suite *eventHubSuite) TestConcurrency() {
 			partitionID := (*hub.PartitionIds)[0]
 			client, closer := suite.newClient(t, *hub.Name, HubWithPartitionedSender(partitionID))
 			defer closer()
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			testFunc(ctx, t, client, partitionID)
 		}
