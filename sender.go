@@ -76,23 +76,39 @@ type (
 	// getAmqpSender should return a live sender (exactly mimics the `amqpSender()` function below)
 	// (used for testing)
 	getAmqpSender func() amqpSender
+
+	senderRetryOptions struct {
+		recoveryBackoff *backoff.Backoff
+		maxRetries      int
+	}
 )
 
-// newSender creates a new Service Bus message sender given an AMQP client and entity path
-func (h *Hub) newSender(ctx context.Context) (*sender, error) {
-	span, ctx := h.startSpanFromContext(ctx, "eh.sender.newSender")
-	defer span.End()
-
-	s := &sender{
-		hub:         h,
-		partitionID: h.senderPartitionID,
+func newSenderRetryOptions() *senderRetryOptions {
+	return &senderRetryOptions{
 		recoveryBackoff: &backoff.Backoff{
 			Min:    10 * time.Millisecond,
 			Max:    4 * time.Second,
 			Jitter: true,
 		},
 		maxRetries: 5,
-		cond:       sync.NewCond(&sync.Mutex{}),
+	}
+}
+
+// newSender creates a new Service Bus message sender given an AMQP client and entity path
+func (h *Hub) newSender(ctx context.Context, retryOptions *senderRetryOptions) (*sender, error) {
+	span, ctx := h.startSpanFromContext(ctx, "eh.sender.newSender")
+	defer span.End()
+
+	if retryOptions == nil {
+		retryOptions = newSenderRetryOptions()
+	}
+
+	s := &sender{
+		hub:             h,
+		partitionID:     h.senderPartitionID,
+		recoveryBackoff: retryOptions.recoveryBackoff,
+		maxRetries:      retryOptions.maxRetries,
+		cond:            sync.NewCond(&sync.Mutex{}),
 	}
 	tab.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)

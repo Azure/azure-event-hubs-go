@@ -57,15 +57,16 @@ const (
 type (
 	// Hub provides the ability to send and receive Event Hub messages
 	Hub struct {
-		name              string
-		namespace         *namespace
-		receivers         map[string]*receiver
-		sender            *sender
-		senderPartitionID *string
-		receiverMu        sync.Mutex
-		senderMu          sync.Mutex
-		offsetPersister   persist.CheckpointPersister
-		userAgent         string
+		name               string
+		namespace          *namespace
+		receivers          map[string]*receiver
+		sender             *sender
+		senderPartitionID  *string
+		senderRetryOptions *senderRetryOptions
+		receiverMu         sync.Mutex
+		senderMu           sync.Mutex
+		offsetPersister    persist.CheckpointPersister
+		userAgent          string
 	}
 
 	// Handler is the function signature for any receiver of events
@@ -738,6 +739,18 @@ func HubWithWebSocketConnection() HubOption {
 	}
 }
 
+// HubWithSenderMaxRetryCount configures the Hub to only retry sending messages `maxRetryCount` times.
+func HubWithSenderMaxRetryCount(maxRetryCount int) HubOption {
+	return func(h *Hub) error {
+		if h.senderRetryOptions == nil {
+			h.senderRetryOptions = newSenderRetryOptions()
+		}
+
+		h.senderRetryOptions.maxRetries = maxRetryCount
+		return nil
+	}
+}
+
 func (h *Hub) appendAgent(userAgent string) error {
 	ua := path.Join(h.userAgent, userAgent)
 	if len(ua) > maxUserAgentLen {
@@ -755,7 +768,7 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 	defer span.End()
 
 	if h.sender == nil {
-		s, err := h.newSender(ctx)
+		s, err := h.newSender(ctx, h.senderRetryOptions)
 		if err != nil {
 			tab.For(ctx).Error(err)
 			return nil, err
