@@ -382,11 +382,14 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	offsetExpression, err := r.getOffsetExpression()
+	checkpoint, err := r.getLastReceivedCheckpoint()
+
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err
 	}
+
+	offsetExpression := getOffsetExpression(checkpoint)
 
 	r.session, err = newSession(amqpSession)
 	if err != nil {
@@ -421,20 +424,6 @@ func (r *receiver) getLastReceivedCheckpoint() (persist.Checkpoint, error) {
 
 func (r *receiver) storeLastReceivedCheckpoint(checkpoint persist.Checkpoint) error {
 	return r.offsetPersister().Write(r.namespaceName(), r.hubName(), r.consumerGroup, r.partitionID, checkpoint)
-}
-
-func (r *receiver) getOffsetExpression() (string, error) {
-	checkpoint, err := r.getLastReceivedCheckpoint()
-	if err != nil {
-		// assume err read is due to not having an offset -- probably want to change this as it's ambiguous
-		return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "=", persist.StartOfStream), nil
-	}
-
-	if checkpoint.Offset == "" {
-		return fmt.Sprintf(amqpAnnotationFormat, enqueuedTimeAnnotationName, "", checkpoint.EnqueueTime.UnixNano()/int64(time.Millisecond)), nil
-	}
-
-	return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "", checkpoint.Offset), nil
 }
 
 func (r *receiver) getAddress() string {
@@ -488,4 +477,17 @@ func (lc *ListenerHandle) Err() error {
 		return lc.r.lastError
 	}
 	return lc.ctx.Err()
+}
+
+// getOffsetExpression calculates a selector expression based on the Offset or EnqueueTime of a Checkpoint.
+func getOffsetExpression(checkpoint persist.Checkpoint) string {
+	if checkpoint.Offset == "" {
+		// time-based, non-inclusive
+		// ex: amqp.annotation.x-opt-enqueued-time > '165805323000'
+		return fmt.Sprintf(amqpAnnotationFormat, enqueuedTimeAnnotationName, "", checkpoint.EnqueueTime.UnixNano()/int64(time.Millisecond))
+	}
+
+	// offset based, non-inclusive
+	// ex: "amqp.annotation.x-opt-offset > '100'"
+	return fmt.Sprintf(amqpAnnotationFormat, offsetAnnotationName, "", checkpoint.Offset)
 }
