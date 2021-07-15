@@ -33,6 +33,7 @@ test-verbose: ARGS=-v            							## Run tests in verbose mode
 test-debug:   ARGS=-v -debug     							## Run tests in verbose mode with debug output
 test-race:    ARGS=-race         							## Run tests with race detector
 test-cover:   ARGS=-cover -coverprofile=cover.out -v     	## Run tests in verbose mode with coverage
+test-full:    ARGS=-cover -coverprofile=cover.out -v -race	## Run tests with code coverage and race detection
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
 check test tests: cyclo lint vet terraform.tfstate; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
