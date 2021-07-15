@@ -26,7 +26,7 @@ build: | ; $(info $(M) building library…) @ ## Build program
 
 # Tests
 
-TEST_TARGETS := test-default test-bench test-verbose test-race test-debug test-cover
+TEST_TARGETS := test-default test-bench test-verbose test-race test-debug test-cover test-full
 .PHONY: $(TEST_TARGETS) test-xml check test tests
 test-bench:   ARGS=-run=__absolutelynothing__ -bench=. 		## Run benchmarks
 test-verbose: ARGS=-v            							## Run tests in verbose mode
