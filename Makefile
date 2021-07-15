@@ -11,6 +11,7 @@ GOFMT   = gofmt
 GOCYCLO = gocyclo
 GOLINT  = $(BIN)/golint
 GOSTATICCHECK = $(BIN)/staticcheck
+GOJUNITRPT = go-junit-report
 
 V = 0
 Q = $(if $(filter 1,$V),,@)
@@ -26,17 +27,20 @@ build: | ; $(info $(M) building library…) @ ## Build program
 
 # Tests
 
-TEST_TARGETS := test-default test-bench test-verbose test-race test-debug test-cover
+TEST_TARGETS := test-default test-bench test-verbose test-race test-debug test-cover test-full
 .PHONY: $(TEST_TARGETS) test-xml check test tests
 test-bench:   ARGS=-run=__absolutelynothing__ -bench=. 		## Run benchmarks
 test-verbose: ARGS=-v            							## Run tests in verbose mode
 test-debug:   ARGS=-v -debug     							## Run tests in verbose mode with debug output
 test-race:    ARGS=-race         							## Run tests with race detector
 test-cover:   ARGS=-cover -coverprofile=cover.out -v     	## Run tests in verbose mode with coverage
+test-full:    ARGS=-cover -coverprofile=cover.out -v -race	## Run tests with code coverage and race detection
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
 check test tests: cyclo lint vet terraform.tfstate; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
-	$(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
+	$(GO) test -timeout $(TIMEOUT)s $(ARGS) ./... 2>&1 | tee gotestoutput.log && \
+	$(GOJUNITRPT) <  gotestoutput.log > report.xml && \
+	rm -f gotestoutput.log
 
 .PHONY: vet
 vet: ; $(info $(M) running vet…) @ ## Run vet
