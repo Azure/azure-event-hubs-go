@@ -52,6 +52,7 @@ type (
 		partitionID     *string
 		Name            string
 		recoveryBackoff *backoff.Backoff
+		maxRetries      int
 		// cond and recovering are used to atomically implement Recover()
 		cond       *sync.Cond
 		recovering bool
@@ -79,14 +80,20 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 			Max:    4 * time.Second,
 			Jitter: true,
 		},
-		cond: sync.NewCond(&sync.Mutex{}),
+		maxRetries: 5,
+		cond:       sync.NewCond(&sync.Mutex{}),
 	}
 	tab.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
 	return s, err
 }
 
-func (s *sender) amqpSender() *amqp.Sender {
+type amqpSender interface {
+	Send(ctx context.Context, msg *amqp.Message) error
+	Close(ctx context.Context) error
+}
+
+func (s *sender) amqpSender() amqpSender {
 	return s.sender.Load().(*amqp.Sender)
 }
 
@@ -209,7 +216,8 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	}
 
 	// create a per goroutine copy as Duration() and Reset() modify its state
-	backoff := *s.recoveryBackoff
+	backoff := s.recoveryBackoff.Copy()
+
 	recvr := func(err error, recover bool) {
 		duration := backoff.Duration()
 		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
@@ -231,36 +239,49 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 		}
 	}
 
-	for {
+	// try as long as the context is not dead
+	// successful send
+	// don't rebuild the connection in this case, just delay and try again
+	return sendMessage(ctx, s.amqpSender, s.maxRetries, msg, recvr)
+}
+
+type getAmqpSender func() amqpSender
+
+func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(err error, recover bool)) error {
+	var lastError error
+
+	for i := 0; i < maxRetries+1; i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			// try as long as the context is not dead
-			err := s.amqpSender().Send(ctx, msg)
+			err := getAmqpSender().Send(ctx, msg)
 			if err == nil {
-				// successful send
 				return err
 			}
+
+			lastError = err
+
 			switch e := err.(type) {
 			case *amqp.Error:
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
-					// don't rebuild the connection in this case, just delay and try again
-					recvr(err, false)
+					recoverConnection(err, false)
 					break
 				}
-				recvr(err, true)
+				recoverConnection(err, true)
 			case *amqp.DetachError, net.Error:
-				recvr(err, true)
+				recoverConnection(err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recvr(err, true)
+				recoverConnection(err, true)
 			}
 		}
 	}
+
+	return lastError
 }
 
 func (s *sender) String() string {
