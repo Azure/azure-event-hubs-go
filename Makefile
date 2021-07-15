@@ -11,6 +11,7 @@ GOFMT   = gofmt
 GOCYCLO = gocyclo
 GOLINT  = $(BIN)/golint
 GOSTATICCHECK = $(BIN)/staticcheck
+GOJUNITRPT = go-junit-report
 
 V = 0
 Q = $(if $(filter 1,$V),,@)
@@ -37,7 +38,9 @@ test-full:    ARGS=-cover -coverprofile=cover.out -v -race	## Run tests with cod
 $(TEST_TARGETS): NAME=$(MAKECMDGOALS:test-%=%)
 $(TEST_TARGETS): test
 check test tests: cyclo lint vet terraform.tfstate; $(info $(M) running $(NAME:%=% )tests…) @ ## Run tests
-	$(GO) test -timeout $(TIMEOUT)s $(ARGS) ./...
+	$(GO) test -timeout $(TIMEOUT)s $(ARGS) ./... 2>&1 | tee gotestoutput.log && \
+	$(GOJUNITRPT) <  gotestoutput.log > report.xml && \
+	rm -f gotestoutput.log
 
 .PHONY: vet
 vet: ; $(info $(M) running vet…) @ ## Run vet
