@@ -65,6 +65,17 @@ type (
 		tab.Carrier
 		toMsg() (*amqp.Message, error)
 	}
+
+	// amqpSender is the bare minimum we need from an AMQP based sender.
+	// (used for testing)
+	amqpSender interface {
+		Send(ctx context.Context, msg *amqp.Message) error
+		Close(ctx context.Context) error
+	}
+
+	// getAmqpSender should return a live sender (exactly mimics the `amqpSender()` function below)
+	// (used for testing)
+	getAmqpSender func() amqpSender
 )
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
@@ -86,11 +97,6 @@ func (h *Hub) newSender(ctx context.Context) (*sender, error) {
 	tab.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
 	return s, err
-}
-
-type amqpSender interface {
-	Send(ctx context.Context, msg *amqp.Message) error
-	Close(ctx context.Context) error
 }
 
 func (s *sender) amqpSender() amqpSender {
@@ -244,8 +250,6 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	// don't rebuild the connection in this case, just delay and try again
 	return sendMessage(ctx, s.amqpSender, s.maxRetries, msg, recvr)
 }
-
-type getAmqpSender func() amqpSender
 
 func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(err error, recover bool)) error {
 	var lastError error
