@@ -32,6 +32,7 @@ func (suite *eventHubSuite) TestConcurrency() {
 
 func testConcurrentSendWithRecover(ctx context.Context, t *testing.T, client *Hub, _ string) {
 	var wg sync.WaitGroup
+	var err error
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
@@ -40,9 +41,12 @@ func testConcurrentSendWithRecover(ctx context.Context, t *testing.T, client *Hu
 			// can cancel any in-flight calls to Send().  this is only
 			// an interesting test when race detection is enabled.
 			client.Send(ctx, NewEventFromString("Hello!"))
-			client.sender.Recover(ctx)
+			if inner := client.sender.Recover(ctx); inner != nil {
+				err = inner
+			}
 		}()
 	}
 	end, _ := ctx.Deadline()
 	waitUntil(t, &wg, time.Until(end))
+	assert.NoError(t, err)
 }
