@@ -40,7 +40,7 @@ steps:
       export PATH="~/bin:$PATH"
       export GO111MODULE=on
       cd '$(sdkPath)'
-      make test-cover
+      make test-full
       make destroy
       gocov convert cover.out > coverage.json
       gocov-xml < coverage.json > coverage.xml
