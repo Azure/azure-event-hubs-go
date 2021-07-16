@@ -49,7 +49,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = append(recoverCalls, recoveryCall{err, recover})
 	}
 
-	t.Run("SendOnFirstTry", func(t *testing.T) {
+	t.Run("SendSucceedsOnFirstTry", func(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{}
 
@@ -197,4 +197,60 @@ func TestSenderRetries(t *testing.T) {
 		}, recoverCalls)
 	})
 
+	t.Run("SendWithInfiniteRetries", func(*testing.T) {
+		maxRetries := -1
+		recoverCalls = nil
+		sender = &testAmqpSender{
+			sendErrors: []error{
+				// kind of silly but let's just make sure we would continue to retry.
+				amqp.ErrConnClosed,
+				amqp.ErrConnClosed,
+				amqp.ErrConnClosed,
+			},
+		}
+
+		err := sendMessage(context.TODO(), getAmqpSender, maxRetries, nil, recover)
+		assert.NoError(t, err, "Last call succeeds")
+		assert.EqualValues(t, 3+1, sender.sendCount)
+		assert.EqualValues(t, recoverCalls, []recoveryCall{
+			{err: amqp.ErrConnClosed, recover: true},
+			{err: amqp.ErrConnClosed, recover: true},
+			{err: amqp.ErrConnClosed, recover: true},
+		})
+	})
+
+	t.Run("SendWithNoRetries", func(*testing.T) {
+		maxRetries := 0
+		recoverCalls = nil
+		sender = &testAmqpSender{
+			sendErrors: []error{
+				amqp.ErrConnClosed, // this is normally a retryable error _but_ we disabled retries.
+			},
+		}
+
+		err := sendMessage(context.TODO(), getAmqpSender, maxRetries, nil, recover)
+		assert.EqualValues(t, amqp.ErrConnClosed, err)
+		assert.EqualValues(t, maxRetries+1, sender.sendCount)
+		assert.EqualValues(t, recoverCalls, []recoveryCall{
+			{err: amqp.ErrConnClosed, recover: true},
+		})
+	})
+
+	t.Run("SendRespectsContextStatus", func(*testing.T) {
+		maxRetries := 0
+		recoverCalls = nil
+		sender = &testAmqpSender{
+			sendErrors: []error{
+				amqp.ErrConnClosed, // this is normally a retryable error _but_ we disabled retries.
+			},
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := sendMessage(ctx, getAmqpSender, maxRetries, nil, recover)
+		assert.EqualValues(t, context.Canceled, err)
+		assert.EqualValues(t, 0, sender.sendCount)
+		assert.Empty(t, recoverCalls)
+	})
 }

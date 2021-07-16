@@ -350,11 +350,12 @@ func NewHub(namespace, name string, tokenProvider auth.TokenProvider, opts ...Hu
 	}
 
 	h := &Hub{
-		name:            name,
-		namespace:       ns,
-		offsetPersister: persist.NewMemoryPersister(),
-		userAgent:       rootUserAgent,
-		receivers:       make(map[string]*receiver),
+		name:               name,
+		namespace:          ns,
+		offsetPersister:    persist.NewMemoryPersister(),
+		userAgent:          rootUserAgent,
+		receivers:          make(map[string]*receiver),
+		senderRetryOptions: newSenderRetryOptions(),
 	}
 
 	for _, opt := range opts {
@@ -478,11 +479,12 @@ func NewHubFromConnectionString(connStr string, opts ...HubOption) (*Hub, error)
 	}
 
 	h := &Hub{
-		name:            parsed.HubName,
-		namespace:       ns,
-		offsetPersister: persist.NewMemoryPersister(),
-		userAgent:       rootUserAgent,
-		receivers:       make(map[string]*receiver),
+		name:               parsed.HubName,
+		namespace:          ns,
+		offsetPersister:    persist.NewMemoryPersister(),
+		userAgent:          rootUserAgent,
+		receivers:          make(map[string]*receiver),
+		senderRetryOptions: newSenderRetryOptions(),
 	}
 
 	for _, opt := range opts {
@@ -739,13 +741,11 @@ func HubWithWebSocketConnection() HubOption {
 	}
 }
 
-// HubWithSenderMaxRetryCount configures the Hub to only retry sending messages `maxRetryCount` times.
+// HubWithSenderMaxRetryCount configures the Hub to retry sending messages `maxRetryCount` times,
+// in addition to the original attempt.
+// 0 indicates no retries, and < 0 will cause infinite retries.
 func HubWithSenderMaxRetryCount(maxRetryCount int) HubOption {
 	return func(h *Hub) error {
-		if h.senderRetryOptions == nil {
-			h.senderRetryOptions = newSenderRetryOptions()
-		}
-
 		h.senderRetryOptions.maxRetries = maxRetryCount
 		return nil
 	}

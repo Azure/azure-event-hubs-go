@@ -317,8 +317,8 @@ func (suite *eventHubSuite) TestSenderRetryOptionsThroughHub() {
 			})
 
 			assert.NoError(t, err)
-			assert.EqualValues(t, 3, client.sender.maxRetries)
-			assert.EqualValues(t, client.sender.recoveryBackoff, newSenderRetryOptions().recoveryBackoff)
+			assert.EqualValues(t, 3, client.sender.retryOptions.maxRetries)
+			assert.EqualValues(t, client.sender.retryOptions.recoveryBackoff, newSenderRetryOptions().recoveryBackoff)
 		},
 		"TestWithDefaultSenderMaxRetryCount": func(ctx context.Context, t *testing.T, suite *eventHubSuite, hubName string) {
 			client, closer := suite.newClient(t, hubName)
@@ -329,8 +329,8 @@ func (suite *eventHubSuite) TestSenderRetryOptionsThroughHub() {
 			})
 
 			assert.NoError(t, err)
-			assert.EqualValues(t, 5, client.sender.maxRetries)
-			assert.EqualValues(t, client.sender.recoveryBackoff, newSenderRetryOptions().recoveryBackoff)
+			assert.EqualValues(t, -1, client.sender.retryOptions.maxRetries)
+			assert.EqualValues(t, client.sender.retryOptions.recoveryBackoff, newSenderRetryOptions().recoveryBackoff)
 		},
 	}
 

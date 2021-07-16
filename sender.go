@@ -24,6 +24,7 @@ package eventhub
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -45,14 +46,13 @@ const (
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
-		hub             *Hub
-		connection      *amqp.Client
-		session         *session
-		sender          atomic.Value // holds a *amqp.Sender
-		partitionID     *string
-		Name            string
-		recoveryBackoff *backoff.Backoff
-		maxRetries      int
+		hub          *Hub
+		connection   *amqp.Client
+		session      *session
+		sender       atomic.Value // holds a *amqp.Sender
+		partitionID  *string
+		Name         string
+		retryOptions *senderRetryOptions
 		// cond and recovering are used to atomically implement Recover()
 		cond       *sync.Cond
 		recovering bool
@@ -79,7 +79,11 @@ type (
 
 	senderRetryOptions struct {
 		recoveryBackoff *backoff.Backoff
-		maxRetries      int
+
+		// maxRetries controls how many times we try (in addition to the first attempt)
+		// 0 indicates no retries, and < 0 will cause infinite retries.
+		// Defaults to -1.
+		maxRetries int
 	}
 )
 
@@ -90,7 +94,7 @@ func newSenderRetryOptions() *senderRetryOptions {
 			Max:    4 * time.Second,
 			Jitter: true,
 		},
-		maxRetries: 5,
+		maxRetries: -1, // default to infinite retries
 	}
 }
 
@@ -100,15 +104,14 @@ func (h *Hub) newSender(ctx context.Context, retryOptions *senderRetryOptions) (
 	defer span.End()
 
 	if retryOptions == nil {
-		retryOptions = newSenderRetryOptions()
+		return nil, errors.New("retryOptions must be specified")
 	}
 
 	s := &sender{
-		hub:             h,
-		partitionID:     h.senderPartitionID,
-		recoveryBackoff: retryOptions.recoveryBackoff,
-		maxRetries:      retryOptions.maxRetries,
-		cond:            sync.NewCond(&sync.Mutex{}),
+		hub:          h,
+		partitionID:  h.senderPartitionID,
+		retryOptions: retryOptions,
+		cond:         sync.NewCond(&sync.Mutex{}),
 	}
 	tab.For(ctx).Debug(fmt.Sprintf("creating a new sender for entity path %s", s.getAddress()))
 	err := s.newSessionAndLink(ctx)
@@ -238,7 +241,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	}
 
 	// create a per goroutine copy as Duration() and Reset() modify its state
-	backoff := s.recoveryBackoff.Copy()
+	backoff := s.retryOptions.recoveryBackoff.Copy()
 
 	recvr := func(err error, recover bool) {
 		duration := backoff.Duration()
@@ -264,13 +267,15 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	// try as long as the context is not dead
 	// successful send
 	// don't rebuild the connection in this case, just delay and try again
-	return sendMessage(ctx, s.amqpSender, s.maxRetries, msg, recvr)
+	return sendMessage(ctx, s.amqpSender, s.retryOptions.maxRetries, msg, recvr)
 }
 
 func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(err error, recover bool)) error {
 	var lastError error
 
-	for i := 0; i < maxRetries+1; i++ {
+	// maxRetries >= 0 == finite retries
+	// maxRetries < 0 == infinite retries
+	for i := 0; i < maxRetries+1 || maxRetries < 0; i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
