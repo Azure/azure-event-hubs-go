@@ -103,10 +103,6 @@ func (h *Hub) newSender(ctx context.Context, retryOptions *senderRetryOptions) (
 	span, ctx := h.startSpanFromContext(ctx, "eh.sender.newSender")
 	defer span.End()
 
-	if retryOptions == nil {
-		return nil, errors.New("retryOptions must be specified")
-	}
-
 	s := &sender{
 		hub:          h,
 		partitionID:  h.senderPartitionID,
