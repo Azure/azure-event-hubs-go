@@ -69,8 +69,17 @@ type (
 
 	// ListenerHandle provides the ability to close or listen to the close of a Receiver
 	ListenerHandle struct {
-		r   *receiver
+		r   Receiver
 		ctx context.Context
+	}
+
+	// Receiver provides event receiving capabilities
+	Receiver interface {
+		GetIdentifier() string
+		Close(ctx context.Context) error
+		Recover(ctx context.Context) error
+		Listen(handler Handler) *ListenerHandle
+		LastError() error
 	}
 )
 
@@ -230,6 +239,10 @@ func (r *receiver) Listen(handler Handler) *ListenerHandle {
 		r:   r,
 		ctx: ctx,
 	}
+}
+
+func (r *receiver) LastError() error {
+	return r.lastError
 }
 
 func (r *receiver) handleMessages(ctx context.Context, messages chan *amqp.Message, handler Handler) {
@@ -430,7 +443,7 @@ func (r *receiver) getAddress() string {
 	return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s", r.hubName(), r.consumerGroup, r.partitionID)
 }
 
-func (r *receiver) getIdentifier() string {
+func (r *receiver) GetIdentifier() string {
 	if r.epoch != nil {
 		return fmt.Sprintf("%s/ConsumerGroups/%s/Partitions/%s/epoch/%d", r.hubName(), r.consumerGroup, r.partitionID, *r.epoch)
 	}
@@ -438,7 +451,7 @@ func (r *receiver) getIdentifier() string {
 }
 
 func (r *receiver) getFullIdentifier() string {
-	return r.hub.namespace.getEntityAudience(r.getIdentifier())
+	return r.hub.namespace.getEntityAudience(r.GetIdentifier())
 }
 
 func (r *receiver) namespaceName() string {
@@ -473,8 +486,8 @@ func (lc *ListenerHandle) Done() <-chan struct{} {
 
 // Err will return the last error encountered
 func (lc *ListenerHandle) Err() error {
-	if lc.r.lastError != nil {
-		return lc.r.lastError
+	if le := lc.r.LastError(); le != nil {
+		return le
 	}
 	return lc.ctx.Err()
 }

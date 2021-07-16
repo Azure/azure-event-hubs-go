@@ -50,8 +50,9 @@ const (
 type (
 	// client communicates with an AMQP management node
 	client struct {
-		namespace *namespace
-		hubName   string
+		namespace  *namespace
+		hubName    string
+		connection *amqp.Client
 	}
 
 	// HubRuntimeInformation provides management node information about a given Event Hub instance
@@ -74,19 +75,20 @@ type (
 )
 
 // newClient constructs a new AMQP management client
-func newClient(namespace *namespace, hubName string) *client {
+func newClient(namespace *namespace, hubName string, conn *amqp.Client) *client {
 	return &client{
-		namespace: namespace,
-		hubName:   hubName,
+		namespace:  namespace,
+		hubName:    hubName,
+		connection: conn,
 	}
 }
 
-// GetHubRuntimeInformation requests runtime information for an Event Hub
-func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
-	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetHubRuntimeInformation")
+// GetRuntimeInformation requests runtime information for an Event Hub
+func (c *client) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation, error) {
+	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetRuntimeInformation")
 	defer span.End()
 
-	rpcLink, err := rpc.NewLink(conn, address)
+	rpcLink, err := rpc.NewLink(c.connection, address)
 	if err != nil {
 		return nil, err
 	}
@@ -115,12 +117,12 @@ func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 	return hubRuntimeInfo, nil
 }
 
-// GetHubPartitionRuntimeInformation fetches runtime information from the AMQP management node for a given partition
-func (c *client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
-	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetHubPartitionRuntimeInformation")
+// GetPartitionInformation fetches runtime information from the AMQP management node for a given partition
+func (c *client) GetPartitionInformation(ctx context.Context, partitionID string) (*HubPartitionRuntimeInformation, error) {
+	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetPartitionInformation")
 	defer span.End()
 
-	rpcLink, err := rpc.NewLink(conn, address)
+	rpcLink, err := rpc.NewLink(c.connection, address)
 	if err != nil {
 		return nil, err
 	}

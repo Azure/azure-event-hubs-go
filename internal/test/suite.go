@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3"
@@ -51,6 +52,20 @@ var (
 
 const (
 	defaultTimeout = 1 * time.Minute
+)
+
+type (
+	// BaseUTSuite encapsulates a end to end test of Event Hubs with build up and tear down of all EH resources
+	BaseUTSuite struct {
+		suite.Suite
+		SubscriptionID    string
+		Namespace         string
+		ResourceGroupName string
+		Location          string
+		Env               azure.Environment
+		TagID             string
+		closer            io.Closer
+	}
 )
 
 type (
@@ -391,6 +406,20 @@ func RandomString(prefix string, length int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return prefix + string(b)
+}
+
+// RandomNumberString generates a random number as a string with a max value
+func RandomNumberString(max int) string {
+	return strconv.Itoa(rand.Intn(max))
+}
+
+// RandomNumberStringMod generates a random number as a string modulus provided mod value (used as a simple partition key hasher)
+func RandomNumberStringMod(num string, mod int) string {
+	result, err := strconv.Atoi(num)
+	if nil != err {
+		return strconv.Itoa(0)
+	}
+	return strconv.Itoa(result % mod)
 }
 
 func loadEnv() {
