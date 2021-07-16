@@ -306,6 +306,49 @@ func (suite *eventHubSuite) TestWebSocket() {
 	}
 }
 
+func (suite *eventHubSuite) TestSenderRetryOptionsThroughHub() {
+	tests := map[string]func(ctx context.Context, t *testing.T, suite *eventHubSuite, hubName string){
+		"TestWithCustomSenderMaxRetryCount": func(ctx context.Context, t *testing.T, suite *eventHubSuite, hubName string) {
+			client, closer := suite.newClient(t, hubName, HubWithSenderMaxRetryCount(3))
+			defer closer()
+
+			err := client.Send(ctx, &Event{
+				Data: []byte("hello world"),
+			})
+
+			assert.NoError(t, err)
+			assert.EqualValues(t, 3, client.sender.retryOptions.maxRetries)
+			assert.EqualValues(t, client.sender.retryOptions.recoveryBackoff, newSenderRetryOptions().recoveryBackoff)
+		},
+		"TestWithDefaultSenderMaxRetryCount": func(ctx context.Context, t *testing.T, suite *eventHubSuite, hubName string) {
+			client, closer := suite.newClient(t, hubName)
+			defer closer()
+
+			err := client.Send(ctx, &Event{
+				Data: []byte("hello world"),
+			})
+
+			assert.NoError(t, err)
+			assert.EqualValues(t, -1, client.sender.retryOptions.maxRetries)
+			assert.EqualValues(t, client.sender.retryOptions.recoveryBackoff, newSenderRetryOptions().recoveryBackoff)
+		},
+	}
+
+	hub, cleanup := suite.RandomHub()
+	defer cleanup()
+
+	for name, testFunc := range tests {
+		setupTestTeardown := func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+
+			testFunc(ctx, t, suite, *hub.Name)
+		}
+
+		suite.T().Run(name, setupTestTeardown)
+	}
+}
+
 func testBasicSend(ctx context.Context, t *testing.T, client *Hub, _ string) {
 	err := client.Send(ctx, NewEventFromString("Hello!"))
 	assert.NoError(t, err)
