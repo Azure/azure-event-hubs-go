@@ -24,7 +24,6 @@ package eventhub
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
