@@ -249,6 +249,20 @@ events = append(events, eventhub.NewEventFromString("three"))
 err := client.SendBatch(ctx, eventhub.NewEventBatchIterator(events...))
 ```
 
+#### Controlling retries for sends
+By default, a Hub will retry sending messages forever if the errors that occur are retryable (for instance, network timeouts. You can control the number of retries using the `HubWithSenderMaxRetryCount` option when constructing your Hub client. For instance, to limit the number of retries to 5:
+
+```go
+import (
+    eventhub "github.com/Azure/azure-event-hubs-go/v3"
+)
+
+// ...
+
+// NOTE: you can use any 'NewHub*' method.
+eventhub.NewHubFromConnectionString("<connection string>", eventhub.HubWithSenderMaxRetryCount(5))
+```
+
 #### Receiving
 When receiving messages from an Event Hub, you always need to specify the partition you'd like to receive from. 
 `Hub.Receive` is a non-blocking call, which takes a message handler func and options. Since Event Hub is just a long

@@ -1,5 +1,12 @@
 # Change Log
 
+## `v3.3.11`
+- Allow for controlling the maximum retry count when sending messages. [#226](https://github.com/Azure/azure-event-hubs-go/issues/226)
+
+## `v3.3.10`
+- Fix sender.Recover() to be goroutine safe [#218](https://github.com/Azure/azure-event-hubs-go/issues/218)
+- Skip calling sender.Recover() for some errors [#219](https://github.com/Azure/azure-event-hubs-go/issues/219)
+
 ## `v3.3.9`
 - update the checkpoint after the receiver options are applied
 - return the error from reading an old checkpoint when initializing the receiver
