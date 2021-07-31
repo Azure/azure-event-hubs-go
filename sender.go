@@ -67,7 +67,9 @@ type (
 
 	// amqpSender is the bare minimum we need from an AMQP based sender.
 	// (used for testing)
+	// Implemented by *amqp.Sender
 	amqpSender interface {
+		Id() string
 		Send(ctx context.Context, msg *amqp.Message) error
 		Close(ctx context.Context) error
 	}
@@ -122,12 +124,22 @@ func (s *sender) amqpSender() amqpSender {
 // it won't prevent excessive connection recovery.  E.g. if a Recover() is in progress
 // and is in block 2, any additional calls to Recover() will wait at block 1 to
 // restart the recovery process once block 2 exits.
-func (s *sender) Recover(ctx context.Context) error {
+func (s *sender) Recover(ctx context.Context, currentLinkID string) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
+
 	recover := false
+
 	// acquire exclusive lock to see if this goroutine should recover
 	s.cond.L.Lock() // block 1
+
+	// if the link they started with has already been closed and removed we don't
+	// need to trigger an additional recovery.
+	if s.getAmqpSender().Id() != currentLinkID {
+		s.cond.L.Unlock()
+		return nil
+	}
+
 	if !s.recovering {
 		// another goroutine isn't recovering, so this one will
 		tab.For(ctx).Debug("will recover connection")
@@ -147,9 +159,20 @@ func (s *sender) Recover(ctx context.Context) error {
 		defer cancel()
 		// update shared state
 		s.cond.L.Lock() // block 2
+
+		// another optimization - if we can, try to just recreate the session and link (and not the
+		// entire connection, which is way more expensive)
 		_ = s.amqpSender().Close(closeCtx)
 		_ = s.session.Close(closeCtx)
-		_ = s.connection.Close()
+		err = s.newSessionAndLink(ctx)
+
+		if err != nil {
+			// less expensive recovery not possible, closing it all down instead.
+			_ = s.amqpSender().Close(closeCtx)
+			_ = s.session.Close(closeCtx)
+			_ = s.connection.Close()
+		}
+
 		err = s.newSessionAndLink(ctx)
 		s.recovering = false
 		s.cond.L.Unlock()
@@ -238,7 +261,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	// create a per goroutine copy as Duration() and Reset() modify its state
 	backoff := s.retryOptions.recoveryBackoff.Copy()
 
-	recvr := func(err error, recover bool) {
+	recvr := func(linkID string, err error, recover bool) {
 		duration := backoff.Duration()
 		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
 		select {
@@ -249,7 +272,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return
 		}
 		if recover {
-			err = s.Recover(ctx)
+			err = s.Recover(ctx, linkID)
 			if err != nil {
 				tab.For(ctx).Debug("failed to recover connection")
 			} else {
@@ -265,7 +288,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	return sendMessage(ctx, s.amqpSender, s.retryOptions.maxRetries, msg, recvr)
 }
 
-func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(err error, recover bool)) error {
+func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(linkID string, err error, recover bool)) error {
 	var lastError error
 
 	// maxRetries >= 0 == finite retries
@@ -275,7 +298,8 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			err := getAmqpSender().Send(ctx, msg)
+			sender := getAmqpSender()
+			err := sender.Send(ctx, msg)
 			if err == nil {
 				return err
 			}
@@ -285,18 +309,18 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 			switch e := err.(type) {
 			case *amqp.Error:
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
-					recoverConnection(err, false)
+					recoverConnection(sender.Id(), err, false)
 					break
 				}
-				recoverConnection(err, true)
+				recoverConnection(sender.Id(), err, true)
 			case *amqp.DetachError, net.Error:
-				recoverConnection(err, true)
+				recoverConnection(sender.Id(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recoverConnection(err, true)
+				recoverConnection(sender.Id(), err, true)
 			}
 		}
 	}
