@@ -135,7 +135,7 @@ func (s *sender) Recover(ctx context.Context, currentLinkID string) error {
 
 	// if the link they started with has already been closed and removed we don't
 	// need to trigger an additional recovery.
-	if s.getAmqpSender().Id() != currentLinkID {
+	if s.amqpSender().Id() != currentLinkID {
 		s.cond.L.Unlock()
 		return nil
 	}
