@@ -69,7 +69,7 @@ type (
 	// (used for testing)
 	// Implemented by *amqp.Sender
 	amqpSender interface {
-		Id() string
+		ID() string
 		Send(ctx context.Context, msg *amqp.Message) error
 		Close(ctx context.Context) error
 	}
@@ -135,7 +135,7 @@ func (s *sender) Recover(ctx context.Context, currentLinkID string) error {
 
 	// if the link they started with has already been closed and removed we don't
 	// need to trigger an additional recovery.
-	if s.amqpSender().Id() != currentLinkID {
+	if s.amqpSender().ID() != currentLinkID {
 		s.cond.L.Unlock()
 		return nil
 	}
@@ -309,18 +309,18 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 			switch e := err.(type) {
 			case *amqp.Error:
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
-					recoverConnection(sender.Id(), err, false)
+					recoverConnection(sender.ID(), err, false)
 					break
 				}
-				recoverConnection(sender.Id(), err, true)
+				recoverConnection(sender.ID(), err, true)
 			case *amqp.DetachError, net.Error:
-				recoverConnection(sender.Id(), err, true)
+				recoverConnection(sender.ID(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recoverConnection(sender.Id(), err, true)
+				recoverConnection(sender.ID(), err, true)
 			}
 		}
 	}
