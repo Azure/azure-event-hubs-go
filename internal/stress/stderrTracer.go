@@ -14,20 +14,24 @@ type StderrTracer struct {
 	NoOpTracer *tab.NoOpTracer
 }
 
+// StartSpan forwards to NoOpTracer.StartSpan.
 func (ft *StderrTracer) StartSpan(ctx context.Context, operationName string, opts ...interface{}) (context.Context, tab.Spanner) {
 	return ft.NoOpTracer.StartSpan(ctx, operationName, opts...)
 }
 
+// StartSpanWithRemoteParent forwards to NoOpTracer.StartSpanWithRemoteParent.
 func (ft *StderrTracer) StartSpanWithRemoteParent(ctx context.Context, operationName string, carrier tab.Carrier, opts ...interface{}) (context.Context, tab.Spanner) {
 	return ft.NoOpTracer.StartSpanWithRemoteParent(ctx, operationName, carrier, opts...)
 }
 
+// FromContext creates a stderrSpanner to allow for our stderrLogger to be created.
 func (ft *StderrTracer) FromContext(ctx context.Context) tab.Spanner {
 	return &stderrSpanner{
 		spanner: ft.NoOpTracer.FromContext(ctx),
 	}
 }
 
+// NewContext forwards to NoOpTracer.NewContext
 func (ft *StderrTracer) NewContext(parent context.Context, span tab.Spanner) context.Context {
 	return ft.NoOpTracer.NewContext(parent, span)
 }
