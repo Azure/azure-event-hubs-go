@@ -67,7 +67,9 @@ type (
 
 	// amqpSender is the bare minimum we need from an AMQP based sender.
 	// (used for testing)
+	// Implemented by *amqp.Sender
 	amqpSender interface {
+		ID() string
 		Send(ctx context.Context, msg *amqp.Message) error
 		Close(ctx context.Context) error
 	}
@@ -114,21 +116,33 @@ func (h *Hub) newSender(ctx context.Context, retryOptions *senderRetryOptions) (
 }
 
 func (s *sender) amqpSender() amqpSender {
-	return s.sender.Load().(*amqp.Sender)
+	// in reality, an *amqp.Sender
+	return s.sender.Load().(amqpSender)
 }
 
-// Recover will attempt to close the current session and link, then rebuild them.
-// Note that while the implementation will ensure that Recover() is goroutine safe
-// it won't prevent excessive connection recovery.  E.g. if a Recover() is in progress
-// and is in block 2, any additional calls to Recover() will wait at block 1 to
-// restart the recovery process once block 2 exits.
+// Recover will attempt to close the current connectino, session and link, then rebuild them.
 func (s *sender) Recover(ctx context.Context) error {
+	return s.recoverWithExpectedLinkID(ctx, "")
+}
+
+// recoverWithExpectedLinkID attemps to recover the link as cheaply as possible.
+// - It does not recover the link if expectedLinkID is not "" and does NOT match
+//   the current link ID, as this would indicate that the previous bad link has
+//   already been closed and removed.
+func (s *sender) recoverWithExpectedLinkID(ctx context.Context, expectedLinkID string) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
+
 	recover := false
+
 	// acquire exclusive lock to see if this goroutine should recover
 	s.cond.L.Lock() // block 1
-	if !s.recovering {
+
+	// if the link they started with has already been closed and removed we don't
+	// need to trigger an additional recovery.
+	if expectedLinkID != "" && s.amqpSender().ID() != expectedLinkID {
+		tab.For(ctx).Debug("original linkID does not match, no recovery necessary")
+	} else if !s.recovering {
 		// another goroutine isn't recovering, so this one will
 		tab.For(ctx).Debug("will recover connection")
 		s.recovering = true
@@ -138,7 +152,9 @@ func (s *sender) Recover(ctx context.Context) error {
 		tab.For(ctx).Debug("waiting for connection to recover")
 		s.cond.Wait()
 	}
+
 	s.cond.L.Unlock()
+
 	var err error
 	if recover {
 		tab.For(ctx).Debug("recovering connection")
@@ -147,10 +163,15 @@ func (s *sender) Recover(ctx context.Context) error {
 		defer cancel()
 		// update shared state
 		s.cond.L.Lock() // block 2
+
+		// TODO: we should be able to recover more quickly if we don't close the connection
+		// to recover (and just attempt to recreate the link). newSessionAndLink, currently,
+		// creates a new connection so we'd need to change that.
 		_ = s.amqpSender().Close(closeCtx)
 		_ = s.session.Close(closeCtx)
 		_ = s.connection.Close()
 		err = s.newSessionAndLink(ctx)
+
 		s.recovering = false
 		s.cond.L.Unlock()
 		// signal to waiters that recovery is complete
@@ -238,7 +259,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	// create a per goroutine copy as Duration() and Reset() modify its state
 	backoff := s.retryOptions.recoveryBackoff.Copy()
 
-	recvr := func(err error, recover bool) {
+	recvr := func(linkID string, err error, recover bool) {
 		duration := backoff.Duration()
 		tab.For(ctx).Debug("amqp error, delaying " + strconv.FormatInt(int64(duration/time.Millisecond), 10) + " millis: " + err.Error())
 		select {
@@ -249,7 +270,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return
 		}
 		if recover {
-			err = s.Recover(ctx)
+			err = s.recoverWithExpectedLinkID(ctx, linkID)
 			if err != nil {
 				tab.For(ctx).Debug("failed to recover connection")
 			} else {
@@ -265,7 +286,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	return sendMessage(ctx, s.amqpSender, s.retryOptions.maxRetries, msg, recvr)
 }
 
-func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(err error, recover bool)) error {
+func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverLink func(linkID string, err error, recover bool)) error {
 	var lastError error
 
 	// maxRetries >= 0 == finite retries
@@ -275,7 +296,8 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			err := getAmqpSender().Send(ctx, msg)
+			sender := getAmqpSender()
+			err := sender.Send(ctx, msg)
 			if err == nil {
 				return err
 			}
@@ -285,18 +307,18 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 			switch e := err.(type) {
 			case *amqp.Error:
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
-					recoverConnection(err, false)
+					recoverLink(sender.ID(), err, false)
 					break
 				}
-				recoverConnection(err, true)
+				recoverLink(sender.ID(), err, true)
 			case *amqp.DetachError, net.Error:
-				recoverConnection(err, true)
+				recoverLink(sender.ID(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recoverConnection(err, true)
+				recoverLink(sender.ID(), err, true)
 			}
 		}
 	}
@@ -319,7 +341,7 @@ func (s *sender) getFullIdentifier() string {
 	return s.hub.namespace.getEntityAudience(s.getAddress())
 }
 
-// newSessionAndLink will replace the existing session and link
+// newSessionAndLink will replace the existing connection, session and link
 func (s *sender) newSessionAndLink(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.newSessionAndLink")
 	defer span.End()
