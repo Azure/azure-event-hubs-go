@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/Azure/go-amqp"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // conforms to amqpSender
@@ -283,4 +286,106 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, 0, sender.sendCount)
 		assert.Empty(t, recoverCalls)
 	})
+}
+
+type FakeLocker struct {
+	afterBlock1 func()
+	mu          *sync.Mutex
+}
+
+func (l FakeLocker) Lock() {
+	l.mu.Lock()
+}
+func (l FakeLocker) Unlock() {
+	l.afterBlock1()
+	l.mu.Unlock()
+}
+
+// TestRecoveryBlock1 tests recoverWithExpectedLinkID function's first "block" of code that
+// decides if we are going to recover the link, ignore it, or wait for an in-progress recovery to
+// complete.
+func TestRecoveryBlock1(t *testing.T) {
+	t.Run("Empty link ID skips link ID checking and just does recovery", func(t *testing.T) {
+		cleanup, sender := createRecoveryBlock1Sender(t, func(s *sender) {
+			require.True(t, s.recovering)
+		})
+
+		defer cleanup()
+
+		sender.recoverWithExpectedLinkID(context.TODO(), "")
+	})
+
+	t.Run("Matching link ID does recovery", func(t *testing.T) {
+		cleanup, sender := createRecoveryBlock1Sender(t, func(s *sender) {
+			require.True(t, s.recovering, "s.recovering should be true since the lock is available and we have our expected link ID matches")
+		})
+
+		defer cleanup()
+
+		sender.recoverWithExpectedLinkID(context.TODO(), "the-actual-link-id")
+	})
+
+	t.Run("Non-matching link ID skips recovery", func(t *testing.T) {
+		cleanup, sender := createRecoveryBlock1Sender(t, func(s *sender) {
+			require.False(t, s.recovering, "s.recovering should be false - the link ID isn't current, so nothing needs to be closed/recovered")
+		})
+
+		defer cleanup()
+
+		sender.recoverWithExpectedLinkID(context.TODO(), "non-matching-link-id")
+	})
+
+	// TODO: can't quite test this one
+	// t.Run("Already recovering, should wait for condition variable", func(t *testing.T) {
+	// 	cleanup, sender := createRecoveryBlock1Sender(t, func(s *sender) {
+	// 	})
+
+	// 	defer cleanup()
+
+	// 	sender.recovering = true // oops, someone else is already recovering
+	// 	sender.recoverWithExpectedLinkID(context.TODO(), "the-actual-link-id")
+	// })
+}
+
+type fakeSender struct {
+	id     string
+	closed bool
+}
+
+func (s *fakeSender) ID() string {
+	return s.id
+}
+
+func (s *fakeSender) Send(ctx context.Context, msg *amqp.Message) error {
+	return nil
+}
+func (s *fakeSender) Close(ctx context.Context) error {
+	s.closed = true
+	return nil
+}
+
+func createRecoveryBlock1Sender(t *testing.T, afterBlock1 func(s *sender)) (func(), *sender) {
+	s := &sender{
+		partitionID: to.StringPtr("0"),
+		hub: &Hub{
+			namespace: &namespace{},
+		},
+	}
+
+	s.sender.Store(&fakeSender{
+		id: "the-actual-link-id",
+	})
+
+	s.cond = &sync.Cond{
+		L: FakeLocker{
+			mu: &sync.Mutex{},
+			afterBlock1: func() {
+				afterBlock1(s)
+				panic("Panicking to exit before block 2")
+			},
+		}}
+
+	return func() {
+		require.EqualValues(t, recover(), "Panicking to exit before block 2")
+	}, s
 }

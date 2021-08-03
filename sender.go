@@ -116,7 +116,8 @@ func (h *Hub) newSender(ctx context.Context, retryOptions *senderRetryOptions) (
 }
 
 func (s *sender) amqpSender() amqpSender {
-	return s.sender.Load().(*amqp.Sender)
+	// in reality, an *amqp.Sender
+	return s.sender.Load().(amqpSender)
 }
 
 // Recover will attempt to close the current connectino, session and link, then rebuild them.
@@ -125,7 +126,7 @@ func (s *sender) Recover(ctx context.Context) error {
 }
 
 // recoverWithExpectedLinkID attemps to recover the link as cheaply as possible.
-// - It does not recover the link if expectedLinkID is non-empty and does NOT match
+// - It does not recover the link if expectedLinkID is not "" and does NOT match
 //   the current link ID, as this would indicate that the previous bad link has
 //   already been closed and removed.
 // - When recovering, it attempts to recover just the link first. If that fails then it
