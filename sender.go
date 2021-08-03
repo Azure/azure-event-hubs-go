@@ -165,20 +165,14 @@ func (s *sender) recoverWithExpectedLinkID(ctx context.Context, expectedLinkID s
 		// update shared state
 		s.cond.L.Lock() // block 2
 
-		// another optimization - if we can, try to just recreate the session and link (and not the
-		// entire connection, which is way more expensive)
+		// TODO: we should be able to recover more quickly if we don't close the connection
+		// to recover (and just attempt to recreate the link). newSessionAndLink, currently,
+		// creates a new connection so we'd need to change that.
 		_ = s.amqpSender().Close(closeCtx)
 		_ = s.session.Close(closeCtx)
+		_ = s.connection.Close()
 		err = s.newSessionAndLink(ctx)
 
-		if err != nil {
-			// less expensive recovery not possible, closing it all down instead.
-			_ = s.amqpSender().Close(closeCtx)
-			_ = s.session.Close(closeCtx)
-			_ = s.connection.Close()
-		}
-
-		err = s.newSessionAndLink(ctx)
 		s.recovering = false
 		s.cond.L.Unlock()
 		// signal to waiters that recovery is complete
@@ -348,7 +342,7 @@ func (s *sender) getFullIdentifier() string {
 	return s.hub.namespace.getEntityAudience(s.getAddress())
 }
 
-// newSessionAndLink will replace the existing session and link
+// newSessionAndLink will replace the existing connection, session and link
 func (s *sender) newSessionAndLink(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.newSessionAndLink")
 	defer span.End()
