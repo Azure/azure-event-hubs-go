@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.12`
+- Fix bug in sender.Recover() where recovery could get stuck when a link was throttled. [PR#232](#https://github.com/Azure/azure-event-hubs-go/pull/232)
+
 ## `v3.3.11`
 - Allow for controlling the maximum retry count when sending messages. [#226](https://github.com/Azure/azure-event-hubs-go/issues/226)
 
