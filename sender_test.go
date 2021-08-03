@@ -110,6 +110,21 @@ func TestSenderRetries(t *testing.T) {
 		assert.Empty(t, recoverCalls, "No recovery attempts should happen for non-recoverable errors")
 	})
 
+	t.Run("SendIsNotRecoverableIfLinkIsClosed", func(*testing.T) {
+		recoverCalls = nil
+		sender = &testAmqpSender{
+			sendErrors: []error{
+				amqp.ErrLinkClosed, // this is no longer considered a retryable error (ErrLinkDetached is, however)
+			},
+		}
+
+		actualErr := sendMessage(context.TODO(), getAmqpSender, 5, nil, recover)
+
+		assert.EqualValues(t, amqp.ErrLinkClosed, actualErr)
+		assert.EqualValues(t, 1, sender.sendCount)
+		assert.Empty(t, recoverCalls, "No recovery attempts should happen for non-recoverable errors")
+	})
+
 	t.Run("SendWithAmqpErrors", func(*testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
