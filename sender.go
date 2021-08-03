@@ -121,16 +121,16 @@ func (s *sender) amqpSender() amqpSender {
 
 // Recover will attempt to close the current connectino, session and link, then rebuild them.
 func (s *sender) Recover(ctx context.Context) error {
-	return s.recoverWithExpectedLinkId(ctx, "")
+	return s.recoverWithExpectedLinkID(ctx, "")
 }
 
-// recoverWithExpectedLinkId attemps to recover the link as cheaply as possible.
+// recoverWithExpectedLinkID attemps to recover the link as cheaply as possible.
 // - It does not recover the link if expectedLinkID is non-empty and does NOT match
 //   the current link ID, as this would indicate that the previous bad link has
 //   already been closed and removed.
 // - When recovering, it attempts to recover just the link first. If that fails then it
 //   will try to recover the entire connection.
-func (s *sender) recoverWithExpectedLinkId(ctx context.Context, expectedLinkID string) error {
+func (s *sender) recoverWithExpectedLinkID(ctx context.Context, expectedLinkID string) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
 
@@ -277,7 +277,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return
 		}
 		if recover {
-			err = s.recoverWithExpectedLinkId(ctx, linkID)
+			err = s.recoverWithExpectedLinkID(ctx, linkID)
 			if err != nil {
 				tab.For(ctx).Debug("failed to recover connection")
 			} else {
