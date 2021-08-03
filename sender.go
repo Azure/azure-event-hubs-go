@@ -129,8 +129,6 @@ func (s *sender) Recover(ctx context.Context) error {
 // - It does not recover the link if expectedLinkID is not "" and does NOT match
 //   the current link ID, as this would indicate that the previous bad link has
 //   already been closed and removed.
-// - When recovering, it attempts to recover just the link first. If that fails then it
-//   will try to recover the entire connection.
 func (s *sender) recoverWithExpectedLinkID(ctx context.Context, expectedLinkID string) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
