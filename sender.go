@@ -141,7 +141,7 @@ func (s *sender) recoverWithExpectedLinkID(ctx context.Context, expectedLinkID s
 
 	// if the link they started with has already been closed and removed we don't
 	// need to trigger an additional recovery.
-	if s.amqpSender().ID() != expectedLinkID {
+	if expectedLinkID != "" && s.amqpSender().ID() != expectedLinkID {
 		tab.For(ctx).Debug("original linkID does not match, no recovery necessary")
 	} else if !s.recovering {
 		// another goroutine isn't recovering, so this one will
