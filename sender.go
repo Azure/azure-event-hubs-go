@@ -119,12 +119,18 @@ func (s *sender) amqpSender() amqpSender {
 	return s.sender.Load().(*amqp.Sender)
 }
 
-// Recover will attempt to close the current session and link, then rebuild them.
-// Note that while the implementation will ensure that Recover() is goroutine safe
-// it won't prevent excessive connection recovery.  E.g. if a Recover() is in progress
-// and is in block 2, any additional calls to Recover() will wait at block 1 to
-// restart the recovery process once block 2 exits.
-func (s *sender) Recover(ctx context.Context, currentLinkID string) error {
+// Recover will attempt to close the current connectino, session and link, then rebuild them.
+func (s *sender) Recover(ctx context.Context) error {
+	return s.recoverWithExpectedLinkId(ctx, "")
+}
+
+// recoverWithExpectedLinkId attemps to recover the link as cheaply as possible.
+// - It does not recover the link if expectedLinkID is non-empty and does NOT match
+//   the current link ID, as this would indicate that the previous bad link has
+//   already been closed and removed.
+// - When recovering, it attempts to recover just the link first. If that fails then it
+//   will try to recover the entire connection.
+func (s *sender) recoverWithExpectedLinkId(ctx context.Context, expectedLinkID string) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.Recover")
 	defer span.End()
 
@@ -135,12 +141,9 @@ func (s *sender) Recover(ctx context.Context, currentLinkID string) error {
 
 	// if the link they started with has already been closed and removed we don't
 	// need to trigger an additional recovery.
-	if s.amqpSender().ID() != currentLinkID {
-		s.cond.L.Unlock()
-		return nil
-	}
-
-	if !s.recovering {
+	if s.amqpSender().ID() != expectedLinkID {
+		tab.For(ctx).Debug("original linkID does not match, no recovery necessary")
+	} else if !s.recovering {
 		// another goroutine isn't recovering, so this one will
 		tab.For(ctx).Debug("will recover connection")
 		s.recovering = true
@@ -150,7 +153,9 @@ func (s *sender) Recover(ctx context.Context, currentLinkID string) error {
 		tab.For(ctx).Debug("waiting for connection to recover")
 		s.cond.Wait()
 	}
+
 	s.cond.L.Unlock()
+
 	var err error
 	if recover {
 		tab.For(ctx).Debug("recovering connection")
@@ -272,7 +277,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 			return
 		}
 		if recover {
-			err = s.Recover(ctx, linkID)
+			err = s.recoverWithExpectedLinkId(ctx, linkID)
 			if err != nil {
 				tab.For(ctx).Debug("failed to recover connection")
 			} else {
@@ -288,7 +293,7 @@ func (s *sender) trySend(ctx context.Context, evt eventer) error {
 	return sendMessage(ctx, s.amqpSender, s.retryOptions.maxRetries, msg, recvr)
 }
 
-func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverConnection func(linkID string, err error, recover bool)) error {
+func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries int, msg *amqp.Message, recoverLink func(linkID string, err error, recover bool)) error {
 	var lastError error
 
 	// maxRetries >= 0 == finite retries
@@ -309,18 +314,18 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 			switch e := err.(type) {
 			case *amqp.Error:
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
-					recoverConnection(sender.ID(), err, false)
+					recoverLink(sender.ID(), err, false)
 					break
 				}
-				recoverConnection(sender.ID(), err, true)
+				recoverLink(sender.ID(), err, true)
 			case *amqp.DetachError, net.Error:
-				recoverConnection(sender.ID(), err, true)
+				recoverLink(sender.ID(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recoverConnection(sender.ID(), err, true)
+				recoverLink(sender.ID(), err, true)
 			}
 		}
 	}

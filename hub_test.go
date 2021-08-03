@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/auth"
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/go-amqp"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -764,4 +765,11 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 	if !strings.HasSuffix(h.namespace.host, azure.PublicCloud.ServiceBusEndpointSuffix) {
 		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.PublicCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
+}
+
+func TestIsRecoverableCloseError(t *testing.T) {
+	require.True(t, isRecoverableCloseError(amqp.ErrLinkDetached))
+
+	// if the caller closes a link we shouldn't reopen or create a new one to replace it
+	require.False(t, isRecoverableCloseError(amqp.ErrLinkClosed))
 }

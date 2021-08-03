@@ -779,15 +779,11 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 }
 
 func isRecoverableCloseError(err error) bool {
-	return isConnectionClosed(err) || isSessionClosed(err) || isLinkClosed(err)
+	return isConnectionClosed(err) || isSessionClosed(err) || err == amqp.ErrLinkDetached
 }
 
 func isConnectionClosed(err error) bool {
 	return err == amqp.ErrConnClosed
-}
-
-func isLinkClosed(err error) bool {
-	return err == amqp.ErrLinkClosed
 }
 
 func isSessionClosed(err error) bool {
