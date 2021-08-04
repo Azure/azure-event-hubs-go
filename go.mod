@@ -14,10 +14,12 @@ require (
 	github.com/Azure/go-autorest/autorest/date v0.3.0
 	github.com/Azure/go-autorest/autorest/to v0.4.0
 	github.com/devigned/tab v0.1.1
+	github.com/devigned/tab/opencensus v0.1.2 // indirect
 	github.com/joho/godotenv v1.3.0
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/sirupsen/logrus v1.2.0
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
+	go.opencensus.io v0.23.0 // indirect
+	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 )
