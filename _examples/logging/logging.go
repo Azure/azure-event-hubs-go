@@ -44,11 +44,11 @@ func main() {
 	//
 	// TraceID:      4b6c2c3cdbf8e8096e262d2770ff9b15
 	// SpanID:       6682e012dbfdca72
-
+	//
 	// Span:    eh.Hub.Send
 	// Status:   [0]
 	// Elapsed: 485ms
-
+	//
 	// Attributes:
 	//   - component=github.com/Azure/azure-event-hubs-go
 	//   - version=3.3.9
