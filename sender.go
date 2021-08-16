@@ -369,6 +369,7 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		amqp.LinkSenderSettle(amqp.ModeMixed),
 		amqp.LinkReceiverSettle(amqp.ModeFirst),
 		amqp.LinkTargetAddress(s.getAddress()),
+		amqp.LinkDetachOnDispositionError(false),
 	)
 	if err != nil {
 		tab.For(ctx).Error(err)

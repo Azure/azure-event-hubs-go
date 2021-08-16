@@ -1,5 +1,10 @@
 # Change Log
 
+## `v3.3.13`
+- We no longer close the link when we received disposition errors on sending. This allows 
+  us to return errors properly when doing parallel sends on a link that is being 
+  throttled. [PR#TBD]()
+
 ## `v3.3.12`
 - Fix bug in sender.Recover() where recovery could get stuck when a link was throttled. [PR#232](#https://github.com/Azure/azure-event-hubs-go/pull/232)
 

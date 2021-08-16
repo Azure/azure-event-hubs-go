@@ -14,15 +14,20 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var SenderMaxRetryCount = 10
+var MaxBatches = 100
+
 func main() {
 	godotenv.Load("../../../.env")
 	cs := os.Getenv("EVENTHUB_CONNECTION_STRING")
 
-	hub, err := eventhub.NewHubFromConnectionString(cs)
+	hub, err := eventhub.NewHubFromConnectionString(cs, eventhub.HubWithSenderMaxRetryCount(SenderMaxRetryCount))
 
 	if err != nil {
 		log.Fatalf("Failed to create hub: %s", err.Error())
 	}
+
+	startSequenceNumbers := getPartitionCounts(context.Background(), hub)
 
 	// Generate some large batches of messages and send them in parallel.
 	// The Go SDK is fast enough that this will cause a 1TU instance to throttle
@@ -31,6 +36,14 @@ func main() {
 	lastExpectedId := sendMessages(hub)
 
 	log.Printf("Sending complete, last expected ID = %d", lastExpectedId)
+
+	endSequenceNumbers := getPartitionCounts(context.Background(), hub)
+
+	for partitionID, endSequenceNumber := range endSequenceNumbers {
+		startSequenceNumber := startSequenceNumbers[partitionID]
+
+		log.Printf("[%s] diff: %d", partitionID, endSequenceNumber-startSequenceNumber)
+	}
 }
 
 func sendMessages(hub *eventhub.Hub) int64 {
@@ -39,7 +52,7 @@ func sendMessages(hub *eventhub.Hub) int64 {
 
 	log.Printf("Creating event batches")
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < MaxBatches; i++ {
 		batches = append(batches, createEventBatch(&nextTestId))
 	}
 
@@ -92,4 +105,26 @@ func createEventBatch(testId *int64) eventhub.BatchIterator {
 	}
 
 	return eventhub.NewEventBatchIterator(events...)
+}
+
+func getPartitionCounts(ctx context.Context, hub *eventhub.Hub) map[string]int64 {
+	sequenceNumbers := map[string]int64{}
+
+	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
+
+	if err != nil {
+		log.Fatalf("Failed to get runtime information from hub: %s", err.Error())
+	}
+
+	for _, partitionId := range runtimeInfo.PartitionIDs {
+		partInfo, err := hub.GetPartitionInformation(ctx, partitionId)
+
+		if err != nil {
+			log.Fatalf("Failed to get partition info for partition ID %s: %s", partitionId, err.Error())
+		}
+
+		sequenceNumbers[partitionId] = partInfo.LastSequenceNumber
+	}
+
+	return sequenceNumbers
 }
