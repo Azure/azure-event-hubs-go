@@ -1,7 +1,7 @@
 # Change Log
 
 ## `v3.3.13`
-- We no longer close the link when we received disposition errors on sending. This allows 
+- We no longer close the link when we receive disposition errors on sending. This allows 
   us to return errors properly when doing parallel sends on a link that is being 
   throttled. [PR#234](https://github.com/Azure/azure-event-hubs-go/pull/234)
 
