@@ -14,8 +14,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var MaxBatches = 50
 var SenderMaxRetryCount = 10
-var MaxBatches = 100
+
+const TestIdProperty = "testId"
 
 func main() {
 	godotenv.Load("../../../.env")
@@ -27,23 +29,26 @@ func main() {
 		log.Fatalf("Failed to create hub: %s", err.Error())
 	}
 
-	startSequenceNumbers := getPartitionCounts(context.Background(), hub)
+	partitions := getPartitionCounts(context.Background(), hub)
 
 	// Generate some large batches of messages and send them in parallel.
 	// The Go SDK is fast enough that this will cause a 1TU instance to throttle
 	// us, allowing you to see how our code reacts to it.
 	tab.Register(&stress.StderrTracer{NoOpTracer: &tab.NoOpTracer{}})
-	lastExpectedId := sendMessages(hub)
+	messageCount := sendMessages(hub)
 
-	log.Printf("Sending complete, last expected ID = %d", lastExpectedId)
+	log.Printf("Sending complete, last expected ID = %d", messageCount)
 
 	endSequenceNumbers := getPartitionCounts(context.Background(), hub)
 
-	for partitionID, endSequenceNumber := range endSequenceNumbers {
-		startSequenceNumber := startSequenceNumbers[partitionID]
+	for partitionID, partition := range endSequenceNumbers {
+		startSequenceNumber := partitions[partitionID].LastSequenceNumber
 
-		log.Printf("[%s] diff: %d", partitionID, endSequenceNumber-startSequenceNumber)
+		log.Printf("[%s] diff: %d", partitionID, partition.LastSequenceNumber-startSequenceNumber)
 	}
+
+	// now receive and check all the messages, make sure everything arrived.
+	verifyMessages(context.TODO(), hub, partitions, messageCount)
 }
 
 func sendMessages(hub *eventhub.Hub) int64 {
@@ -83,7 +88,7 @@ func sendMessages(hub *eventhub.Hub) int64 {
 
 	wg.Wait()
 
-	return nextTestId - 1
+	return nextTestId
 }
 
 func createEventBatch(testId *int64) eventhub.BatchIterator {
@@ -97,7 +102,7 @@ func createEventBatch(testId *int64) eventhub.BatchIterator {
 		events = append(events, &eventhub.Event{
 			Data: data[:],
 			Properties: map[string]interface{}{
-				"testId": *testId,
+				TestIdProperty: *testId,
 			},
 		})
 
@@ -107,8 +112,8 @@ func createEventBatch(testId *int64) eventhub.BatchIterator {
 	return eventhub.NewEventBatchIterator(events...)
 }
 
-func getPartitionCounts(ctx context.Context, hub *eventhub.Hub) map[string]int64 {
-	sequenceNumbers := map[string]int64{}
+func getPartitionCounts(ctx context.Context, hub *eventhub.Hub) map[string]*eventhub.HubPartitionRuntimeInformation {
+	partitions := map[string]*eventhub.HubPartitionRuntimeInformation{}
 
 	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
 
@@ -123,8 +128,65 @@ func getPartitionCounts(ctx context.Context, hub *eventhub.Hub) map[string]int64
 			log.Fatalf("Failed to get partition info for partition ID %s: %s", partitionId, err.Error())
 		}
 
-		sequenceNumbers[partitionId] = partInfo.LastSequenceNumber
+		partitions[partitionId] = partInfo
 	}
 
-	return sequenceNumbers
+	return partitions
+}
+
+func verifyMessages(ctx context.Context, hub *eventhub.Hub, partitions map[string]*eventhub.HubPartitionRuntimeInformation, expectedMessages int64) {
+	after := time.After(time.Minute * 5)
+
+	receiverCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	messagesCh := make(chan int64, expectedMessages+10)
+
+	for partitionID, partition := range partitions {
+		go hub.Receive(receiverCtx, partitionID, func(ctx context.Context, event *eventhub.Event) error {
+			messagesCh <- event.Properties[TestIdProperty].(int64)
+
+			return nil
+		}, eventhub.ReceiveWithStartingOffset(partition.LastEnqueuedOffset))
+	}
+
+	log.Printf("Waiting for 5 minutes _or_ for %d unique messages to arrive", expectedMessages)
+
+	mu := &sync.Mutex{}
+	messagesReceived := map[int64]int64{}
+
+	for i := 0; i < 5; i++ {
+		go func() {
+			for testId := range messagesCh {
+				mu.Lock()
+				messagesReceived[testId]++
+				hits := messagesReceived[testId]
+				length := len(messagesReceived)
+				mu.Unlock()
+
+				if hits > 1 {
+					// we're getting duplicates
+					log.Printf("Duplicate message with testId property %d", testId)
+				}
+
+				if int64(length) >= expectedMessages {
+					log.Printf("Unique messages received: %d/%d", length, expectedMessages)
+					cancel()
+				}
+
+				if length > 0 && length%1000 == 0 {
+					log.Printf("Received %d messages", length)
+				}
+			}
+		}()
+	}
+
+	select {
+	case <-after:
+		log.Printf("Timed out, didn't receive all messages")
+		break
+	case <-receiverCtx.Done():
+		log.Printf("All messages received!")
+		break
+	}
 }
