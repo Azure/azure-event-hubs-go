@@ -142,12 +142,12 @@ func ExampleHub_webSocket() {
 }
 
 func ensureHub(ctx context.Context, em *eventhub.HubManager, name string, opts ...eventhub.HubManagementOption) (*eventhub.HubEntity, error) {
-	he, err := em.Get(ctx, name)
+	_, err := em.Get(ctx, name)
 	if err == nil {
 		_ = em.Delete(ctx, name)
 	}
 
-	he, err = em.Put(ctx, name, opts...)
+	he, err := em.Put(ctx, name, opts...)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
