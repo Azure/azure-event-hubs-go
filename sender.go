@@ -69,7 +69,7 @@ type (
 	// (used for testing)
 	// Implemented by *amqp.Sender
 	amqpSender interface {
-		ID() string
+		LinkName() string
 		Send(ctx context.Context, msg *amqp.Message) error
 		Close(ctx context.Context) error
 	}
@@ -140,7 +140,7 @@ func (s *sender) recoverWithExpectedLinkID(ctx context.Context, expectedLinkID s
 
 	// if the link they started with has already been closed and removed we don't
 	// need to trigger an additional recovery.
-	if expectedLinkID != "" && s.amqpSender().ID() != expectedLinkID {
+	if expectedLinkID != "" && s.amqpSender().LinkName() != expectedLinkID {
 		tab.For(ctx).Debug("original linkID does not match, no recovery necessary")
 	} else if !s.recovering {
 		// another goroutine isn't recovering, so this one will
@@ -307,18 +307,18 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 			switch e := err.(type) {
 			case *amqp.Error:
 				if e.Condition == errorServerBusy || e.Condition == errorTimeout {
-					recoverLink(sender.ID(), err, false)
+					recoverLink(sender.LinkName(), err, false)
 					break
 				}
-				recoverLink(sender.ID(), err, true)
+				recoverLink(sender.LinkName(), err, true)
 			case *amqp.DetachError, net.Error:
-				recoverLink(sender.ID(), err, true)
+				recoverLink(sender.LinkName(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {
 					return err
 				}
 
-				recoverLink(sender.ID(), err, true)
+				recoverLink(sender.LinkName(), err, true)
 			}
 		}
 	}
