@@ -25,7 +25,7 @@ type recoveryCall struct {
 	recover bool
 }
 
-func (s *testAmqpSender) ID() string {
+func (s *testAmqpSender) LinkName() string {
 	return "sender-id"
 }
 
@@ -345,6 +345,11 @@ func TestRecoveryBlock1(t *testing.T) {
 	// 	sender.recovering = true // oops, someone else is already recovering
 	// 	sender.recoverWithExpectedLinkID(context.TODO(), "the-actual-link-id")
 	// })
+}
+
+func TestAMQPSenderIsCompatibleWithInterface(t *testing.T) {
+	var validateCompile amqpSender = &amqp.Sender{}
+	require.NotNil(t, validateCompile)
 }
 
 type fakeSender struct {
