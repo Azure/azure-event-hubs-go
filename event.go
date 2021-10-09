@@ -44,12 +44,49 @@ const (
 type (
 	// Event is an Event Hubs message to be sent or received
 	Event struct {
-		Data             []byte
-		PartitionKey     *string
-		Properties       map[string]interface{}
-		ID               string
+		Data         []byte
+		PartitionKey *string
+		Properties   map[string]interface{}
+
+		ID string
+
 		message          *amqp.Message
 		SystemProperties *SystemProperties
+
+		// RawAMQPMessage is a subset of fields from the underlying AMQP message.
+		// NOTE: These fieldsare only used when receiving events and are not sent.
+		RawAMQPMessage struct {
+			// Properties are standard properties for an AMQP message.
+			Properties struct {
+				// The identity of the user responsible for producing the message.
+				// The client sets this value, and it MAY be authenticated by intermediaries.
+				UserID []byte
+
+				// This is a client-specific id that can be used to mark or identify messages
+				// between clients.
+				CorrelationID interface{} // uint64, UUID, []byte, or string
+
+				// The content-encoding property is used as a modifier to the content-type.
+				// When present, its value indicates what additional content encodings have been
+				// applied to the application-data, and thus what decoding mechanisms need to be
+				// applied in order to obtain the media-type referenced by the content-type header
+				// field.
+				ContentEncoding string
+
+				// The RFC-2046 [RFC2046] MIME type for the message's application-data section
+				// (body). As per RFC-2046 [RFC2046] this can contain a charset parameter defining
+				// the character encoding used: e.g., 'text/plain; charset="utf-8"'.
+				//
+				// For clarity, as per section 7.2.1 of RFC-2616 [RFC2616], where the content type
+				// is unknown the content-type SHOULD NOT be set. This allows the recipient the
+				// opportunity to determine the actual type. Where the section is known to be truly
+				// opaque binary data, the content-type SHOULD be set to application/octet-stream.
+				ContentType string
+
+				// A common field for summary information about the message content and purpose.
+				Subject string
+			}
+		}
 	}
 
 	// SystemProperties are used to store properties that are set by the system.
@@ -190,6 +227,12 @@ func newEvent(data []byte, msg *amqp.Message) (*Event, error) {
 		if id, ok := msg.Properties.MessageID.(string); ok {
 			event.ID = id
 		}
+
+		event.RawAMQPMessage.Properties.UserID = msg.Properties.UserID
+		event.RawAMQPMessage.Properties.Subject = msg.Properties.Subject
+		event.RawAMQPMessage.Properties.CorrelationID = msg.Properties.CorrelationID
+		event.RawAMQPMessage.Properties.ContentEncoding = msg.Properties.ContentEncoding
+		event.RawAMQPMessage.Properties.ContentType = msg.Properties.ContentType
 	}
 
 	if msg.Annotations != nil {
