@@ -37,7 +37,7 @@ func TestMessageConversion(t *testing.T) {
 			CorrelationID:   "correlationID",
 			Subject:         "subject",
 			ContentEncoding: "utf-75",
-			ContentType:     "application/leet",
+			ContentType:     "application/octet-stream",
 		},
 		Annotations: amqp.Annotations{
 			"annotation1": "annotation1Value",
@@ -64,7 +64,7 @@ func TestMessageConversion(t *testing.T) {
 	require.EqualValues(t, "correlationID", event.RawAMQPMessage.Properties.CorrelationID)
 	require.EqualValues(t, "subject", event.RawAMQPMessage.Properties.Subject)
 	require.EqualValues(t, "utf-75", event.RawAMQPMessage.Properties.ContentEncoding)
-	require.EqualValues(t, "application/leet", event.RawAMQPMessage.Properties.ContentType)
+	require.EqualValues(t, "application/octet-stream", event.RawAMQPMessage.Properties.ContentType)
 
 	// AMQPMessage.ApplicationProperties -> Event.Properties
 	require.EqualValues(t, "applicationProperty1Value", event.Properties["applicationProperty1"])
