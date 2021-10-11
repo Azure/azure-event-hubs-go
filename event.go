@@ -54,7 +54,7 @@ type (
 		SystemProperties *SystemProperties
 
 		// RawAMQPMessage is a subset of fields from the underlying AMQP message.
-		// NOTE: These fieldsare only used when receiving events and are not sent.
+		// NOTE: These fields are only used when receiving events and are not sent.
 		RawAMQPMessage struct {
 			// Properties are standard properties for an AMQP message.
 			Properties struct {
