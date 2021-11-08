@@ -21,7 +21,7 @@ If you want to use stable versions of the library, please use Go modules.
 
 ### Using go get targeting version 3.x.x
 ``` bash
-go get -u github.com/Azure/azure-event-hubs-go/v3
+go get -u github.com/smartpcr/azure-event-hubs-go/v3
 ```
 
 ### Using go get targeting version 2.x.x
@@ -53,7 +53,7 @@ import (
 	"os/signal"
 	"time"
 	
-	"github.com/Azure/azure-event-hubs-go/v3"
+	"github.com/smartpcr/azure-event-hubs-go/v3"
 )
 
 func main() {
@@ -238,7 +238,7 @@ particular partition. You can do this in two ways.
 Sending a batch of messages is more efficient than sending a single message. `SendBatch` takes an `*EventBatchIterator` that will automatically create batches from a slice of `*Event`.
 ```go
 import (
-    eventhub "github.com/Azure/azure-event-hubs-go/v3"
+    eventhub "github.com/smartpcr/azure-event-hubs-go/v3"
 )
 ...
 var events []*eventhub.Event
@@ -335,9 +335,9 @@ import (
 	
 	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
-	"github.com/Azure/azure-event-hubs-go/v3"
-	"github.com/Azure/azure-event-hubs-go/v3/eph"
-	"github.com/Azure/azure-event-hubs-go/v3/storage"
+	"github.com/smartpcr/azure-event-hubs-go/v3"
+	"github.com/smartpcr/azure-event-hubs-go/v3/eph"
+	"github.com/smartpcr/azure-event-hubs-go/v3/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 )

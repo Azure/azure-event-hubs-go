@@ -1,4 +1,4 @@
-module github.com/Azure/azure-event-hubs-go/v3
+module github.com/smartpcr/azure-event-hubs-go/v3
 
 go 1.13
 

@@ -37,8 +37,8 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
-	"github.com/Azure/azure-event-hubs-go/v3"
-	"github.com/Azure/azure-event-hubs-go/v3/persist"
+	"github.com/smartpcr/azure-event-hubs-go/v3"
+	"github.com/smartpcr/azure-event-hubs-go/v3/persist"
 
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/devigned/tab"

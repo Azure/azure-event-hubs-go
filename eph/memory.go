@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go/v3/persist"
+	"github.com/smartpcr/azure-event-hubs-go/v3/persist"
 )
 
 type (

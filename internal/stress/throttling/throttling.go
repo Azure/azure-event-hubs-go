@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	eventhub "github.com/Azure/azure-event-hubs-go/v3"
-	"github.com/Azure/azure-event-hubs-go/v3/internal/stress"
 	"github.com/devigned/tab"
 	"github.com/joho/godotenv"
+	eventhub "github.com/smartpcr/azure-event-hubs-go/v3"
+	"github.com/smartpcr/azure-event-hubs-go/v3/internal/stress"
 )
 
 var MaxBatches = 50

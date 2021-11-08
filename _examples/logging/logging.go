@@ -11,9 +11,9 @@ import (
 	"log"
 	"os"
 
-	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
 	_ "github.com/devigned/tab/opencensus"
 	"github.com/joho/godotenv"
+	eventhubs "github.com/smartpcr/azure-event-hubs-go/v3"
 	"go.opencensus.io/examples/exporter"
 	"go.opencensus.io/trace"
 )
