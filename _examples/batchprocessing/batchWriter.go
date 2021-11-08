@@ -93,7 +93,11 @@ func (w *batchWriter) Flush(ctx context.Context) error {
 			w.persistRecords = w.persistRecords[i:]
 			return err
 		}
-		w.flushed = w.persistRecords[i]
+		if i < len(w.persistRecords) {
+			w.flushed = w.persistRecords[i]
+		} else {
+			w.flushed = nil
+		}
 	}
 	w.batch = make([]string, 0, batchSize)
 	w.persistRecords = make([]*persistRecord, 0, batchSize)
