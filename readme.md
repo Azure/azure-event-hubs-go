@@ -19,19 +19,19 @@ If you want to use stable versions of the library, please use Go modules.
 
 **NOTE**: versions prior to 3.0.0 depend on pack.ag/amqp which is no longer maintained. Any new code should not use versions prior to 3.0.0.
 
-### Using go get targeting version 3.x.x
+### Using go install targeting version 3.x.x
 ``` bash
-go get -u github.com/Azure/azure-event-hubs-go/v3
+go install github.com/Azure/azure-event-hubs-go/v3
 ```
 
-### Using go get targeting version 2.x.x
+### Using go install targeting version 2.x.x
 ``` bash
-go get -u github.com/Azure/azure-event-hubs-go/v2
+go install github.com/Azure/azure-event-hubs-go/v2
 ```
 
-### Using go get targeting version 1.x.x
+### Using go install targeting version 1.x.x
 ``` bash
-go get -u github.com/Azure/azure-event-hubs-go
+go install github.com/Azure/azure-event-hubs-go
 ```
 
 ## Using Event Hubs
@@ -450,8 +450,8 @@ To setup the integration test environment, ensure the following pre-requisites a
   - export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
   - export GOPATH=$HOME/go
 - install go dev dependencies
-  - run `go get github.com/fzipp/gocyclo`
-  - run `go get -u golang.org/x/lint/golint`
+  - run `go install github.com/fzipp/gocyclo`
+  - run `go install golang.org/x/lint/golint`
 - run the following bash commands
   - `sudo apt install jq`
 - install gcc
