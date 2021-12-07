@@ -229,10 +229,20 @@ func newEvent(data []byte, msg *amqp.Message) (*Event, error) {
 		}
 
 		event.RawAMQPMessage.Properties.UserID = msg.Properties.UserID
-		event.RawAMQPMessage.Properties.Subject = msg.Properties.Subject
+
+		if msg.Properties.Subject != nil {
+			event.RawAMQPMessage.Properties.Subject = *msg.Properties.Subject
+		}
+
 		event.RawAMQPMessage.Properties.CorrelationID = msg.Properties.CorrelationID
-		event.RawAMQPMessage.Properties.ContentEncoding = msg.Properties.ContentEncoding
-		event.RawAMQPMessage.Properties.ContentType = msg.Properties.ContentType
+
+		if msg.Properties.ContentEncoding != nil {
+			event.RawAMQPMessage.Properties.ContentEncoding = *msg.Properties.ContentEncoding
+		}
+
+		if msg.Properties.ContentType != nil {
+			event.RawAMQPMessage.Properties.ContentType = *msg.Properties.ContentType
+		}
 	}
 
 	if msg.Annotations != nil {
