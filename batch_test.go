@@ -49,7 +49,7 @@ func TestEventBatch_Clear(t *testing.T) {
 	ok, err := eb.Add(eventhub.NewEventFromString("Foo"))
 	assert.True(t, ok)
 	assert.NoError(t, err)
-	assert.Equal(t, 174, eb.Size())
+	assert.Equal(t, 163, eb.Size())
 
 	eb.Clear()
 	assert.Equal(t, 100, eb.Size())
