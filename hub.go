@@ -26,6 +26,7 @@ package eventhub
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -779,7 +780,8 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 }
 
 func isRecoverableCloseError(err error) bool {
-	return isConnectionClosed(err) || isSessionClosed(err) || err == amqp.ErrLinkDetached
+	var detachError *amqp.DetachError
+	return isConnectionClosed(err) || isSessionClosed(err) || errors.As(err, &detachError)
 }
 
 func isConnectionClosed(err error) bool {

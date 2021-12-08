@@ -71,7 +71,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				amqp.ErrLinkDetached,
+				&amqp.DetachError{},
 				amqp.ErrSessionClosed,
 				errors.New("We'll never attempt to use this one since we ran out of retries")},
 		}
@@ -85,7 +85,7 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, []recoveryCall{
 			{
 				linkID:  "sender-id",
-				err:     amqp.ErrLinkDetached,
+				err:     &amqp.DetachError{},
 				recover: true,
 			},
 			{
@@ -203,7 +203,7 @@ func TestSenderRetries(t *testing.T) {
 		sender = &testAmqpSender{
 			sendErrors: []error{
 				amqp.ErrConnClosed,
-				amqp.ErrLinkDetached,
+				&amqp.DetachError{},
 				amqp.ErrSessionClosed,
 			},
 		}
@@ -219,7 +219,7 @@ func TestSenderRetries(t *testing.T) {
 			},
 			{
 				linkID:  "sender-id",
-				err:     amqp.ErrLinkDetached,
+				err:     &amqp.DetachError{},
 				recover: true,
 			},
 			{
@@ -312,17 +312,19 @@ func TestRecoveryBlock1(t *testing.T) {
 
 		defer cleanup()
 
-		sender.recoverWithExpectedLinkID(context.TODO(), "")
+		err := sender.recoverWithExpectedLinkID(context.TODO(), "")
+		require.NoError(t, err)
 	})
 
 	t.Run("Matching link ID does recovery", func(t *testing.T) {
 		cleanup, sender := createRecoveryBlock1Sender(t, func(s *sender) {
-			require.True(t, s.recovering, "s.recovering should be true since the lock is available and we have our expected link ID matches")
+			require.True(t, s.recovering, "s.recovering should be true since the lock is available and we our expected link ID matches")
 		})
 
 		defer cleanup()
 
-		sender.recoverWithExpectedLinkID(context.TODO(), "the-actual-link-id")
+		err := sender.recoverWithExpectedLinkID(context.TODO(), "the-actual-link-id")
+		require.NoError(t, err)
 	})
 
 	t.Run("Non-matching link ID skips recovery", func(t *testing.T) {
@@ -332,7 +334,8 @@ func TestRecoveryBlock1(t *testing.T) {
 
 		defer cleanup()
 
-		sender.recoverWithExpectedLinkID(context.TODO(), "non-matching-link-id")
+		err := sender.recoverWithExpectedLinkID(context.TODO(), "non-matching-link-id")
+		require.NoError(t, err)
 	})
 
 	// TODO: can't quite test this one
@@ -359,6 +362,10 @@ type fakeSender struct {
 
 func (s *fakeSender) ID() string {
 	return s.id
+}
+
+func (s *fakeSender) LinkName() string {
+	return "the-actual-link-id"
 }
 
 func (s *fakeSender) Send(ctx context.Context, msg *amqp.Message) error {
@@ -391,6 +398,7 @@ func createRecoveryBlock1Sender(t *testing.T, afterBlock1 func(s *sender)) (func
 		}}
 
 	return func() {
-		require.EqualValues(t, recover(), "Panicking to exit before block 2")
+		val := recover()
+		require.EqualValues(t, "Panicking to exit before block 2", val)
 	}, s
 }

@@ -30,14 +30,18 @@ import (
 //	SOFTWARE
 
 func TestMessageConversion(t *testing.T) {
+	subject := "subject"
+	contentEncoding := "utf-75"
+	contentType := "application/octet-stream"
+
 	amqpMsg := &amqp.Message{
 		Properties: &amqp.MessageProperties{
 			MessageID:       "messageID",
 			UserID:          []byte("userID"),
 			CorrelationID:   "correlationID",
-			Subject:         "subject",
-			ContentEncoding: "utf-75",
-			ContentType:     "application/octet-stream",
+			Subject:         &subject,
+			ContentEncoding: &contentEncoding,
+			ContentType:     &contentType,
 		},
 		Annotations: amqp.Annotations{
 			"annotation1": "annotation1Value",
