@@ -708,7 +708,9 @@ func HubWithPartitionedSender(partitionID string) HubOption {
 // can resume after the last consumed event.
 func HubWithOffsetPersistence(offsetPersister persist.CheckpointPersister) HubOption {
 	return func(h *Hub) error {
-		h.offsetPersister = offsetPersister
+		if offsetPersister != nil {
+			h.offsetPersister = offsetPersister
+		}
 		return nil
 	}
 }

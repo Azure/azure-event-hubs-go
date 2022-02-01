@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -77,6 +78,22 @@ func (fp *FilePersister) Read(namespace, name, consumerGroup, partitionID string
 
 	key := getFilePath(namespace, name, consumerGroup, partitionID)
 	filePath := path.Join(fp.directory, key)
+	newCheckpoint := NewCheckpointFromStartOfStream()
+
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		file, err := os.Create(filePath)
+		if err != nil {
+			return newCheckpoint, err
+		}
+		defer file.Close()
+
+		bytes, err := json.Marshal(newCheckpoint)
+		if err != nil {
+			return newCheckpoint, err
+		}
+		ioutil.WriteFile(filePath, bytes, 0644)
+	}
 
 	f, err := os.Open(filePath)
 	if err != nil {

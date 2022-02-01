@@ -23,9 +23,11 @@ package persist
 //	SOFTWARE
 
 import (
+	"errors"
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -49,7 +51,33 @@ func TestFilePersister_Read(t *testing.T) {
 	persister, err := NewFilePersister(dir)
 	assert.Nil(t, err)
 	ckp, err := persister.Read(namespace, name, group, partitionID)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
+	assert.Equal(t, NewCheckpointFromStartOfStream(), ckp)
+}
+
+func TestFilePersister_ReadEmpty(t *testing.T) {
+	namespace := "namespace"
+	name := "name"
+	group := "$Default"
+	partitionID := "0"
+	dir := path.Join(os.TempDir(), RandomName("read", 4))
+	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		err := os.Mkdir(dir, os.ModePerm)
+		assert.Nil(t, err)
+	}
+	partitionFile := filepath.Join(dir, "hello.json")
+	if _, err := os.Stat(partitionFile); err == nil {
+		err := os.Remove(partitionFile)
+		assert.Nil(t, err)
+	}
+	fakeJson := []byte("hello\nworld\n")
+	err := os.WriteFile(partitionFile, fakeJson, 0644)
+	assert.Nil(t, err)
+
+	persister, err := NewFilePersister(dir)
+	assert.Nil(t, err)
+	ckp, err := persister.Read(namespace, name, group, partitionID)
+	assert.Nil(t, err)
 	assert.Equal(t, NewCheckpointFromStartOfStream(), ckp)
 }
 

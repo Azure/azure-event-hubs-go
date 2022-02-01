@@ -33,26 +33,22 @@ func main() {
 	}
 	defer hub.Close(ctx)
 
-	partitionId := os.Getenv("EVENTHUB_PARTITIONID")
-	if partitionId == "" {
-		parts := strings.SplitN(os.Getenv("HOSTNAME"), "-", 2)
-		if len(parts) == 2 {
-			partitionId = parts[1]
-		} else {
-			fmt.Println("EVENTHUB_PARTITIONID environment variable must be set")
-			os.Exit(1)
-		}
-	}
-
 	consumerGroup := os.Getenv("EVENTHUB_CONSUMERGROUP")
 	if consumerGroup == "" {
 		consumerGroup = "$Default"
 	}
-
-	_, err = hub.Receive(ctx, partitionId, output.HandleEvent, eventhub.ReceiveWithConsumerGroup(consumerGroup), eventhub.ReceiveWithPrefetchCount(20000))
+	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
+	}
+	partitionIds := runtimeInfo.PartitionIDs
+	for _, partitionId := range partitionIds {
+		_, err = hub.Receive(ctx, partitionId, output.HandleEvent, eventhub.ReceiveWithConsumerGroup(consumerGroup), eventhub.ReceiveWithPrefetchCount(20000))
+		if err != nil {
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
 	}
 
 	signalChan := make(chan os.Signal, 1)
