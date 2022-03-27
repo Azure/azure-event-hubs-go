@@ -1,6 +1,6 @@
 module github.com/Azure/azure-event-hubs-go/v3
 
-go 1.13
+go 1.16
 
 require (
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
