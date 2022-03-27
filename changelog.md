@@ -1,5 +1,9 @@
 # Change Log
 
+## Future?
+
+- Update azure-storage-blob-go to better co-exist with other libraries.
+
 ## `v3.3.16`
 
 - Exporting a subset of AMQP message properties for the Dapr project.
