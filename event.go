@@ -214,7 +214,7 @@ func (e *Event) toMsg() (*amqp.Message, error) {
 }
 
 func eventFromMsg(msg *amqp.Message) (*Event, error) {
-	return newEvent(msg.Data[0], msg)
+	return newEvent(msg.GetData(), msg)
 }
 
 func newEvent(data []byte, msg *amqp.Message) (*Event, error) {
