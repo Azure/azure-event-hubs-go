@@ -37,7 +37,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
@@ -175,9 +175,22 @@ func (sl *LeaserCheckpointer) EnsureStore(ctx context.Context) error {
 	if !ok {
 		containerURL := sl.serviceURL.NewContainerURL(sl.containerName)
 		_, err := containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+
 		if err != nil {
-			return err
+			var storageErr azblob.StorageError
+
+			if errors.As(err, &storageErr) {
+				// if it already exists that's fine. There's a window where we can check that the container
+				// is there and then actually create it - any other consumer can beat us and it's fine.
+
+				if storageErr.ServiceCode() != azblob.ServiceCodeContainerAlreadyExists {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
+
 		sl.containerURL = &containerURL
 	}
 	return nil

@@ -25,6 +25,7 @@ package storage
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/aad"
@@ -32,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
+	"github.com/Azure/azure-event-hubs-go/v3/internal/test"
 )
 
 const (
@@ -60,6 +62,35 @@ func (ts *testSuite) TestLeaserStoreCreation() {
 	ts.Require().NoError(err)
 
 	exists, err = leaser.StoreExists(ctx)
+	ts.NoError(err)
+	ts.True(exists)
+}
+
+func (ts *testSuite) TestLeaserStoreCreationConcurrent() {
+	wg := sync.WaitGroup{}
+
+	containerName := test.RandomString("concurrent-container", 4)
+
+	// do a simple test that ensures we don't die just because we raced with
+	// other leasers to create the storage container.
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			leaser, _ := ts.newLeaserWithContainerName(containerName)
+
+			err := leaser.EnsureStore(context.Background())
+			ts.Require().NoError(err)
+		}(i)
+	}
+
+	wg.Wait()
+
+	leaser, del := ts.newLeaserWithContainerName(containerName)
+	defer del()
+	exists, err := leaser.StoreExists(context.Background())
 	ts.NoError(err)
 	ts.True(exists)
 }
@@ -189,6 +220,10 @@ func (ts *testSuite) leaserWithEPH() (*LeaserCheckpointer, func()) {
 
 func (ts *testSuite) newLeaser() (*LeaserCheckpointer, func()) {
 	containerName := strings.ToLower(ts.RandomName("stortest", 4))
+	return ts.newLeaserWithContainerName(containerName)
+}
+
+func (ts *testSuite) newLeaserWithContainerName(containerName string) (*LeaserCheckpointer, func()) {
 	cred, err := NewAADSASCredential(ts.SubscriptionID, ts.ResourceGroupName, ts.AccountName, containerName, AADSASCredentialWithEnvironmentVars())
 	ts.Require().NoError(err)
 	leaser, err := NewStorageLeaserCheckpointer(cred, ts.AccountName, containerName, ts.Env)
