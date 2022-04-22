@@ -180,9 +180,8 @@ func (sl *LeaserCheckpointer) EnsureStore(ctx context.Context) error {
 			var storageErr azblob.StorageError
 
 			if errors.As(err, &storageErr) {
-				// if it already exists that's fine. There's a window where we can check that the container
-				// is there and then actually create it - any other consumer can beat us and it's fine.
-
+				// we're okay if the container has been created - we're basically racing against
+				// other LeaserCheckpointers.
 				if storageErr.ServiceCode() != azblob.ServiceCodeContainerAlreadyExists {
 					return err
 				}
