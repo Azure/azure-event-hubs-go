@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -144,20 +145,22 @@ func (sl *LeaserCheckpointer) StoreExists(ctx context.Context) (bool, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.StoreExists")
 	defer span.End()
 
-	opts := azblob.ListContainersSegmentOptions{
-		Prefix: sl.containerName,
-	}
-	res, err := sl.serviceURL.ListContainersSegment(ctx, azblob.Marker{}, opts)
-	if err != nil {
-		return false, err
+	containerURL := sl.serviceURL.NewContainerURL(sl.containerName)
+	_, err := containerURL.GetProperties(ctx, azblob.LeaseAccessConditions{})
+
+	if err == nil {
+		return true, nil
 	}
 
-	for _, container := range res.ContainerItems {
-		if container.Name == sl.containerName {
-			return true, nil
+	var respErr azblob.ResponseError
+
+	if errors.As(err, &respErr) {
+		if respErr.Response().StatusCode == http.StatusNotFound {
+			return false, nil
 		}
 	}
-	return false, nil
+
+	return false, err
 }
 
 // EnsureStore creates the container if it does not exist
