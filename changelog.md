@@ -1,5 +1,9 @@
 # Change Log
 
+## `v3.3.17`
+
+- Fixing issue where the LeaserCheckpointer could fail with a "ContainerAlreadyExists" error. (#253)
+
 ## `v3.3.16`
 
 - Exporting a subset of AMQP message properties for the Dapr project.
