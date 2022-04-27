@@ -47,7 +47,7 @@ steps:
       gocov-html < coverage.json > coverage.html
     displayName: 'Run Integration Tests'
     env:
-      ARM_SUBSCRIPTION_ID: $(aad-azure-sdk-test-subscription-id)
+      ARM_SUBSCRIPTION_ID: $(azure-subscription-id)
       ARM_CLIENT_ID: $(aad-azure-sdk-test-client-id)
       ARM_CLIENT_SECRET: $(aad-azure-sdk-test-client-secret)
       ARM_TENANT_ID: $(aad-azure-sdk-test-tenant-id)
