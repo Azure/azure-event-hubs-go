@@ -31,7 +31,7 @@ import (
 
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 )
 
 type (
@@ -58,11 +58,10 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 	epoch := lr.lease.GetEpoch()
 	lr.dlog(ctx, "running...")
 
-	go func() {
-		ctx, done := context.WithCancel(context.Background())
-		lr.done = done
-		lr.periodicallyRenewLease(ctx)
-	}()
+	renewLeaseCtx, cancelRenewLease := context.WithCancel(context.Background())
+	lr.done = cancelRenewLease
+
+	go lr.periodicallyRenewLease(renewLeaseCtx)
 
 	opts := []eventhub.ReceiveOption{eventhub.ReceiveWithEpoch(epoch)}
 	if lr.processor.consumerGroup != "" {

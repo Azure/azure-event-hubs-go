@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -37,7 +38,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
 	"github.com/devigned/tab"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
@@ -144,20 +145,22 @@ func (sl *LeaserCheckpointer) StoreExists(ctx context.Context) (bool, error) {
 	span, ctx := startConsumerSpanFromContext(ctx, "storage.LeaserCheckpointer.StoreExists")
 	defer span.End()
 
-	opts := azblob.ListContainersSegmentOptions{
-		Prefix: sl.containerName,
-	}
-	res, err := sl.serviceURL.ListContainersSegment(ctx, azblob.Marker{}, opts)
-	if err != nil {
-		return false, err
+	containerURL := sl.serviceURL.NewContainerURL(sl.containerName)
+	_, err := containerURL.GetProperties(ctx, azblob.LeaseAccessConditions{})
+
+	if err == nil {
+		return true, nil
 	}
 
-	for _, container := range res.ContainerItems {
-		if container.Name == sl.containerName {
-			return true, nil
+	var respErr azblob.ResponseError
+
+	if errors.As(err, &respErr) {
+		if respErr.Response().StatusCode == http.StatusNotFound {
+			return false, nil
 		}
 	}
-	return false, nil
+
+	return false, err
 }
 
 // EnsureStore creates the container if it does not exist
@@ -175,9 +178,21 @@ func (sl *LeaserCheckpointer) EnsureStore(ctx context.Context) error {
 	if !ok {
 		containerURL := sl.serviceURL.NewContainerURL(sl.containerName)
 		_, err := containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+
 		if err != nil {
-			return err
+			var storageErr azblob.StorageError
+
+			if errors.As(err, &storageErr) {
+				// we're okay if the container has been created - we're basically racing against
+				// other LeaserCheckpointers.
+				if storageErr.ServiceCode() != azblob.ServiceCodeContainerAlreadyExists {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
+
 		sl.containerURL = &containerURL
 	}
 	return nil

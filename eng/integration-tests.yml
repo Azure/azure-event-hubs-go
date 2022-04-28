@@ -29,7 +29,7 @@ steps:
       go get github.com/axw/gocov/gocov
       go get github.com/AlekSi/gocov-xml
       go get -u github.com/matm/gocov-html
-      go get github.com/fzipp/gocyclo/cmd/gocyclo
+      go get github.com/fzipp/gocyclo/cmd/gocyclo@v0.3.1
       go get golang.org/x/lint/golint
     displayName: 'Install Dependencies'
   - script: |
@@ -47,10 +47,10 @@ steps:
       gocov-html < coverage.json > coverage.html
     displayName: 'Run Integration Tests'
     env:
-      ARM_SUBSCRIPTION_ID: $(go-live-azure-subscription-id)
-      ARM_CLIENT_ID: $(go-live-eh-azure-client-id)
-      ARM_CLIENT_SECRET: $(go-live-eh-azure-client-secret)
-      ARM_TENANT_ID: $(go-live-tenant-id)
+      ARM_SUBSCRIPTION_ID: $(azure-subscription-id)
+      ARM_CLIENT_ID: $(aad-azure-sdk-test-client-id)
+      ARM_CLIENT_SECRET: $(aad-azure-sdk-test-client-secret)
+      ARM_TENANT_ID: $(aad-azure-sdk-test-tenant-id)
 
   - task: PublishTestResults@2
     inputs:
