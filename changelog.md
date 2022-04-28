@@ -1,8 +1,12 @@
 # Change Log
 
-## `v3.3.17`
+## `v3.3.18`
 
 - Fixing issue where the LeaserCheckpointer could fail with a "ContainerAlreadyExists" error. (#253)
+
+## `v3.3.17`
+
+Updating to the latest go-amqp and azure-amqp-common-go to take advantage of some underlying reliability and interface improvements (#245)
 
 ## `v3.3.16`
 
