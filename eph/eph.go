@@ -37,7 +37,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -318,7 +318,7 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 
 	go func() {
 		span := tab.FromContext(ctx)
-		ctx := tab.NewContext(context.Background(), span)
+		ctx := tab.NewContext(ctx, span)
 		h.scheduler.Run(ctx)
 	}()
 
@@ -344,7 +344,7 @@ func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 
 	go func() {
 		span := tab.FromContext(ctx)
-		ctx := tab.NewContext(context.Background(), span)
+		ctx := tab.NewContext(ctx, span)
 		h.scheduler.Run(ctx)
 	}()
 
