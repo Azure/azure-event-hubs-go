@@ -29,7 +29,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-event-hubs-go/v3/internal/azure-storage-blob-go/azblob"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/Azure/azure-event-hubs-go/v3/internal/test"

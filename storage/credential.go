@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/aad"
+	"github.com/Azure/azure-event-hubs-go/v3/internal/azure-storage-blob-go/azblob"
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
-	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"

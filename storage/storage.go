@@ -42,7 +42,7 @@ import (
 	"github.com/Azure/azure-event-hubs-go/v3/eph"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
-	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-event-hubs-go/v3/internal/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/azure"
 )
 
