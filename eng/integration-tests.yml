@@ -25,12 +25,10 @@ steps:
     displayName: 'Create Go Workspace'
   - script: |
       set -e
-      go get github.com/jstemmer/go-junit-report
-      go get github.com/axw/gocov/gocov
-      go get github.com/AlekSi/gocov-xml
-      go get -u github.com/matm/gocov-html
-      go get github.com/fzipp/gocyclo/cmd/gocyclo@v0.3.1
-      go get golang.org/x/lint/golint
+      go install github.com/jstemmer/go-junit-report@v0.9.1
+      go install github.com/axw/gocov/gocov@v1.1.0
+      go install github.com/AlekSi/gocov-xml@v1.0.0
+      go install github.com/matm/gocov-html@v0.0.0-20200509184451-71874e2e203b
     displayName: 'Install Dependencies'
   - script: |
       set -e

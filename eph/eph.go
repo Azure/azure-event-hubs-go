@@ -37,7 +37,7 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/conn"
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	"github.com/Azure/azure-amqp-common-go/v3/uuid"
-	"github.com/Azure/azure-event-hubs-go/v3"
+	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -411,8 +411,12 @@ func (h *EventProcessorHost) setup(ctx context.Context) error {
 		scheduler := newScheduler(h)
 
 		for _, partitionID := range h.partitionIDs {
-			h.leaser.EnsureLease(ctx, partitionID)
-			h.checkpointer.EnsureCheckpoint(ctx, partitionID)
+			if _, err := h.leaser.EnsureLease(ctx, partitionID); err != nil {
+				return err
+			}
+			if _, err := h.checkpointer.EnsureCheckpoint(ctx, partitionID); err != nil {
+				return err
+			}
 		}
 
 		h.scheduler = scheduler
