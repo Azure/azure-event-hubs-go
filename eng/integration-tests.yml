@@ -30,6 +30,7 @@ steps:
       go install github.com/AlekSi/gocov-xml@v1.0.0
       go install github.com/matm/gocov-html@v0.0.0-20200509184451-71874e2e203b
       go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0
+      curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.47.2
     displayName: 'Install Dependencies'
   - script: |
       set -e
