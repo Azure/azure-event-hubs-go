@@ -40,7 +40,6 @@ jobs:
           go get github.com/axw/gocov/gocov
           go get github.com/AlekSi/gocov-xml
           go get -u github.com/matm/gocov-html
-          go get -u golang.org/x/lint/golint
           go get github.com/fzipp/gocyclo/cmd/gocyclo@v0.3.1
         workingDirectory: '$(sdkPath)'
         displayName: 'Install Dependencies'
@@ -53,9 +52,11 @@ jobs:
         workingDirectory: '$(sdkPath)'
         displayName: 'Vet'
       - script: |
-          golint ./...
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.47.2
+          golangci-lint --version
+          golangci-lint run
         workingDirectory: '$(sdkPath)'
-        displayName: 'Lint'
+        displayName: 'Install and Run GoLintCLI'
       - script: |
           gocyclo -over 19 .
         workingDirectory: '$(sdkPath)'
