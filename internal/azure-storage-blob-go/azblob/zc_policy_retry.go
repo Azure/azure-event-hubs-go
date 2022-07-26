@@ -260,6 +260,7 @@ func NewRetryPolicyFactory(o RetryOptions) pipeline.Factory {
 							// as for client, the response should not be nil if request is sent and the operations is executed successfully.
 							// Another option, is that execute the cancel function when response or response.Response() is nil,
 							// as in this case, current per-try has nothing to do in future.
+							tryCancel()
 							return nil, errors.New("invalid state, response should not be nil when the operation is executed successfully")
 						}
 						response.Response().Body = &contextCancelReadCloser{cf: tryCancel, body: response.Response().Body}
