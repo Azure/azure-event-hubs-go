@@ -61,7 +61,10 @@ func ExampleHub_helloWorld() {
 	}
 
 	for _, partitionID := range *hubEntity.PartitionIDs {
-		_, err = hub.Receive(ctx, partitionID, handler)
+		if _, err := hub.Receive(ctx, partitionID, handler); err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 
 	// wait for the first handler to get called with "Hello World!"
@@ -123,7 +126,10 @@ func ExampleHub_webSocket() {
 	}
 
 	for _, partitionID := range *hubEntity.PartitionIDs {
-		_, err = hub.Receive(ctx, partitionID, handler)
+		if _, err := hub.Receive(ctx, partitionID, handler); err != nil {
+			fmt.Println(err)
+			return
+		}
 	}
 
 	// wait for the first handler to get called with "Hello World!"

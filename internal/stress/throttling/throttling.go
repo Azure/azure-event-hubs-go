@@ -20,7 +20,7 @@ var SenderMaxRetryCount = 10
 const TestIdProperty = "testId"
 
 func main() {
-	godotenv.Load("../../../.env")
+	_ = godotenv.Load("../../../.env")
 	cs := os.Getenv("EVENTHUB_CONNECTION_STRING")
 
 	hub, err := eventhub.NewHubFromConnectionString(cs, eventhub.HubWithSenderMaxRetryCount(SenderMaxRetryCount))
@@ -143,11 +143,13 @@ func verifyMessages(ctx context.Context, hub *eventhub.Hub, partitions map[strin
 	messagesCh := make(chan int64, expectedMessages+10)
 
 	for partitionID, partition := range partitions {
-		go hub.Receive(receiverCtx, partitionID, func(ctx context.Context, event *eventhub.Event) error {
-			messagesCh <- event.Properties[TestIdProperty].(int64)
+		go func(partitionID string, partition *eventhub.HubPartitionRuntimeInformation) {
+			_, _ = hub.Receive(receiverCtx, partitionID, func(ctx context.Context, event *eventhub.Event) error {
+				messagesCh <- event.Properties[TestIdProperty].(int64)
 
-			return nil
-		}, eventhub.ReceiveWithStartingOffset(partition.LastEnqueuedOffset))
+				return nil
+			}, eventhub.ReceiveWithStartingOffset(partition.LastEnqueuedOffset))
+		}(partitionID, partition)
 	}
 
 	log.Printf("Waiting for 5 minutes _or_ for %d unique messages to arrive", expectedMessages)
