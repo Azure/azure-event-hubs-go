@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-amqp-common-go/v3/aad"
-	"github.com/Azure/azure-event-hubs-go/v3/internal/azure-storage-blob-go/azblob"
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -64,14 +64,13 @@ type (
 
 // AADSASCredentialWithEnvironmentVars configures the TokenProvider using the environment variables available
 //
-// 1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
-//    "AZURE_CLIENT_SECRET"
+//  1. Client Credentials: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID" and
+//     "AZURE_CLIENT_SECRET"
 //
-// 2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
-//    "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
+//  2. Client Certificate: attempt to authenticate with a Service Principal via "AZURE_TENANT_ID", "AZURE_CLIENT_ID",
+//     "AZURE_CERTIFICATE_PATH" and "AZURE_CERTIFICATE_PASSWORD"
 //
 // 3. Managed Service Identity (MSI): attempt to authenticate via MSI
-//
 //
 // The Azure Environment used can be specified using the name of the Azure Environment set in "AZURE_ENVIRONMENT" var.
 func AADSASCredentialWithEnvironmentVars() AADSASCredentialOption {

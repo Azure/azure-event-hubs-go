@@ -29,7 +29,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-event-hubs-go/v3/internal/azure-storage-blob-go/azblob"
+	azblobvendor "github.com/Azure/azure-event-hubs-go/v3/internal/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/Azure/azure-event-hubs-go/v3/internal/test"
@@ -74,19 +75,19 @@ func (ts *testSuite) TestCredential() {
 		ts.T().Error(err)
 	}
 
-	containerURL := azblob.NewContainerURL(*fooURL, pipeline)
+	containerURL := azblobvendor.NewContainerURL(*fooURL, pipeline)
 	defer func() {
-		if res, err := containerURL.Delete(ctx, azblob.ContainerAccessConditions{}); err != nil {
+		if res, err := containerURL.Delete(ctx, azblobvendor.ContainerAccessConditions{}); err != nil {
 			log.Fatal(err, res)
 		}
 	}()
-	_, err = containerURL.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+	_, err = containerURL.Create(ctx, azblobvendor.Metadata{}, azblobvendor.PublicAccessNone)
 	if err != nil {
 		ts.T().Error(err)
 	}
 
 	blobURL := containerURL.NewBlobURL(blobName).ToBlockBlobURL()
-	_, err = blobURL.Upload(ctx, strings.NewReader(message), azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
+	_, err = blobURL.Upload(ctx, strings.NewReader(message), azblobvendor.BlobHTTPHeaders{}, azblobvendor.Metadata{}, azblobvendor.BlobAccessConditions{})
 	if err != nil {
 		ts.T().Error(err)
 	}
