@@ -11,7 +11,7 @@ pool:
 steps:
   - task: GoTool@0
     inputs:
-      version: '1.14'
+      version: '1.18.4'
     displayName: "Select Go Version"
 
   - script: |
