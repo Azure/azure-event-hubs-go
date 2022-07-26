@@ -3,7 +3,7 @@ DATE    ?= $(shell date +%FT%T%z)
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* 2> /dev/null || \
 			cat $(CURDIR)/.version 2> /dev/null || echo v0)
 BIN      = $(GOPATH)/bin
-GO_FILES = find . -iname '*.go' -type f | grep -v /vendor/
+GO_FILES = find . -name 'internal/azure-storage-blob-go' -prune -o -iname '*.go' -type f | grep -v /vendor/
 
 GO      = go
 GODOC   = godoc
@@ -52,7 +52,7 @@ tidy: ; $(info $(M) running go mod tidy…) @ ## Run tidy
 
 .PHONY: lint
 lint: ; $(info $(M) running golangci-lint…) @ ## Run golangci-lint
-	$Q $(GOLINT) run
+	$Q $(GOLINT) run --skip-dirs "internal/azure-storage-blob-go"
 
 .PHONY: staticcheck
 staticcheck: ; $(info $(M) running staticcheck…) @ ## Run staticcheck
