@@ -9,7 +9,7 @@ GO      = go
 GODOC   = godoc
 GOFMT   = gofmt
 GOCYCLO = gocyclo
-GOLINT  = $(BIN)/golint
+GOLINT  = $(BIN)/golangci-lint
 GOSTATICCHECK = $(BIN)/staticcheck
 GOJUNITRPT = go-junit-report
 
