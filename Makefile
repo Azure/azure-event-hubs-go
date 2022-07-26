@@ -51,8 +51,8 @@ tidy: ; $(info $(M) running go mod tidy…) @ ## Run tidy
 	$Q $(GO) mod tidy
 
 .PHONY: lint
-lint: ; $(info $(M) running golint…) @ ## Run golint
-	$Q $(GOLINT) ./...
+lint: ; $(info $(M) running golangci-lint…) @ ## Run golangci-lint
+	$Q $(GOLINT) run
 
 .PHONY: staticcheck
 staticcheck: ; $(info $(M) running staticcheck…) @ ## Run staticcheck
