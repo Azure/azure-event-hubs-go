@@ -200,9 +200,7 @@ func (eb *EventBatch) toMsg() (*amqp.Message, error) {
 	batchMessage := eb.amqpBatchMessage()
 
 	batchMessage.Data = make([][]byte, len(eb.marshaledMessages))
-	for idx, bytes := range eb.marshaledMessages {
-		batchMessage.Data[idx] = bytes
-	}
+	_ = copy(batchMessage.Data, eb.marshaledMessages)
 
 	if eb.PartitionKey != nil {
 		batchMessage.Annotations = make(amqp.Annotations)
