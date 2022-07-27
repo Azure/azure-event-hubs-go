@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
+	externalAZBlob "github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 func init() {
@@ -17,7 +18,7 @@ func init() {
 
 // ServiceCodeType is a string identifying a storage service error.
 // For more information, see https://docs.microsoft.com/en-us/rest/api/storageservices/status-and-error-codes2
-type ServiceCodeType string
+type ServiceCodeType = externalAZBlob.ServiceCodeType
 
 // StorageError identifies a responder-generated network or response parsing error.
 type StorageError interface {
