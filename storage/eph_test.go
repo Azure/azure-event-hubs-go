@@ -255,13 +255,13 @@ func (ts *testSuite) newStorageBackedEPHOptions(hubName string, leaser eph.Lease
 	return processor, nil
 }
 
-func (ts *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) *eventhub.Hub {
+func (ts *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) eventhub.Hub {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&ts.Env))
 	ts.Require().NoError(err)
 	return ts.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (ts *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) *eventhub.Hub {
+func (ts *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) eventhub.Hub {
 	opts = append(opts, eventhub.HubWithEnvironment(ts.Env))
 	client, err := eventhub.NewHub(ts.Namespace, hubName, provider, opts...)
 	ts.Require().NoError(err)

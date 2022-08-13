@@ -65,7 +65,7 @@ type (
 		name                string
 		consumerGroup       string
 		tokenProvider       auth.TokenProvider
-		client              *eventhub.Hub
+		client              eventhub.Hub
 		leaser              Leaser
 		checkpointer        Checkpointer
 		scheduler           *scheduler

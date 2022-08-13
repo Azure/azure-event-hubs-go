@@ -51,7 +51,7 @@ const (
 // receiver provides session and link handling for a receiving entity path
 type (
 	receiver struct {
-		hub           *Hub
+		hub           *hubImpl
 		connection    *amqp.Client
 		session       *session
 		receiver      *amqp.Receiver
@@ -132,8 +132,8 @@ func ReceiveWithEpoch(epoch int64) ReceiveOption {
 }
 
 // newReceiver creates a new Service Bus message listener given an AMQP client and an entity path
-func (h *Hub) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
-	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.newReceiver")
+func (h *hubImpl) newReceiver(ctx context.Context, partitionID string, opts ...ReceiveOption) (*receiver, error) {
+	span, ctx := h.startSpanFromContext(ctx, "eh.hubImpl.newReceiver")
 	defer span.End()
 
 	receiver := &receiver{

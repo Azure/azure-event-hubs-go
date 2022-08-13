@@ -45,7 +45,7 @@ const (
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
-		hub          *Hub
+		hub          *hubImpl
 		connection   *amqp.Client
 		session      *session
 		sender       atomic.Value // holds a *amqp.Sender
@@ -100,7 +100,7 @@ func newSenderRetryOptions() *senderRetryOptions {
 }
 
 // newSender creates a new Service Bus message sender given an AMQP client and entity path
-func (h *Hub) newSender(ctx context.Context, retryOptions *senderRetryOptions) (*sender, error) {
+func (h *hubImpl) newSender(ctx context.Context, retryOptions *senderRetryOptions) (*sender, error) {
 	span, ctx := h.startSpanFromContext(ctx, "eh.sender.newSender")
 	defer span.End()
 

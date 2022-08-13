@@ -9,7 +9,7 @@ import (
 	"github.com/devigned/tab"
 )
 
-func (h *Hub) startSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
+func (h *hubImpl) startSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
 	ctx, span := tab.StartSpan(ctx, operationName)
 	ApplyComponentInfo(span)
 	return span, ctx

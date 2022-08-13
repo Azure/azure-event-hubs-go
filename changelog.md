@@ -1,5 +1,9 @@
 # Change Log
 
+## Unreleased
+
+- Move Hub to an interface (#272)
+
 ## `v3.3.18`
 
 - Fixing issue where the LeaserCheckpointer could fail with a "ContainerAlreadyExists" error. (#253)

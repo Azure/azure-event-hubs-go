@@ -379,7 +379,7 @@ func (s *fakeSender) Close(ctx context.Context) error {
 func createRecoveryBlock1Sender(t *testing.T, afterBlock1 func(s *sender)) (func(), *sender) {
 	s := &sender{
 		partitionID: to.StringPtr("0"),
-		hub: &Hub{
+		hub: &hubImpl{
 			namespace: &namespace{},
 		},
 	}

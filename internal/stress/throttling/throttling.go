@@ -51,7 +51,7 @@ func main() {
 	verifyMessages(context.TODO(), hub, partitions, messageCount)
 }
 
-func sendMessages(hub *eventhub.Hub) int64 {
+func sendMessages(hub eventhub.Hub) int64 {
 	var batches []eventhub.BatchIterator
 	nextTestId := int64(0)
 
@@ -112,7 +112,7 @@ func createEventBatch(testId *int64) eventhub.BatchIterator {
 	return eventhub.NewEventBatchIterator(events...)
 }
 
-func getPartitionCounts(ctx context.Context, hub *eventhub.Hub) map[string]*eventhub.HubPartitionRuntimeInformation {
+func getPartitionCounts(ctx context.Context, hub eventhub.Hub) map[string]*eventhub.HubPartitionRuntimeInformation {
 	partitions := map[string]*eventhub.HubPartitionRuntimeInformation{}
 
 	runtimeInfo, err := hub.GetRuntimeInformation(ctx)
@@ -134,7 +134,7 @@ func getPartitionCounts(ctx context.Context, hub *eventhub.Hub) map[string]*even
 	return partitions
 }
 
-func verifyMessages(ctx context.Context, hub *eventhub.Hub, partitions map[string]*eventhub.HubPartitionRuntimeInformation, expectedMessages int64) {
+func verifyMessages(ctx context.Context, hub eventhub.Hub, partitions map[string]*eventhub.HubPartitionRuntimeInformation, expectedMessages int64) {
 	after := time.After(time.Minute * 5)
 
 	receiverCtx, cancel := context.WithCancel(ctx)

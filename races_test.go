@@ -12,7 +12,7 @@ import (
 )
 
 func (suite *eventHubSuite) TestConcurrency() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, string){
 		"TestConcurrentSendWithRecover": testConcurrentSendWithRecover,
 	}
 
@@ -32,7 +32,7 @@ func (suite *eventHubSuite) TestConcurrency() {
 	}
 }
 
-func testConcurrentSendWithRecover(ctx context.Context, t *testing.T, client *Hub, _ string) {
+func testConcurrentSendWithRecover(ctx context.Context, t *testing.T, client *hubImpl, _ string) {
 	var wg sync.WaitGroup
 	var err error
 	for i := 0; i < 100; i++ {

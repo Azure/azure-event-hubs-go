@@ -234,7 +234,7 @@ func (suite *eventHubSuite) randEntityName() string {
 }
 
 func (suite *eventHubSuite) TestSasToken() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, []string, string){
 		"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
@@ -258,7 +258,7 @@ func (suite *eventHubSuite) TestSasToken() {
 }
 
 func (suite *eventHubSuite) TestPartitioned() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, string){
 		"TestSend":                testBasicSend,
 		"TestSendTooBig":          testSendTooBig,
 		"TestSendAndReceive":      testBasicSendAndReceive,
@@ -283,7 +283,7 @@ func (suite *eventHubSuite) TestPartitioned() {
 }
 
 func (suite *eventHubSuite) TestWebSocket() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, string){
 		"TestSend":                testBasicSend,
 		"TestSendTooBig":          testSendTooBig,
 		"TestSendAndReceive":      testBasicSendAndReceive,
@@ -350,12 +350,12 @@ func (suite *eventHubSuite) TestSenderRetryOptionsThroughHub() {
 	}
 }
 
-func testBasicSend(ctx context.Context, t *testing.T, client *Hub, _ string) {
+func testBasicSend(ctx context.Context, t *testing.T, client *hubImpl, _ string) {
 	err := client.Send(ctx, NewEventFromString("Hello!"))
 	assert.NoError(t, err)
 }
 
-func testSendTooBig(ctx context.Context, t *testing.T, client *Hub, _ string) {
+func testSendTooBig(ctx context.Context, t *testing.T, client *hubImpl, _ string) {
 	data := make([]byte, 2600*1024)
 	_, _ = rand.Read(data)
 	event := NewEvent(data)
@@ -363,7 +363,7 @@ func testSendTooBig(ctx context.Context, t *testing.T, client *Hub, _ string) {
 	assert.Error(t, err, "encoded message size exceeds max of 1048576")
 }
 
-func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
+func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *hubImpl, partitionID string) {
 	messages := []string{"hello", "world", "foo", "bar", "baz", "buzz"}
 	var wg sync.WaitGroup
 	wg.Add(len(messages))
@@ -389,7 +389,7 @@ func testBatchSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	}
 }
 
-func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ string) {
+func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *hubImpl, _ string) {
 	events := make([]*Event, 200000)
 
 	var wg sync.WaitGroup
@@ -403,7 +403,7 @@ func testBatchSendTooLarge(ctx context.Context, t *testing.T, client *Hub, _ str
 	assert.EqualError(t, client.SendBatch(ctx, ebi, BatchWithMaxSizeInBytes(10000000)), "encoded message size exceeds max of 1048576")
 }
 
-func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionID string) {
+func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *hubImpl, partitionID string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -449,7 +449,7 @@ func testBasicSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 }
 
 func (suite *eventHubSuite) TestEpochReceivers() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, []string, string){
 		"TestEpochGreaterThenLess": testEpochGreaterThenLess,
 		"TestEpochLessThenGreater": testEpochLessThenGreater,
 	}
@@ -472,7 +472,7 @@ func (suite *eventHubSuite) TestEpochReceivers() {
 	}
 }
 
-func testEpochGreaterThenLess(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testEpochGreaterThenLess(ctx context.Context, t *testing.T, client *hubImpl, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(4))
 	if !assert.NoError(t, err) {
@@ -485,7 +485,7 @@ func testEpochGreaterThenLess(ctx context.Context, t *testing.T, client *Hub, pa
 	assert.NoError(t, r1.Err(), "r1 should still be running with the higher epoch")
 }
 
-func testEpochLessThenGreater(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testEpochLessThenGreater(ctx context.Context, t *testing.T, client *hubImpl, partitionIDs []string, _ string) {
 	partitionID := partitionIDs[0]
 	r1, err := client.Receive(ctx, partitionID, func(c context.Context, event *Event) error { return nil }, ReceiveWithEpoch(1))
 	if !assert.NoError(t, err) {
@@ -509,7 +509,7 @@ func testEpochLessThenGreater(ctx context.Context, t *testing.T, client *Hub, pa
 }
 
 func (suite *eventHubSuite) TestMultiPartition() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, []string, string){
 		"TestMultiSendAndReceive":            testMultiSendAndReceive,
 		"TestSendWithPartitionKeyAndReceive": testSendWithPartitionKeyAndReceive,
 	}
@@ -528,7 +528,7 @@ func (suite *eventHubSuite) TestMultiPartition() {
 	}
 }
 
-func testMultiSendAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testMultiSendAndReceive(ctx context.Context, t *testing.T, client *hubImpl, partitionIDs []string, _ string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -555,7 +555,7 @@ func testMultiSendAndReceive(ctx context.Context, t *testing.T, client *Hub, par
 	waitUntil(t, &wg, time.Until(end))
 }
 
-func testSendWithPartitionKeyAndReceive(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, _ string) {
+func testSendWithPartitionKeyAndReceive(ctx context.Context, t *testing.T, client *hubImpl, partitionIDs []string, _ string) {
 	numMessages := rand.Intn(100) + 20
 	var wg sync.WaitGroup
 	wg.Add(numMessages)
@@ -613,7 +613,7 @@ func testSendWithPartitionKeyAndReceive(ctx context.Context, t *testing.T, clien
 }
 
 func (suite *eventHubSuite) TestHubManagement() {
-	tests := map[string]func(context.Context, *testing.T, *Hub, []string, string){
+	tests := map[string]func(context.Context, *testing.T, *hubImpl, []string, string){
 		"TestHubRuntimeInformation":          testHubRuntimeInformation,
 		"TestHubPartitionRuntimeInformation": testHubPartitionRuntimeInformation,
 	}
@@ -633,7 +633,7 @@ func (suite *eventHubSuite) TestHubManagement() {
 	}
 }
 
-func testHubRuntimeInformation(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, hubName string) {
+func testHubRuntimeInformation(ctx context.Context, t *testing.T, client *hubImpl, partitionIDs []string, hubName string) {
 	info, err := client.GetRuntimeInformation(ctx)
 	if assert.NoError(t, err) {
 		assert.Equal(t, len(partitionIDs), info.PartitionCount)
@@ -641,7 +641,7 @@ func testHubRuntimeInformation(ctx context.Context, t *testing.T, client *Hub, p
 	}
 }
 
-func testHubPartitionRuntimeInformation(ctx context.Context, t *testing.T, client *Hub, partitionIDs []string, hubName string) {
+func testHubPartitionRuntimeInformation(ctx context.Context, t *testing.T, client *hubImpl, partitionIDs []string, hubName string) {
 	info, err := client.GetPartitionInformation(ctx, partitionIDs[0])
 	if assert.NoError(t, err) {
 		assert.Equal(t, hubName, info.HubPath)
@@ -657,7 +657,7 @@ func TestEnvironmentalCreation(t *testing.T) {
 	require.NoError(t, os.Unsetenv("EVENTHUB_NAME"))
 }
 
-func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) (*Hub, func()) {
+func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubOption) (*hubImpl, func()) {
 	provider, err := aad.NewJWTProvider(
 		aad.JWTProviderWithEnvironmentVars(),
 		aad.JWTProviderWithAzureEnvironment(&suite.Env),
@@ -668,13 +668,13 @@ func (suite *eventHubSuite) newClient(t *testing.T, hubName string, opts ...HubO
 	return suite.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) (*Hub, func()) {
+func (suite *eventHubSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...HubOption) (*hubImpl, func()) {
 	opts = append(opts, HubWithEnvironment(suite.Env))
 	client, err := NewHub(suite.Namespace, hubName, provider, opts...)
 	if !suite.NoError(err) {
-		suite.FailNow("unable to make a new Hub")
+		suite.FailNow("unable to make a new hubImpl")
 	}
-	return client, func() {
+	return client.(*hubImpl), func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = client.Close(ctx)
@@ -726,7 +726,8 @@ func (suite *eventHubSuite) captureEnv() func() {
 
 func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 	_ = os.Setenv("AZURE_ENVIRONMENT", "AZURECHINACLOUD")
-	h, err := NewHub("test", "test", &aad.TokenProvider{})
+	hub, err := NewHub("test", "test", &aad.TokenProvider{})
+	h := hub.(*hubImpl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -734,7 +735,8 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.ChinaCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
 	_ = os.Setenv("AZURE_ENVIRONMENT", "AZUREGERMANCLOUD")
-	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	hub, err = NewHub("test", "test", &aad.TokenProvider{})
+	h = hub.(*hubImpl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -742,7 +744,8 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.GermanCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
 	_ = os.Setenv("AZURE_ENVIRONMENT", "AZUREUSGOVERNMENTCLOUD")
-	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	hub, err = NewHub("test", "test", &aad.TokenProvider{})
+	h = hub.(*hubImpl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -750,7 +753,8 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.USGovernmentCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
 	_ = os.Setenv("AZURE_ENVIRONMENT", "AZUREPUBLICCLOUD")
-	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	hub, err = NewHub("test", "test", &aad.TokenProvider{})
+	h = hub.(*hubImpl)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -758,7 +762,8 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 		t.Fatalf("did not set appropriate endpoint suffix. Expected: %v, Received: %v", azure.PublicCloud.ServiceBusEndpointSuffix, h.namespace.host)
 	}
 	_ = os.Unsetenv("AZURE_ENVIRONMENT")
-	h, err = NewHub("test", "test", &aad.TokenProvider{})
+	hub, err = NewHub("test", "test", &aad.TokenProvider{})
+	h = hub.(*hubImpl)
 	if err != nil {
 		t.Fatal(err)
 	}

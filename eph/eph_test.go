@@ -258,7 +258,7 @@ func (s *testSuite) newInMemoryEPHWithOptions(hubName string, store *sharedStore
 	return processor, nil
 }
 
-func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) *eventhub.Hub {
+func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.HubOption) eventhub.Hub {
 	provider, err := aad.NewJWTProvider(aad.JWTProviderWithEnvironmentVars(), aad.JWTProviderWithAzureEnvironment(&s.Env))
 	if err != nil {
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func (s *testSuite) newClient(t *testing.T, hubName string, opts ...eventhub.Hub
 	return s.newClientWithProvider(t, hubName, provider, opts...)
 }
 
-func (s *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) *eventhub.Hub {
+func (s *testSuite) newClientWithProvider(t *testing.T, hubName string, provider auth.TokenProvider, opts ...eventhub.HubOption) eventhub.Hub {
 	opts = append(opts, eventhub.HubWithEnvironment(s.Env))
 	client, err := eventhub.NewHub(s.Namespace, hubName, provider, opts...)
 	if err != nil {
