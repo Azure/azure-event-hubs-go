@@ -299,6 +299,7 @@ func (h *EventProcessorHost) UnregisterHandler(ctx context.Context, id HandlerID
 }
 
 // Start begins processing of messages for registered handlers on the EventHostProcessor. The call is blocking.
+// You MUST call Close() when the event processor host is no longer required.
 func (h *EventProcessorHost) Start(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.Start")
 	defer span.End()
@@ -318,7 +319,7 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 
 	go func() {
 		span := tab.FromContext(ctx)
-		ctx := tab.NewContext(ctx, span)
+		ctx := tab.NewContext(context.Background(), span)
 		h.scheduler.Run(ctx)
 	}()
 
@@ -329,7 +330,8 @@ func (h *EventProcessorHost) Start(ctx context.Context) error {
 	return h.Close(ctx)
 }
 
-// StartNonBlocking begins processing of messages for registered handlers
+// StartNonBlocking begins processing of messages for registered handlers.
+// You MUST call Close() when the event processor host is no longer required.
 func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 	span, ctx := startConsumerSpanFromContext(ctx, "eph.EventProcessorHost.StartNonBlocking")
 	defer span.End()
@@ -344,7 +346,7 @@ func (h *EventProcessorHost) StartNonBlocking(ctx context.Context) error {
 
 	go func() {
 		span := tab.FromContext(ctx)
-		ctx := tab.NewContext(ctx, span)
+		ctx := tab.NewContext(context.Background(), span)
 		h.scheduler.Run(ctx)
 	}()
 
