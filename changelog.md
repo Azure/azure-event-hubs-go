@@ -1,5 +1,10 @@
 # Change Log
 
+## `v3.3.19`
+
+- Updating the SendBatch method header definition in the Sender interface to match the
+  SendBatch method header definition in the SendBatch method implementation. (#256)
+
 ## `v3.3.18`
 
 - Fixing issue where the LeaserCheckpointer could fail with a "ContainerAlreadyExists" error. (#253)

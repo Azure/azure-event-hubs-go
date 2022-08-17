@@ -76,7 +76,7 @@ type (
 	// Sender provides the ability to send a messages
 	Sender interface {
 		Send(ctx context.Context, event *Event, opts ...SendOption) error
-		SendBatch(ctx context.Context, batch *EventBatch, opts ...SendOption) error
+		SendBatch(ctx context.Context, iterator BatchIterator, opts ...BatchOption) error
 	}
 
 	// PartitionedReceiver provides the ability to receive messages from a given partition
