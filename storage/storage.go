@@ -287,7 +287,7 @@ func (sl *LeaserCheckpointer) AcquireLease(ctx context.Context, partitionID stri
 		return nil, false, nil
 	}
 
-	res, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{})
+	res, err := blobURL.GetProperties(ctx, azblob.BlobAccessConditions{}, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, false, err
@@ -602,7 +602,7 @@ func (sl *LeaserCheckpointer) uploadLease(ctx context.Context, lease *storageLea
 		LeaseAccessConditions: azblob.LeaseAccessConditions{
 			LeaseID: lease.Token,
 		},
-	})
+	}, "", azblob.BlobTagsMap{}, azblob.ClientProvidedKeyOptions{})
 
 	return err
 }
@@ -626,7 +626,7 @@ func (sl *LeaserCheckpointer) createOrGetLease(ctx context.Context, partitionID 
 		ModifiedAccessConditions: azblob.ModifiedAccessConditions{
 			IfNoneMatch: "*",
 		},
-	})
+	}, "", azblob.BlobTagsMap{}, azblob.ClientProvidedKeyOptions{})
 
 	if err != nil {
 		return nil, err
@@ -643,7 +643,7 @@ func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) 
 	defer span.End()
 
 	blobURL := sl.containerURL.NewBlobURL(sl.blobPathPrefix + partitionID)
-	res, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false)
+	res, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		return nil, err
 	}

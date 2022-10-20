@@ -1,13 +1,13 @@
 provider "azuread" {
-  version = "~> 0.6"
+  version = "~> 2.15.0"
 }
 
 provider "azurerm" {
-  version = "~> 1.34"
+  version = "=3.0.0"
 }
 
 provider "random" {
-  version = "~> 2.2"
+  version = "3.4.3"
 }
 
 variable "location" {
@@ -54,7 +54,7 @@ resource "azurerm_eventhub_namespace" "test" {
   name                = "${var.eventhub_name_prefix}-${random_string.name.result}"
   location            = azurerm_resource_group.test.location
   resource_group_name = azurerm_resource_group.test.name
-  sku                 = "standard"
+  sku                 = "Standard"
 }
 
 resource "azurerm_storage_account" "test" {
@@ -67,7 +67,7 @@ resource "azurerm_storage_account" "test" {
 
 # Generate a random secret fo the service principal
 resource "random_string" "secret" {
-  count   = data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0
+  count   = data.azurerm_client_config.current.client_id == "" ? 1 : 0
   length  = 32
   upper   = true
   special = true
@@ -76,26 +76,27 @@ resource "random_string" "secret" {
 
 // Application for AAD authentication
 resource "azuread_application" "test" {
-  count                      = data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0
-  name                       = "eventhubstest"
-  homepage                   = "https://eventhubstest-${random_string.name.result}"
+  count                      = data.azurerm_client_config.current.client_id == "" ? 1 : 0
+  display_name		           = "eventhubstest"
+  # name                       = "eventhubstest"
+  # homepage                   = "https://eventhubstest-${random_string.name.result}"
   identifier_uris            = ["https://eventhubstest-${random_string.name.result}"]
-  reply_urls                 = ["https://eventhubstest-${random_string.name.result}"]
-  available_to_other_tenants = false
-  oauth2_allow_implicit_flow = true
+  # reply_urls                 = ["https://eventhubstest-${random_string.name.result}"]
+  # available_to_other_tenants = false
+  # oauth2_allow_implicit_flow = true
 }
 
 # Create a service principal, which represents a linkage between the AAD application and the password
 resource "azuread_service_principal" "test" {
-  count          = data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0
-  application_id = azuread_application.test[0].application_id
+  count          = data.azurerm_client_config.current.client_id == "" ? 1 : 0
+  application_id = length(azuread_application.test)
 }
 
 # Create a new service principal password which will be the AZURE_CLIENT_SECRET env var
 resource "azuread_service_principal_password" "test" {
-  count                = data.azurerm_client_config.current.service_principal_application_id == "" ? 1 : 0
+  count                = data.azurerm_client_config.current.client_id == "" ? 1 : 0
   service_principal_id = azuread_service_principal.test[0].id
-  value                = random_string.secret[0].result
+  # value                = random_string.secret[0].result
   end_date             = "2030-01-01T01:02:03Z"
 }
 
@@ -103,14 +104,14 @@ resource "azuread_service_principal_password" "test" {
 resource "azurerm_role_assignment" "service_principal_rg" {
   scope                = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}"
   role_definition_name = "Owner"
-  principal_id         = data.azurerm_client_config.current.service_principal_application_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.service_principal_object_id
+  principal_id         = data.azurerm_client_config.current.client_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.client_id
 }
 
 # This provides the new AAD application the rights to managed, send and receive from the Event Hubs instance
 resource "azurerm_role_assignment" "service_principal_eh" {
 	scope                = "subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.test.name}/providers/Microsoft.EventHub/namespaces/${azurerm_eventhub_namespace.test.name}"
 	role_definition_name = "Azure Event Hubs Data Owner"
-	principal_id         = data.azurerm_client_config.current.service_principal_application_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.service_principal_object_id
+	principal_id         = data.azurerm_client_config.current.client_id == "" ? azuread_service_principal.test[0].id : data.azurerm_client_config.current.client_id
 	depends_on 		     = [azurerm_eventhub_namespace.test]
 }
 

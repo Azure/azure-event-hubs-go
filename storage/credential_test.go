@@ -86,7 +86,7 @@ func (ts *testSuite) TestCredential() {
 	}
 
 	blobURL := containerURL.NewBlobURL(blobName).ToBlockBlobURL()
-	_, err = blobURL.Upload(ctx, strings.NewReader(message), azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{})
+	_, err = blobURL.Upload(ctx, strings.NewReader(message), azblob.BlobHTTPHeaders{}, azblob.Metadata{}, azblob.BlobAccessConditions{}, "", azblob.BlobTagsMap{}, azblob.ClientProvidedKeyOptions{})
 	if err != nil {
 		ts.T().Error(err)
 	}
