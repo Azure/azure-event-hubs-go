@@ -76,7 +76,7 @@ type (
 		Token      string                      `json:"token"`
 	}
 
-	// Credential is a wrapper for the Azure Storage azblobvendor.Credential
+	// Credential is a wrapper for the Azure Storage azblob.Credential
 	Credential interface {
 		azblob.Credential
 	}
