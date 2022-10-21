@@ -1,5 +1,9 @@
 # Change Log
 
+## `v3.3.19`
+
+- Vendor a copy of `azblob` to avoid compilation errors with mismatched versions [#261](https://github.com/Azure/azure-event-hubs-go/issues/261)
+
 ## `v3.3.18`
 
 - Fixing issue where the LeaserCheckpointer could fail with a "ContainerAlreadyExists" error. (#253)
