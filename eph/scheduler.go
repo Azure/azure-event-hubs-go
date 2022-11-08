@@ -190,7 +190,8 @@ func (s *scheduler) Stop(ctx context.Context) error {
 		if err := lr.Close(ctx); err != nil {
 			lastErr = err
 		}
-		_, _ = s.processor.leaser.ReleaseLease(ctx, lr.lease.GetPartitionID())
+
+		_, _ = s.processor.leaser.ReleaseLease(ctx, lr.getLease().GetPartitionID())
 	}
 
 	return lastErr

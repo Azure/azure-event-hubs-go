@@ -630,6 +630,12 @@ func (sl *LeaserCheckpointer) createOrGetLease(ctx context.Context, partitionID 
 	})
 
 	if err != nil {
+		if storageErr := azblobvendor.StorageError(nil); errors.As(err, &storageErr) &&
+			(storageErr.Response().StatusCode == http.StatusConflict || // blob exists
+				storageErr.Response().StatusCode == http.StatusPreconditionFailed) { // blob exists AND an Azure storage lease is active
+			return sl.getLease(ctx, partitionID)
+		}
+
 		return nil, err
 	}
 
