@@ -3,7 +3,6 @@ DATE    ?= $(shell date +%FT%T%z)
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* 2> /dev/null || \
 			cat $(CURDIR)/.version 2> /dev/null || echo v0)
 BIN      = $(GOPATH)/bin
-GO_FILES = find . -iname '*.go' -type f | grep -v /vendor/
 
 GO      = go
 GODOC   = godoc
@@ -52,7 +51,7 @@ tidy: ; $(info $(M) running go mod tidy…) @ ## Run tidy
 
 .PHONY: lint
 lint: ; $(info $(M) running golangci-lint…) @ ## Run golangci-lint
-	$Q $(GOLINT) run
+	$Q $(GOLINT) run --skip-dirs "internal/azure-storage-blob-go"
 
 .PHONY: staticcheck
 staticcheck: ; $(info $(M) running staticcheck…) @ ## Run staticcheck
@@ -66,7 +65,7 @@ fmt: ; $(info $(M) running gofmt…) @ ## Run gofmt on all source files
 
 .PHONY: cyclo
 cyclo: ; $(info $(M) running gocyclo...) @ ## Run gocyclo on all source files
-	$Q $(GOCYCLO) -over 19 $$($(GO_FILES))
+	$Q $(GOCYCLO) -over 19 -ignore "internal/azure-storage-blob-go" .
 
 terraform.tfstate: azuredeploy.tf $(wildcard terraform.tfvars) .terraform ; $(info $(M) running terraform...) @ ## Run terraform to provision infrastructure needed for testing
 	$Q TF_VAR_azure_client_secret="$${ARM_CLIENT_SECRET}" terraform apply -auto-approve

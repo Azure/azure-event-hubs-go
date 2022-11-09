@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sync/atomic"
 	"time"
 
 	"github.com/devigned/tab"
@@ -38,15 +39,18 @@ type (
 	leasedReceiver struct {
 		handle    *eventhub.ListenerHandle
 		processor *EventProcessorHost
-		lease     LeaseMarker
+		lease     *atomic.Value // LeaseMarker
 		done      func()
 	}
 )
 
 func newLeasedReceiver(processor *EventProcessorHost, lease LeaseMarker) *leasedReceiver {
+	leaseValue := atomic.Value{}
+	leaseValue.Store(lease)
+
 	return &leasedReceiver{
 		processor: processor,
-		lease:     lease,
+		lease:     &leaseValue,
 	}
 }
 
@@ -54,8 +58,10 @@ func (lr *leasedReceiver) Run(ctx context.Context) error {
 	span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.Run")
 	defer span.End()
 
-	partitionID := lr.lease.GetPartitionID()
-	epoch := lr.lease.GetEpoch()
+	lease := lr.getLease()
+
+	partitionID := lease.GetPartitionID()
+	epoch := lease.GetEpoch()
 	lr.dlog(ctx, "running...")
 
 	renewLeaseCtx, cancelRenewLease := context.WithCancel(context.Background())
@@ -99,7 +105,9 @@ func (lr *leasedReceiver) listenForClose() {
 		defer cancel()
 		span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.listenForClose")
 		defer span.End()
-		err := lr.processor.scheduler.stopReceiver(ctx, lr.lease)
+
+		lease := lr.getLease()
+		err := lr.processor.scheduler.stopReceiver(ctx, lease)
 		if err != nil {
 			tab.For(ctx).Error(err)
 		}
@@ -120,7 +128,8 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 			err := lr.tryRenew(ctx)
 			if err != nil {
 				tab.For(ctx).Error(err)
-				_ = lr.processor.scheduler.stopReceiver(ctx, lr.lease)
+				lease := lr.getLease()
+				_ = lr.processor.scheduler.stopReceiver(ctx, lease)
 			}
 		}
 	}
@@ -130,7 +139,8 @@ func (lr *leasedReceiver) tryRenew(ctx context.Context) error {
 	span, ctx := lr.startConsumerSpanFromContext(ctx, "eph.leasedReceiver.tryRenew")
 	defer span.End()
 
-	lease, ok, err := lr.processor.leaser.RenewLease(ctx, lr.lease.GetPartitionID())
+	oldLease := lr.getLease()
+	lease, ok, err := lr.processor.leaser.RenewLease(ctx, oldLease.GetPartitionID())
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err
@@ -141,23 +151,33 @@ func (lr *leasedReceiver) tryRenew(ctx context.Context) error {
 		return err
 	}
 	lr.dlog(ctx, "lease renewed")
-	lr.lease = lease
+
+	lr.lease.Store(lease)
 	return nil
 }
 
 func (lr *leasedReceiver) dlog(ctx context.Context, msg string) {
 	name := lr.processor.name
-	partitionID := lr.lease.GetPartitionID()
-	epoch := lr.lease.GetEpoch()
+	lease := lr.getLease()
+
+	partitionID := lease.GetPartitionID()
+	epoch := lease.GetEpoch()
 	tab.For(ctx).Debug(fmt.Sprintf("eph %q, partition %q, epoch %d: "+msg, name, partitionID, epoch))
 }
 
 func (lr *leasedReceiver) startConsumerSpanFromContext(ctx context.Context, operationName string) (tab.Spanner, context.Context) {
 	span, ctx := startConsumerSpanFromContext(ctx, operationName)
+
+	lease := lr.getLease()
+
 	span.AddAttributes(
 		tab.StringAttribute("eph.id", lr.processor.name),
-		tab.StringAttribute(partitionIDTag, lr.lease.GetPartitionID()),
-		tab.Int64Attribute(epochTag, lr.lease.GetEpoch()),
+		tab.StringAttribute(partitionIDTag, lease.GetPartitionID()),
+		tab.Int64Attribute(epochTag, lease.GetEpoch()),
 	)
 	return span, ctx
+}
+
+func (lr *leasedReceiver) getLease() LeaseMarker {
+	return lr.lease.Load().(LeaseMarker)
 }

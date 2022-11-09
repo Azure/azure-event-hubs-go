@@ -105,6 +105,10 @@ func (ts *testSuite) TestLeaserLeaseEnsure() {
 		lease, err := leaser.EnsureLease(ctx, partitionID)
 		ts.NoError(err)
 		ts.Equal(partitionID, lease.GetPartitionID())
+
+		lease, err = leaser.EnsureLease(ctx, partitionID)
+		ts.NoError(err)
+		ts.Equal(partitionID, lease.GetPartitionID())
 	}
 }
 
