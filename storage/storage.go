@@ -29,7 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -658,7 +658,7 @@ func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) 
 }
 
 func (sl *LeaserCheckpointer) leaseFromResponse(res *azblobvendor.DownloadResponse) (*storageLease, error) {
-	b, err := ioutil.ReadAll(res.Response().Body)
+	b, err := io.ReadAll(res.Response().Body)
 	if err != nil {
 		return nil, err
 	}
