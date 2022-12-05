@@ -72,7 +72,7 @@ func TestSenderRetries(t *testing.T) {
 		sender = &testAmqpSender{
 			sendErrors: []error{
 				&amqp.DetachError{},
-				amqp.ErrSessionClosed,
+				&amqp.SessionError{},
 				errors.New("We'll never attempt to use this one since we ran out of retries")},
 		}
 
@@ -80,7 +80,7 @@ func TestSenderRetries(t *testing.T) {
 			1, // note we're only allowing 1 retry attempt - so we get the first send() and then 1 additional.
 			nil, recover)
 
-		assert.EqualValues(t, amqp.ErrSessionClosed, actualErr)
+		assert.EqualValues(t, &amqp.SessionError{}, actualErr)
 		assert.EqualValues(t, 2, sender.sendCount)
 		assert.EqualValues(t, []recoveryCall{
 			{
@@ -90,7 +90,7 @@ func TestSenderRetries(t *testing.T) {
 			},
 			{
 				linkID:  "sender-id",
-				err:     amqp.ErrSessionClosed,
+				err:     &amqp.SessionError{},
 				recover: true,
 			},
 		}, recoverCalls)
@@ -102,7 +102,7 @@ func TestSenderRetries(t *testing.T) {
 		sender = &testAmqpSender{
 			sendErrors: []error{
 				errors.New("Anything not explicitly retryable kills all retries"),
-				amqp.ErrConnClosed, // we'll never get here.
+				&amqp.ConnError{}, // we'll never get here.
 			},
 		}
 
@@ -117,13 +117,14 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				amqp.ErrLinkClosed, // this is no longer considered a retryable error (ErrLinkDetached is, however)
+				&amqp.DetachError{}, // this is no longer considered a retryable error (ErrLinkDetached is, however)
 			},
 		}
 
 		actualErr := sendMessage(context.TODO(), getAmqpSender, 5, nil, recover)
 
-		assert.EqualValues(t, amqp.ErrLinkClosed, actualErr)
+		var detachErr *amqp.DetachError
+		assert.ErrorAs(t, actualErr, &detachErr)
 		assert.EqualValues(t, 1, sender.sendCount)
 		assert.Empty(t, recoverCalls, "No recovery attempts should happen for non-recoverable errors")
 	})
@@ -140,7 +141,7 @@ func TestSenderRetries(t *testing.T) {
 			},
 				&amqp.Error{
 					// retry and will attempt to recover the connection
-					Condition: amqp.ErrorNotImplemented,
+					Condition: amqp.ErrCondNotImplemented,
 				}},
 		}
 
@@ -165,7 +166,7 @@ func TestSenderRetries(t *testing.T) {
 			{
 				linkID: "sender-id",
 				err: &amqp.Error{
-					Condition: amqp.ErrorNotImplemented,
+					Condition: amqp.ErrCondNotImplemented,
 				},
 				recover: true,
 			},
@@ -202,9 +203,9 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				amqp.ErrConnClosed,
+				&amqp.ConnError{},
 				&amqp.DetachError{},
-				amqp.ErrSessionClosed,
+				&amqp.SessionError{},
 			},
 		}
 
@@ -214,7 +215,7 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, []recoveryCall{
 			{
 				linkID:  "sender-id",
-				err:     amqp.ErrConnClosed,
+				err:     &amqp.ConnError{},
 				recover: true,
 			},
 			{
@@ -224,7 +225,7 @@ func TestSenderRetries(t *testing.T) {
 			},
 			{
 				linkID:  "sender-id",
-				err:     amqp.ErrSessionClosed,
+				err:     &amqp.SessionError{},
 				recover: true,
 			},
 		}, recoverCalls)
@@ -236,9 +237,9 @@ func TestSenderRetries(t *testing.T) {
 		sender = &testAmqpSender{
 			sendErrors: []error{
 				// kind of silly but let's just make sure we would continue to retry.
-				amqp.ErrConnClosed,
-				amqp.ErrConnClosed,
-				amqp.ErrConnClosed,
+				&amqp.ConnError{},
+				&amqp.ConnError{},
+				&amqp.ConnError{},
 			},
 		}
 
@@ -246,9 +247,9 @@ func TestSenderRetries(t *testing.T) {
 		assert.NoError(t, err, "Last call succeeds")
 		assert.EqualValues(t, 3+1, sender.sendCount)
 		assert.EqualValues(t, recoverCalls, []recoveryCall{
-			{linkID: "sender-id", err: amqp.ErrConnClosed, recover: true},
-			{linkID: "sender-id", err: amqp.ErrConnClosed, recover: true},
-			{linkID: "sender-id", err: amqp.ErrConnClosed, recover: true},
+			{linkID: "sender-id", err: &amqp.ConnError{}, recover: true},
+			{linkID: "sender-id", err: &amqp.ConnError{}, recover: true},
+			{linkID: "sender-id", err: &amqp.ConnError{}, recover: true},
 		})
 	})
 
@@ -257,15 +258,15 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				amqp.ErrConnClosed, // this is normally a retryable error _but_ we disabled retries.
+				&amqp.ConnError{}, // this is normally a retryable error _but_ we disabled retries.
 			},
 		}
 
 		err := sendMessage(context.TODO(), getAmqpSender, maxRetries, nil, recover)
-		assert.EqualValues(t, amqp.ErrConnClosed, err)
+		assert.EqualValues(t, &amqp.ConnError{}, err)
 		assert.EqualValues(t, maxRetries+1, sender.sendCount)
 		assert.EqualValues(t, recoverCalls, []recoveryCall{
-			{linkID: "sender-id", err: amqp.ErrConnClosed, recover: true},
+			{linkID: "sender-id", err: &amqp.ConnError{}, recover: true},
 		})
 	})
 
@@ -274,7 +275,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				amqp.ErrConnClosed, // this is normally a retryable error _but_ we disabled retries.
+				&amqp.ConnError{}, // this is normally a retryable error _but_ we disabled retries.
 			},
 		}
 

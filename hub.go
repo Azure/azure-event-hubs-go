@@ -28,7 +28,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path"
@@ -234,7 +234,7 @@ func (hm *HubManager) Put(ctx context.Context, name string, opts ...HubManagemen
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -263,7 +263,7 @@ func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -301,7 +301,7 @@ func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) 
 		return nil, nil
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -781,9 +781,13 @@ func isRecoverableCloseError(err error) bool {
 }
 
 func isConnectionClosed(err error) bool {
-	return err == amqp.ErrConnClosed
+	var connErr *amqp.ConnError
+	// TODO: check for *amqp.Error?
+	return errors.As(err, &connErr)
 }
 
 func isSessionClosed(err error) bool {
-	return err == amqp.ErrSessionClosed
+	var sessionErr *amqp.SessionError
+	// TODO: check for *amqp.Error?
+	return errors.As(err, &sessionErr)
 }

@@ -82,11 +82,11 @@ func newClient(namespace *namespace, hubName string) *client {
 }
 
 // GetHubRuntimeInformation requests runtime information for an Event Hub
-func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client) (*HubRuntimeInformation, error) {
+func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Conn) (*HubRuntimeInformation, error) {
 	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetHubRuntimeInformation")
 	defer span.End()
 
-	rpcLink, err := rpc.NewLink(conn, address)
+	rpcLink, err := rpc.NewLinkWithContext(ctx, conn, address)
 	if err != nil {
 		return nil, err
 	}
@@ -116,11 +116,11 @@ func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Client
 }
 
 // GetHubPartitionRuntimeInformation fetches runtime information from the AMQP management node for a given partition
-func (c *client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Client, partitionID string) (*HubPartitionRuntimeInformation, error) {
+func (c *client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *amqp.Conn, partitionID string) (*HubPartitionRuntimeInformation, error) {
 	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetHubPartitionRuntimeInformation")
 	defer span.End()
 
-	rpcLink, err := rpc.NewLink(conn, address)
+	rpcLink, err := rpc.NewLinkWithContext(ctx, conn, address)
 	if err != nil {
 		return nil, err
 	}

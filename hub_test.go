@@ -771,5 +771,5 @@ func TestIsRecoverableCloseError(t *testing.T) {
 	require.True(t, isRecoverableCloseError(&amqp.DetachError{}))
 
 	// if the caller closes a link we shouldn't reopen or create a new one to replace it
-	require.False(t, isRecoverableCloseError(amqp.ErrLinkClosed))
+	require.False(t, isRecoverableCloseError(&amqp.DetachError{}))
 }

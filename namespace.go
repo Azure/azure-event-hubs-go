@@ -89,16 +89,18 @@ func newNamespace(opts ...namespaceOption) (*namespace, error) {
 	return ns, nil
 }
 
-func (ns *namespace) newConnection() (*amqp.Client, error) {
+func (ns *namespace) newConnection() (*amqp.Conn, error) {
 	host := ns.getAmqpsHostURI()
 
-	defaultConnOptions := []amqp.ConnOption{
-		amqp.ConnSASLAnonymous(),
-		amqp.ConnProperty("product", "MSGolangClient"),
-		amqp.ConnProperty("version", Version),
-		amqp.ConnProperty("platform", runtime.GOOS),
-		amqp.ConnProperty("framework", runtime.Version()),
-		amqp.ConnProperty("user-agent", rootUserAgent),
+	defaultConnOptions := amqp.ConnOptions{
+		Properties: map[string]any{
+			"product":    "MSGolangClient",
+			"version":    Version,
+			"platform":   runtime.GOOS,
+			"framework":  runtime.Version(),
+			"user-agent": rootUserAgent,
+		},
+		SASLType: amqp.SASLTypeAnonymous(),
 	}
 
 	if ns.useWebSocket {
@@ -109,13 +111,14 @@ func (ns *namespace) newConnection() (*amqp.Client, error) {
 		}
 
 		wssConn.PayloadType = websocket.BinaryFrame
-		return amqp.New(wssConn, append(defaultConnOptions, amqp.ConnServerHostname(trimmedHost))...)
+		defaultConnOptions.HostName = trimmedHost
+		return amqp.NewConn(wssConn, &defaultConnOptions)
 	}
 
-	return amqp.Dial(host, defaultConnOptions...)
+	return amqp.Dial(host, &defaultConnOptions)
 }
 
-func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Client, entityPath string) error {
+func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Conn, entityPath string) error {
 	span, ctx := ns.startSpanFromContext(ctx, "eh.namespace.negotiateClaim")
 	defer span.End()
 

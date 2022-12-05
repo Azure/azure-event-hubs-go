@@ -38,15 +38,15 @@ import (
 )
 
 const (
-	errorServerBusy amqp.ErrorCondition = "com.microsoft:server-busy"
-	errorTimeout    amqp.ErrorCondition = "com.microsoft:timeout"
+	errorServerBusy amqp.ErrCond = "com.microsoft:server-busy"
+	errorTimeout    amqp.ErrCond = "com.microsoft:timeout"
 )
 
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
 		hub          *Hub
-		connection   *amqp.Client
+		connection   *amqp.Conn
 		session      *session
 		sender       atomic.Value // holds a *amqp.Sender
 		partitionID  *string
@@ -359,18 +359,17 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	amqpSession, err := connection.NewSession()
+	amqpSession, err := connection.NewSession(ctx, nil)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err
 	}
 
-	amqpSender, err := amqpSession.NewSender(
-		amqp.LinkSenderSettle(amqp.ModeMixed),
-		amqp.LinkReceiverSettle(amqp.ModeFirst),
-		amqp.LinkTargetAddress(s.getAddress()),
-		amqp.LinkDetachOnDispositionError(false),
-	)
+	amqpSender, err := amqpSession.NewSender(ctx, s.getAddress(), &amqp.SenderOptions{
+		IgnoreDispositionErrors:     true,
+		SettlementMode:              amqp.SenderSettleModeMixed.Ptr(),
+		RequestedReceiverSettleMode: amqp.ReceiverSettleModeFirst.Ptr(),
+	})
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err
