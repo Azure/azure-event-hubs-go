@@ -83,8 +83,9 @@ func (w *batchWriter) HandleEvent(ctx context.Context, event *eventhub.Event) er
 
 // Flush flushes the buffer to the given io.Writer
 // Post-condition:
-//   error == nil: buffer has been flushed successfully, buffer has been replaced with a new buffer
-//   error != nil: some or no events have been flushed, buffer contains only events that failed to flush
+//
+//	error == nil: buffer has been flushed successfully, buffer has been replaced with a new buffer
+//	error != nil: some or no events have been flushed, buffer contains only events that failed to flush
 func (w *batchWriter) Flush(ctx context.Context) error {
 	for i, s := range w.batch {
 		_, err := fmt.Fprintln(w.writer, s)
