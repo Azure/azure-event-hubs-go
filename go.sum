@@ -60,8 +60,8 @@ github.com/golang-jwt/jwt/v4 v4.4.2/go.mod h1:m21LjoU+eqJr34lmDMbreY2eSTRJ1cv77w
 github.com/google/go-cmp v0.5.8 h1:e6P7q2lk1O+qJJb4BtCQXlK8vWEO8V1ZeuEdJNOqZyg=
 github.com/google/uuid v1.2.0 h1:qJYtXnJRWmpe7m/3XlyhrsLrEURqHRM2kxzoxXqyUDs=
 github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/jhendrixMSFT/azure-amqp-common-go/v3 v3.0.0-20221205213827-cc184cc8d4f6 h1:ebFuTGZfpsTHHSNoAGOt1gSqmLDlzkGQMp1qrFL9Mk8=
-github.com/jhendrixMSFT/azure-amqp-common-go/v3 v3.0.0-20221205213827-cc184cc8d4f6/go.mod h1:WFFxK3HW9waNYhNfZA3ZiIYYJ2AEFPxEuMhUrERe66Q=
+github.com/jhendrixMSFT/azure-amqp-common-go/v3 v3.0.0-20221205224024-6831b15ba556 h1:d+2/O4i1Hp4RUnCcgTopRdZAsvSqDU1nSk7TXjPqu1U=
+github.com/jhendrixMSFT/azure-amqp-common-go/v3 v3.0.0-20221205224024-6831b15ba556/go.mod h1:WFFxK3HW9waNYhNfZA3ZiIYYJ2AEFPxEuMhUrERe66Q=
 github.com/joho/godotenv v1.3.0 h1:Zjp+RcGpHhGlrMbJzXTrZZPrWj+1vfm90La1wgB6Bhc=
 github.com/joho/godotenv v1.3.0/go.mod h1:7hK45KPybAkOC6peb+G5yklZfMxEjkZhHbwpqxOKXbg=
 github.com/jpillora/backoff v1.0.0 h1:uvFg412JmmHBHw7iwprIxkPMI+sGQ4kzOWsMeHnm2EA=

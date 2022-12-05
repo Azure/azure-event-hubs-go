@@ -43,4 +43,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
 
-replace github.com/Azure/azure-amqp-common-go/v3 => github.com/jhendrixMSFT/azure-amqp-common-go/v3 v3.0.0-20221205213827-cc184cc8d4f6
+replace github.com/Azure/azure-amqp-common-go/v3 => github.com/jhendrixMSFT/azure-amqp-common-go/v3 v3.0.0-20221205224024-6831b15ba556
