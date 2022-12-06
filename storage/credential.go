@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/aad"
+	"github.com/Azure/azure-amqp-common-go/v4/aad"
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"

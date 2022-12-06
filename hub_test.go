@@ -37,10 +37,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/aad"
-	"github.com/Azure/azure-amqp-common-go/v3/auth"
-	"github.com/Azure/azure-amqp-common-go/v3/sas"
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/azure-amqp-common-go/v4/aad"
+	"github.com/Azure/azure-amqp-common-go/v4/auth"
+	"github.com/Azure/azure-amqp-common-go/v4/sas"
+	"github.com/Azure/azure-amqp-common-go/v4/uuid"
 	"github.com/Azure/go-amqp"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/stretchr/testify/assert"
@@ -768,8 +768,8 @@ func TestNewHub_withAzureEnvironmentVariable(t *testing.T) {
 }
 
 func TestIsRecoverableCloseError(t *testing.T) {
-	require.True(t, isRecoverableCloseError(&amqp.DetachError{}))
+	require.True(t, isRecoverableCloseError(&amqp.DetachError{RemoteErr: &amqp.Error{}}))
 
 	// if the caller closes a link we shouldn't reopen or create a new one to replace it
-	require.False(t, isRecoverableCloseError(amqp.ErrLinkClosed))
+	require.False(t, isRecoverableCloseError(&amqp.DetachError{}))
 }

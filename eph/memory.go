@@ -28,7 +28,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/azure-amqp-common-go/v4/uuid"
 	"github.com/devigned/tab"
 
 	"github.com/Azure/azure-event-hubs-go/v3/persist"

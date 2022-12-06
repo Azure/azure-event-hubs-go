@@ -31,22 +31,22 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/azure-amqp-common-go/v4/uuid"
 	"github.com/Azure/go-amqp"
 	"github.com/devigned/tab"
 	"github.com/jpillora/backoff"
 )
 
 const (
-	errorServerBusy amqp.ErrorCondition = "com.microsoft:server-busy"
-	errorTimeout    amqp.ErrorCondition = "com.microsoft:timeout"
+	errorServerBusy amqp.ErrCond = "com.microsoft:server-busy"
+	errorTimeout    amqp.ErrCond = "com.microsoft:timeout"
 )
 
 // sender provides session and link handling for an sending entity path
 type (
 	sender struct {
 		hub          *Hub
-		connection   *amqp.Client
+		connection   *amqp.Conn
 		session      *session
 		sender       atomic.Value // holds a *amqp.Sender
 		partitionID  *string
@@ -311,7 +311,7 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 					break
 				}
 				recoverLink(sender.LinkName(), err, true)
-			case *amqp.DetachError, net.Error:
+			case net.Error:
 				recoverLink(sender.LinkName(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {
@@ -359,18 +359,17 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 		return err
 	}
 
-	amqpSession, err := connection.NewSession()
+	amqpSession, err := connection.NewSession(ctx, nil)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err
 	}
 
-	amqpSender, err := amqpSession.NewSender(
-		amqp.LinkSenderSettle(amqp.ModeMixed),
-		amqp.LinkReceiverSettle(amqp.ModeFirst),
-		amqp.LinkTargetAddress(s.getAddress()),
-		amqp.LinkDetachOnDispositionError(false),
-	)
+	amqpSender, err := amqpSession.NewSender(ctx, s.getAddress(), &amqp.SenderOptions{
+		IgnoreDispositionErrors:     true,
+		SettlementMode:              amqp.SenderSettleModeMixed.Ptr(),
+		RequestedReceiverSettleMode: amqp.ReceiverSettleModeFirst.Ptr(),
+	})
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err

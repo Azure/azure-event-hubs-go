@@ -29,13 +29,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/azure-amqp-common-go/v4/uuid"
 	"github.com/devigned/tab"
 
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
@@ -658,7 +658,7 @@ func (sl *LeaserCheckpointer) getLease(ctx context.Context, partitionID string) 
 }
 
 func (sl *LeaserCheckpointer) leaseFromResponse(res *azblobvendor.DownloadResponse) (*storageLease, error) {
-	b, err := ioutil.ReadAll(res.Response().Body)
+	b, err := io.ReadAll(res.Response().Body)
 	if err != nil {
 		return nil, err
 	}

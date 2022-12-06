@@ -28,17 +28,17 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path"
 	"sync"
 
-	"github.com/Azure/azure-amqp-common-go/v3/aad"
-	"github.com/Azure/azure-amqp-common-go/v3/auth"
-	"github.com/Azure/azure-amqp-common-go/v3/conn"
-	"github.com/Azure/azure-amqp-common-go/v3/sas"
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/azure-amqp-common-go/v4/aad"
+	"github.com/Azure/azure-amqp-common-go/v4/auth"
+	"github.com/Azure/azure-amqp-common-go/v4/conn"
+	"github.com/Azure/azure-amqp-common-go/v4/sas"
+	"github.com/Azure/azure-amqp-common-go/v4/uuid"
 	"github.com/Azure/azure-sdk-for-go/services/eventhub/mgmt/2017-04-01/eventhub"
 	"github.com/Azure/go-amqp"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -234,7 +234,7 @@ func (hm *HubManager) Put(ctx context.Context, name string, opts ...HubManagemen
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -263,7 +263,7 @@ func (hm *HubManager) List(ctx context.Context) ([]*HubEntity, error) {
 		return nil, err
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -301,7 +301,7 @@ func (hm *HubManager) Get(ctx context.Context, name string) (*HubEntity, error) 
 		return nil, nil
 	}
 
-	b, err := ioutil.ReadAll(res.Body)
+	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -777,13 +777,16 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 
 func isRecoverableCloseError(err error) bool {
 	var detachError *amqp.DetachError
-	return isConnectionClosed(err) || isSessionClosed(err) || errors.As(err, &detachError)
+	// an *amqp.DetachError with a nil RemoteErr means that the link was closed client-side
+	return isConnectionClosed(err) || isSessionClosed(err) || (errors.As(err, &detachError) && detachError.RemoteErr != nil)
 }
 
 func isConnectionClosed(err error) bool {
-	return err == amqp.ErrConnClosed
+	var connErr *amqp.ConnError
+	return errors.As(err, &connErr)
 }
 
 func isSessionClosed(err error) bool {
-	return err == amqp.ErrSessionClosed
+	var sessionErr *amqp.SessionError
+	return errors.As(err, &sessionErr)
 }

@@ -33,10 +33,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/auth"
-	"github.com/Azure/azure-amqp-common-go/v3/conn"
-	"github.com/Azure/azure-amqp-common-go/v3/sas"
-	"github.com/Azure/azure-amqp-common-go/v3/uuid"
+	"github.com/Azure/azure-amqp-common-go/v4/auth"
+	"github.com/Azure/azure-amqp-common-go/v4/conn"
+	"github.com/Azure/azure-amqp-common-go/v4/sas"
+	"github.com/Azure/azure-amqp-common-go/v4/uuid"
 	eventhub "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 
