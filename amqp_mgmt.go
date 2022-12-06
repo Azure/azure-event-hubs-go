@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/v3/rpc"
+	"github.com/Azure/azure-amqp-common-go/v4/rpc"
 	"github.com/Azure/go-amqp"
 	"github.com/devigned/tab"
 	"github.com/mitchellh/mapstructure"
@@ -86,7 +86,7 @@ func (c *client) GetHubRuntimeInformation(ctx context.Context, conn *amqp.Conn) 
 	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetHubRuntimeInformation")
 	defer span.End()
 
-	rpcLink, err := rpc.NewLinkWithContext(ctx, conn, address)
+	rpcLink, err := rpc.NewLink(ctx, conn, address)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (c *client) GetHubPartitionRuntimeInformation(ctx context.Context, conn *am
 	ctx, span := tab.StartSpan(ctx, "eh.mgmt.client.GetHubPartitionRuntimeInformation")
 	defer span.End()
 
-	rpcLink, err := rpc.NewLinkWithContext(ctx, conn, address)
+	rpcLink, err := rpc.NewLink(ctx, conn, address)
 	if err != nil {
 		return nil, err
 	}

@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"time"
 
-	common "github.com/Azure/azure-amqp-common-go/v3"
+	common "github.com/Azure/azure-amqp-common-go/v4"
 	"github.com/Azure/go-amqp"
 	"github.com/devigned/tab"
 
