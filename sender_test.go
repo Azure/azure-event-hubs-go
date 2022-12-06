@@ -71,7 +71,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				&amqp.DetachError{},
+				&amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				&amqp.SessionError{},
 				errors.New("We'll never attempt to use this one since we ran out of retries")},
 		}
@@ -85,7 +85,7 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, []recoveryCall{
 			{
 				linkID:  "sender-id",
-				err:     &amqp.DetachError{},
+				err:     &amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				recover: true,
 			},
 			{
@@ -177,7 +177,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				&amqp.DetachError{},
+				&amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				&net.DNSError{},
 			},
 		}
@@ -188,7 +188,7 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, []recoveryCall{
 			{
 				linkID:  "sender-id",
-				err:     &amqp.DetachError{},
+				err:     &amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				recover: true,
 			},
 			{
@@ -204,7 +204,7 @@ func TestSenderRetries(t *testing.T) {
 		sender = &testAmqpSender{
 			sendErrors: []error{
 				&amqp.ConnError{},
-				&amqp.DetachError{},
+				&amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				&amqp.SessionError{},
 			},
 		}
@@ -220,7 +220,7 @@ func TestSenderRetries(t *testing.T) {
 			},
 			{
 				linkID:  "sender-id",
-				err:     &amqp.DetachError{},
+				err:     &amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				recover: true,
 			},
 			{
