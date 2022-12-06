@@ -311,7 +311,7 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 					break
 				}
 				recoverLink(sender.LinkName(), err, true)
-			case *amqp.DetachError, net.Error:
+			case net.Error:
 				recoverLink(sender.LinkName(), err, true)
 			default:
 				if !isRecoverableCloseError(err) {

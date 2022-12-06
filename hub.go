@@ -777,6 +777,7 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 
 func isRecoverableCloseError(err error) bool {
 	var detachError *amqp.DetachError
+	// an *amqp.DetachError with a nil RemoteErr means that the link was closed client-side
 	return isConnectionClosed(err) || isSessionClosed(err) || (errors.As(err, &detachError) && detachError.RemoteErr != nil)
 }
 

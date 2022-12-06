@@ -310,7 +310,7 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			return
 		default:
 			var detachErr *amqp.DetachError
-			if errors.As(err, &detachErr) && detachErr.RemoteErr.Condition == "amqp:link:stolen" {
+			if errors.As(err, &detachErr) && detachErr.RemoteErr != nil && detachErr.RemoteErr.Condition == "amqp:link:stolen" {
 				tab.For(ctx).Debug("link has been stolen by a higher epoch")
 				_ = r.Close(ctx)
 				return
