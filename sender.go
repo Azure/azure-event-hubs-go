@@ -70,7 +70,7 @@ type (
 	// Implemented by *amqp.Sender
 	amqpSender interface {
 		LinkName() string
-		Send(ctx context.Context, msg *amqp.Message) error
+		Send(ctx context.Context, msg *amqp.Message, opts *amqp.SendOptions) error
 		Close(ctx context.Context) error
 	}
 
@@ -297,7 +297,7 @@ func sendMessage(ctx context.Context, getAmqpSender getAmqpSender, maxRetries in
 			return ctx.Err()
 		default:
 			sender := getAmqpSender()
-			err := sender.Send(ctx, msg)
+			err := sender.Send(ctx, msg, nil)
 			if err == nil {
 				return err
 			}
@@ -346,7 +346,7 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 	span, ctx := s.startProducerSpanFromContext(ctx, "eh.sender.newSessionAndLink")
 	defer span.End()
 
-	connection, err := s.hub.namespace.newConnection()
+	connection, err := s.hub.namespace.newConnection(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return err
@@ -366,7 +366,6 @@ func (s *sender) newSessionAndLink(ctx context.Context) error {
 	}
 
 	amqpSender, err := amqpSession.NewSender(ctx, s.getAddress(), &amqp.SenderOptions{
-		IgnoreDispositionErrors:     true,
 		SettlementMode:              amqp.SenderSettleModeMixed.Ptr(),
 		RequestedReceiverSettleMode: amqp.ReceiverSettleModeFirst.Ptr(),
 	})

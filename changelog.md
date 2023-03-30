@@ -1,12 +1,16 @@
 # Change Log
 
+## `v3.5.0`
+
+- Updated to latest `azure-amqp-common-go` and `go-amqp` modules.
+
 ## `v3.4.1`
 
 - Updated `golang.org/x/net` to the latest version. [#286](https://github.com/Azure/azure-event-hubs-go/pull/286)
 
 ## `v3.4.0`
 
--Updated to latest `azure-amqp-common-go` and `go-amqp` modules.
+- Updated to latest `azure-amqp-common-go` and `go-amqp` modules.
 
 ## `v3.3.20`
 

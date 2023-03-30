@@ -29,7 +29,7 @@ func (s *testAmqpSender) LinkName() string {
 	return "sender-id"
 }
 
-func (s *testAmqpSender) Send(ctx context.Context, msg *amqp.Message) error {
+func (s *testAmqpSender) Send(ctx context.Context, msg *amqp.Message, opts *amqp.SendOptions) error {
 	var err error
 
 	if len(s.sendErrors) > s.sendCount {
@@ -71,7 +71,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				&amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
+				&amqp.LinkError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				&amqp.SessionError{},
 				errors.New("We'll never attempt to use this one since we ran out of retries")},
 		}
@@ -85,7 +85,7 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, []recoveryCall{
 			{
 				linkID:  "sender-id",
-				err:     &amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
+				err:     &amqp.LinkError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				recover: true,
 			},
 			{
@@ -117,14 +117,14 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				&amqp.DetachError{}, // this is no longer considered a retryable error (ErrLinkDetached is, however)
+				&amqp.LinkError{}, // this is no longer considered a retryable error (ErrLinkDetached is, however)
 			},
 		}
 
 		actualErr := sendMessage(context.TODO(), getAmqpSender, 5, nil, recover)
 
-		var detachErr *amqp.DetachError
-		assert.ErrorAs(t, actualErr, &detachErr)
+		var linkErr *amqp.LinkError
+		assert.ErrorAs(t, actualErr, &linkErr)
 		assert.EqualValues(t, 1, sender.sendCount)
 		assert.Empty(t, recoverCalls, "No recovery attempts should happen for non-recoverable errors")
 	})
@@ -177,7 +177,7 @@ func TestSenderRetries(t *testing.T) {
 		recoverCalls = nil
 		sender = &testAmqpSender{
 			sendErrors: []error{
-				&amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
+				&amqp.LinkError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				&net.DNSError{},
 			},
 		}
@@ -188,7 +188,7 @@ func TestSenderRetries(t *testing.T) {
 		assert.EqualValues(t, []recoveryCall{
 			{
 				linkID:  "sender-id",
-				err:     &amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
+				err:     &amqp.LinkError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				recover: true,
 			},
 			{
@@ -204,7 +204,7 @@ func TestSenderRetries(t *testing.T) {
 		sender = &testAmqpSender{
 			sendErrors: []error{
 				&amqp.ConnError{},
-				&amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
+				&amqp.LinkError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				&amqp.SessionError{},
 			},
 		}
@@ -220,7 +220,7 @@ func TestSenderRetries(t *testing.T) {
 			},
 			{
 				linkID:  "sender-id",
-				err:     &amqp.DetachError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
+				err:     &amqp.LinkError{RemoteErr: &amqp.Error{Condition: amqp.ErrCondDetachForced}},
 				recover: true,
 			},
 			{

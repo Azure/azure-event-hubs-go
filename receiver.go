@@ -309,8 +309,8 @@ func (r *receiver) listenForMessages(ctx context.Context, msgChan chan *amqp.Mes
 			tab.For(ctx).Debug("context done")
 			return
 		default:
-			var detachErr *amqp.DetachError
-			if errors.As(err, &detachErr) && detachErr.RemoteErr != nil && detachErr.RemoteErr.Condition == "amqp:link:stolen" {
+			var linkError *amqp.LinkError
+			if errors.As(err, &linkError) && linkError.RemoteErr != nil && linkError.RemoteErr.Condition == "amqp:link:stolen" {
 				tab.For(ctx).Debug("link has been stolen by a higher epoch")
 				_ = r.Close(ctx)
 				return
@@ -349,7 +349,7 @@ func (r *receiver) listenForMessage(ctx context.Context) (*amqp.Message, error) 
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.listenForMessage")
 	defer span.End()
 
-	msg, err := r.receiver.Receive(ctx)
+	msg, err := r.receiver.Receive(ctx, nil)
 	if err != nil {
 		tab.For(ctx).Debug(err.Error())
 		return nil, err
@@ -367,7 +367,7 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	span, ctx := r.startConsumerSpanFromContext(ctx, "eh.receiver.newSessionAndLink")
 	defer span.End()
 
-	connection, err := r.hub.namespace.newConnection()
+	connection, err := r.hub.namespace.newConnection(ctx)
 	if err != nil {
 		return err
 	}
@@ -402,7 +402,7 @@ func (r *receiver) newSessionAndLink(ctx context.Context) error {
 	}
 
 	opts := amqp.ReceiverOptions{
-		Credit:         r.prefetchCount,
+		Credit:         int32(r.prefetchCount),
 		SettlementMode: amqp.ReceiverSettleModeFirst.Ptr(),
 		Filters:        []amqp.LinkFilter{amqp.NewSelectorFilter(offsetExpression)},
 	}
