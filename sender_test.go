@@ -369,7 +369,7 @@ func (s *fakeSender) LinkName() string {
 	return "the-actual-link-id"
 }
 
-func (s *fakeSender) Send(ctx context.Context, msg *amqp.Message) error {
+func (s *fakeSender) Send(ctx context.Context, msg *amqp.Message, opts *amqp.SendOptions) error {
 	return nil
 }
 func (s *fakeSender) Close(ctx context.Context) error {
