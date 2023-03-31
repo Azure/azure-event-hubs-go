@@ -499,7 +499,7 @@ func (h *Hub) GetRuntimeInformation(ctx context.Context) (*HubRuntimeInformation
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetRuntimeInformation")
 	defer span.End()
 	client := newClient(h.namespace, h.name)
-	c, err := h.namespace.newConnection()
+	c, err := h.namespace.newConnection(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -525,7 +525,7 @@ func (h *Hub) GetPartitionInformation(ctx context.Context, partitionID string) (
 	span, ctx := h.startSpanFromContext(ctx, "eh.Hub.GetPartitionInformation")
 	defer span.End()
 	client := newClient(h.namespace, h.name)
-	c, err := h.namespace.newConnection()
+	c, err := h.namespace.newConnection(ctx)
 	if err != nil {
 		tab.For(ctx).Error(err)
 		return nil, err
@@ -776,9 +776,9 @@ func (h *Hub) getSender(ctx context.Context) (*sender, error) {
 }
 
 func isRecoverableCloseError(err error) bool {
-	var detachError *amqp.DetachError
-	// an *amqp.DetachError with a nil RemoteErr means that the link was closed client-side
-	return isConnectionClosed(err) || isSessionClosed(err) || (errors.As(err, &detachError) && detachError.RemoteErr != nil)
+	var linkError *amqp.LinkError
+	// an *amqp.LinkError with a nil RemoteErr means that the link was closed client-side
+	return isConnectionClosed(err) || isSessionClosed(err) || (errors.As(err, &linkError) && linkError.RemoteErr != nil)
 }
 
 func isConnectionClosed(err error) bool {

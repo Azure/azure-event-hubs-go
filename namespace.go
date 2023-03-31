@@ -89,7 +89,7 @@ func newNamespace(opts ...namespaceOption) (*namespace, error) {
 	return ns, nil
 }
 
-func (ns *namespace) newConnection() (*amqp.Conn, error) {
+func (ns *namespace) newConnection(ctx context.Context) (*amqp.Conn, error) {
 	host := ns.getAmqpsHostURI()
 
 	defaultConnOptions := amqp.ConnOptions{
@@ -112,10 +112,10 @@ func (ns *namespace) newConnection() (*amqp.Conn, error) {
 
 		wssConn.PayloadType = websocket.BinaryFrame
 		defaultConnOptions.HostName = trimmedHost
-		return amqp.NewConn(wssConn, &defaultConnOptions)
+		return amqp.NewConn(ctx, wssConn, &defaultConnOptions)
 	}
 
-	return amqp.Dial(host, &defaultConnOptions)
+	return amqp.Dial(ctx, host, &defaultConnOptions)
 }
 
 func (ns *namespace) negotiateClaim(ctx context.Context, conn *amqp.Conn, entityPath string) error {
