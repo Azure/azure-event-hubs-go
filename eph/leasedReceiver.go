@@ -122,14 +122,16 @@ func (lr *leasedReceiver) periodicallyRenewLease(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			skew := time.Duration(rand.Intn(1000)-500) * time.Millisecond
-			time.Sleep(DefaultLeaseRenewalInterval + skew)
+		case <-time.After(DefaultLeaseRenewalInterval + (time.Duration(rand.Intn(1000)-500) * time.Millisecond)):
 			err := lr.tryRenew(ctx)
 			if err != nil {
 				tab.For(ctx).Error(err)
 				lease := lr.getLease()
+				// the passed in context gets cancelled when we want the periodic lease renewal to stop.
+				// we can't pass it to stopReceiver() as that's guaranteed to not work.
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
 				_ = lr.processor.scheduler.stopReceiver(ctx, lease)
+				cancel()
 			}
 		}
 	}

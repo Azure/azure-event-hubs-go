@@ -32,7 +32,7 @@ import (
 	"github.com/devigned/tab"
 )
 
-var (
+const (
 	timeout = 60 * time.Second
 )
 
