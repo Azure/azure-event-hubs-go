@@ -3,11 +3,11 @@ module github.com/Azure/azure-event-hubs-go/v3
 go 1.18
 
 require (
-	github.com/Azure/azure-amqp-common-go/v4 v4.1.0
+	github.com/Azure/azure-amqp-common-go/v4 v4.2.0
 	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-sdk-for-go v65.0.0+incompatible
 	github.com/Azure/azure-storage-blob-go v0.15.0
-	github.com/Azure/go-amqp v0.19.1
+	github.com/Azure/go-amqp v1.0.0
 	github.com/Azure/go-autorest/autorest v0.11.28
 	github.com/Azure/go-autorest/autorest/adal v0.9.21
 	github.com/Azure/go-autorest/autorest/azure/auth v0.4.2
