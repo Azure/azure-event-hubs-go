@@ -1,3 +1,4 @@
+// Deprecated: use github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs instead
 module github.com/Azure/azure-event-hubs-go/v3
 
 go 1.18
