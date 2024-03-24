@@ -56,6 +56,7 @@ type (
 		done                 func()
 		leaseRenewalInterval time.Duration
 		receiverMu           sync.Mutex
+		close                chan struct{}
 	}
 
 	ownerCount struct {
@@ -69,6 +70,7 @@ func newScheduler(eventHostProcessor *EventProcessorHost) *scheduler {
 		processor:            eventHostProcessor,
 		receivers:            make(map[string]*leasedReceiver),
 		leaseRenewalInterval: DefaultLeaseRenewalInterval,
+		close:                make(chan struct{}),
 	}
 }
 
@@ -81,6 +83,9 @@ func (s *scheduler) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			s.dlog(ctx, "shutting down scan")
+			return
+		case <-s.close:
 			s.dlog(ctx, "shutting down scan")
 			return
 		default:
@@ -194,6 +199,7 @@ func (s *scheduler) Stop(ctx context.Context) error {
 		_, _ = s.processor.leaser.ReleaseLease(ctx, lr.getLease().GetPartitionID())
 	}
 
+	close(s.close)
 	return lastErr
 }
 
