@@ -4,6 +4,8 @@
 [![Build Status](https://travis-ci.org/Azure/azure-event-hubs-go.svg?branch=master)](https://travis-ci.org/Azure/azure-event-hubs-go)
 [![Coverage Status](https://coveralls.io/repos/github/Azure/azure-event-hubs-go/badge.svg?branch=master)](https://coveralls.io/github/Azure/azure-event-hubs-go?branch=master)
 
+**Please note, a newer package is available: [azeventhubs](https://github.com/Azure/azure-sdk-for-go/blob/main/sdk/messaging/azeventhubs/README.md) as of [2023-05-09].**
+
 Azure Event Hubs is a highly scalable publish-subscribe service that can ingest millions of events per second and 
 stream them into multiple applications. This lets you process and analyze the massive amounts of data produced by your 
 connected devices and applications. Once Event Hubs has collected the data, you can retrieve, transform and store it by 

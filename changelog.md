@@ -1,6 +1,7 @@
 # Change Log
 
-## `head`
+## `v2.0.5`
+-  deprecate this library in favor of github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs.
 
 ## `v2.0.4`
 - add comment on the `PartitionID` field in `SystemProperties` to clarify that it will always return a nil value [#131](https://github.com/Azure/azure-event-hubs-go/issues/131)
