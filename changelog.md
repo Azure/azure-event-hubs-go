@@ -1,5 +1,8 @@
 # Change Log
 
+## `v1.3.2`
+-  deprecate this library in favor of github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs.
+
 ## `v1.3.1`
 - cleanup connection after making management request
 
